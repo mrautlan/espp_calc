@@ -223,10 +223,15 @@ try to `docker build` locally; reason about correctness and verify the app with 
 
 ## 11. Suggested next steps
 
-1. ~~Historical FX at purchase date for accurate EUR cost basis (Anlage KAP).~~ **DONE** — see §10.
-2. **Dividend (cash) income summary** in Portfolio-Analyse (CapTrader/EquatePlus cash dividends + US
-   withholding are in the statements but not yet surfaced).
-3. **Robust product lookup** (proper API) to replace fragile Amazon scraping.
+1. **Write a `README.md`** — the repo currently has no README; this HANDOVER is the only doc. Add a
+   proper README aimed at a new reader/contributor: one-line pitch, the 5 tabs / key features, tech
+   stack (Express + vanilla JS, no build step), **run locally** (`npm install && npm start` →
+   http://localhost:3002), **deploy** (point to `DEPLOY.md` / Docker), the **client-side-only privacy**
+   guarantee, and a note that the private `payslips/` + root `*.txt`/`*.pdf` are git-ignored and must
+   never be shipped. Keep deep internals in this HANDOVER and link to it from the README.
+2. ~~Historical FX at purchase date for accurate EUR cost basis (Anlage KAP).~~ **DONE** — see §10.
+3. **Dividend (cash) income summary** in Portfolio-Analyse (CapTrader/IBKR + EquatePlus cash dividends
+   + US withholding are in the statements but not yet surfaced).
 4. **German tax PDF export** (Anlage KAP) of the realized FIFO sales.
 5. **Lot management GUI** (manually edit/add/delete parsed lots).
 6. Optionally finish renaming internal `porsche*` identifiers to `goal*` for clarity.

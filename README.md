@@ -45,14 +45,53 @@ all personal/financial data is processed client-side.
 
 ---
 
+## Project structure
+
+```
+.
+├── server.js            # Express server + API proxies (Yahoo Finance price/FX, product lookup)
+├── public/              # Frontend — served statically, no build step
+│   ├── index.html       # Single page with the five tabs
+│   ├── app.js           # All client-side logic: calculator, PDF parsing, portfolio, goal tracker, charts
+│   ├── style.css        # Dark "glassmorphism" design system
+│   └── favicon.svg
+├── package.json         # express (runtime); pdf-parse + playwright are devDependencies only
+├── package-lock.json
+├── Dockerfile           # node:20-alpine production image
+├── docker-compose.yml   # Container orchestration
+├── .dockerignore        # Keeps dev files out of the image
+├── .gitignore
+├── DEPLOY.md            # Deployment guide (Docker + Caddy reverse proxy for HTTPS)
+└── README.md
+```
+
+`public/` also contains a couple of legacy assets (`debug-portfolio.js`, `porsche_gt3_rs.png`) that are
+no longer used by the app.
+
+---
+
 ## Run locally
 
 ```bash
 npm install
-npm start
+npm start          # or: npm run dev
 ```
 
-Then open **http://localhost:3002** (override with the `PORT` env var).
+Then open **http://localhost:3002** (override with the `PORT` env var). There is no build step — the
+server serves `public/` as static files.
+
+---
+
+## Configuration
+
+Set via environment variables (sensible defaults are baked in):
+
+- `PORT` — HTTP port (default `3002`).
+- `SEARXNG_URL` — a self-hosted [SearXNG](https://docs.searxng.org/) instance with JSON output enabled,
+  used by the Ziel-Tracker's free-text product search.
+
+Analytics: `public/index.html` includes a [Umami](https://umami.is/) snippet pointing at a self-hosted
+instance — change or remove it for your own deployment.
 
 ---
 
@@ -65,24 +104,11 @@ instructions (Docker image, `docker-compose.yml`, and a Caddy reverse-proxy snip
 docker compose up -d --build
 ```
 
-Two integrations expect a reachable host (set via env vars, defaults baked in):
-
-- `SEARXNG_URL` — a self-hosted [SearXNG](https://docs.searxng.org/) instance (JSON output enabled),
-  used for the Ziel-Tracker's free-text product search.
-- Umami analytics — the snippet in `public/index.html` points at a self-hosted Umami instance.
-
 ---
 
-## Privacy & sensitive files
+## Privacy
 
-- All uploaded statements/payslips are parsed **locally in the browser** — they never reach the server.
-- The `payslips/` directory and the root `*.txt` / `*.pdf` files contain the owner's **private**
-  statements and payslips. They are **git-ignored and Docker-ignored** and must **never be shipped**.
-
----
-
-## Documentation
-
-`HANDOVER.md` is the source of truth for the internal architecture — the data model, PDF parsing for
-each statement format, the tax calculations, persistence, and deployment details. Read it before
-changing balance/tax logic.
+- All statements/payslips you upload are parsed **locally in your browser** — they never reach the
+  server, and nothing is persisted server-side.
+- This repository contains **no personal data**. Keep your own statements/payslips out of version
+  control — the `.gitignore` excludes `payslips/`; never commit brokerage statements or their extracts.

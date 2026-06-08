@@ -2,3 +2,5 @@ payslips/
 node_modules/
 .claude/
 .bob/
+.DS_Store
+source.md

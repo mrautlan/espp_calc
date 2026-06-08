@@ -122,6 +122,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initPorscheTracker();
   initPortfolioModule();
   initWelcome();
+  initThemeToggle();
 
   // Details Toggle in Aktientransfer
   document.querySelectorAll('.btn-show-details').forEach(btn => {
@@ -146,6 +147,32 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 });
+
+// Light/Dark mode toggle. The saved theme is applied pre-paint by the inline
+// <head> script; here we just keep the button in sync and handle clicks.
+// Persisted in localStorage['espp_theme'] so it sticks across every tab/reload.
+function initThemeToggle() {
+  const btn = document.getElementById('themeToggle');
+  if (!btn) return;
+
+  const apply = (theme) => {
+    if (theme === 'light') {
+      document.documentElement.setAttribute('data-theme', 'light');
+    } else {
+      document.documentElement.removeAttribute('data-theme');
+    }
+    btn.setAttribute('aria-pressed', theme === 'light' ? 'true' : 'false');
+  };
+
+  // Reflect the theme the head-script already applied.
+  apply(document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+
+  btn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    apply(next);
+    try { localStorage.setItem('espp_theme', next); } catch (e) { /* ignore */ }
+  });
+}
 
 // First-visit welcome overlay + the "what is this" capability shortcuts.
 function initWelcome() {
@@ -379,7 +406,6 @@ function renderStrategyDetails(strategyId) {
 }
 
 function saveCalculatorState() {
-  const uploadStatus = document.getElementById('uploadStatus');
   const btnClearCalculator = document.getElementById('btnClearCalculator');
   
   const serialized = {
@@ -391,9 +417,7 @@ function saveCalculatorState() {
     soli: elements.selectSoli.value,
     broker: elements.selectBroker.value,
     sellPrice: elements.inputSellPrice.value,
-    accumulatedMonths: elements.inputAccumulatedMonths.value,
-    uploadStatusHTML: uploadStatus ? uploadStatus.innerHTML : '',
-    uploadStatusClass: uploadStatus ? uploadStatus.className : ''
+    accumulatedMonths: elements.inputAccumulatedMonths.value
   };
   
   localStorage.setItem('espp_calculator_state', JSON.stringify(serialized));
@@ -462,12 +486,7 @@ function loadCalculatorState() {
       }
     }
 
-    const uploadStatus = document.getElementById('uploadStatus');
-    if (uploadStatus && parsed.uploadStatusHTML) {
-      uploadStatus.innerHTML = parsed.uploadStatusHTML;
-      uploadStatus.className = parsed.uploadStatusClass;
-      uploadStatus.classList.remove('hidden-status');
-    }
+    // omit loading uploadStatusHTML as it should not persist across reloads
     
     if (btnClearCalculator) {
       btnClearCalculator.style.display = 'block';
@@ -807,15 +826,7 @@ function updateChart(netInvest, payrollTax, sellCosts, netProfit) {
         maintainAspectRatio: false,
         plugins: {
           legend: {
-            position: 'right',
-            labels: {
-              color: '#9ca3af',
-              font: {
-                family: 'Outfit',
-                size: 11
-              },
-              boxWidth: 12
-            }
+            display: false  // custom HTML legend is rendered under the donut (see .chart-legend)
           },
           tooltip: {
             callbacks: {
@@ -1031,12 +1042,7 @@ function initPdfUploader() {
     // Recalculate everything
     calculateESPP();
 
-    let successMsg = `<strong><i class="fa-solid fa-circle-check"></i> Daten erfolgreich extrahiert:</strong><br>
-      • Bruttogehalt: <strong>${extractedSalary.toLocaleString('de-DE', {minimumFractionDigits: 2})} €</strong><br>
-      • Sparquote: <strong>${extractedSavingsRate !== null ? extractedSavingsRate + ' %' : '10 % (nicht in PDF, Standard)'}</strong><br>
-      • Steuerklasse: <strong>${extractedTaxClass}</strong><br>
-      • Kirchensteuer: <strong>${extractedChurchTax > 0 ? extractedChurchTax + ' %' : 'Keine'}</strong><br>
-      • Geschätzter Grenzsteuersatz: <strong>${estimatedMarginalRate} %</strong> (basierend auf Gehalt)`;
+    let successMsg = `<strong><i class="fa-solid fa-circle-check"></i> Daten erfolgreich aus PDF importiert!</strong>`;
       
     showStatus(successMsg, 'success');
     saveCalculatorState();

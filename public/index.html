@@ -6,6 +6,18 @@
   <title>IBM ESPP Navigator & Rechner</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
+  <!-- Apply the saved (or system-preferred) theme before first paint to avoid a flash. -->
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem('espp_theme');
+        var theme = saved || (window.matchMedia &&
+          window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+        if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+      } catch (e) { /* localStorage unavailable — default to dark */ }
+    })();
+  </script>
+
   <!-- Modern Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -48,6 +60,10 @@
       </nav>
       
       <div class="header-right">
+        <button id="themeToggle" class="theme-toggle" type="button" title="Hell-/Dunkelmodus umschalten" aria-label="Hell-/Dunkelmodus umschalten">
+          <i class="fa-solid fa-sun"></i>
+          <i class="fa-solid fa-moon"></i>
+        </button>
         <button id="helpBtn" class="help-btn" type="button" title="Was ist diese Seite?" aria-label="Was ist diese Seite?"><i class="fa-solid fa-question"></i></button>
         <div class="live-ticker" id="liveTicker">
           <span class="pulse-dot"></span>
@@ -87,10 +103,10 @@
         <div class="howto-head"><i class="fa-solid fa-circle-question"></i> So nutzt Du den Rechner</div>
         <ol class="howto-steps">
           <li>
-            <strong>Gehaltsabrechnung (PDF) hochladen.</strong> Lege Deine Abrechnung im Feld
-            „Gehaltsabrechnung importieren“ ab – Bruttogehalt, Sparrate und Steuerprofil werden
-            <strong>automatisch</strong> ausgefüllt. Kein PDF zur Hand? Stelle die Werte einfach
-            per Regler selbst ein.
+            <strong>Deine Daten eingeben.</strong> Stelle Gehalt, Sparrate und Steuerprofil einfach
+            selbst per Regler und Eingabefeld ein. Wenn Du möchtest, kannst Du stattdessen Deine
+            <strong>Gehaltsabrechnung (PDF)</strong> hochladen – dann werden diese Werte automatisch
+            befüllt. Ein Upload ist also <strong>nicht nötig</strong>, und Du kannst jeden Wert jederzeit ändern.
           </li>
           <li>
             <strong>Verkauf festlegen.</strong> Wähle Deinen <em>Broker/Verkaufsweg</em>, den
@@ -129,108 +145,126 @@
             <i class="fa-solid fa-trash-can"></i> Rechner-Daten zurücksetzen
           </button>
 
-          <div class="input-section-label"><i class="fa-solid fa-chart-simple"></i> Aktienkurs &amp; Sparrate</div>
-
-          <div class="form-group">
-            <div class="label-with-value">
-              <label for="inputStockPrice"><i class="fa-solid fa-dollar-sign"></i> Aktueller IBM Kurs (USD)</label>
-              <div class="input-inline-wrap">
-                <input type="number" id="inputStockPrice" step="0.01" value="180.00">
-                <button id="btnFetchStock" title="Aktualisieren"><i class="fa-solid fa-arrows-rotate"></i></button>
+          <div class="input-group-card group-stocks-savings">
+            <div class="input-group-header">
+              <i class="fa-solid fa-chart-line"></i>
+              <h4>Aktienkurs &amp; Sparrate</h4>
+            </div>
+            <div class="input-group-body">
+              <div class="form-group">
+                <div class="label-with-value">
+                  <label for="inputStockPrice"><i class="fa-solid fa-dollar-sign"></i> Aktueller IBM Kurs (USD)</label>
+                  <div class="input-inline-wrap">
+                    <input type="number" id="inputStockPrice" step="0.01" value="180.00">
+                    <button id="btnFetchStock" title="Aktualisieren"><i class="fa-solid fa-arrows-rotate"></i></button>
+                  </div>
+                </div>
+                <div class="input-subtitle" id="stockPriceEUR">Gegenwert in EUR: <span id="valStockPriceEUR">0,00 €</span> (Kurs: <span id="valExchangeRate">1,00</span>)</div>
               </div>
-            </div>
-            <div class="input-subtitle" id="stockPriceEUR">Gegenwert in EUR: <span id="valStockPriceEUR">0,00 €</span> (Kurs: <span id="valExchangeRate">1,00</span>)</div>
-          </div>
-          
-          <div class="form-row">
-            <div class="form-group col">
-              <div class="label-with-value">
-                <label for="inputMonthlySalary"><i class="fa-solid fa-money-check-dollar"></i> Bruttogehalt (€/Monat)</label>
-                <span class="slider-val" id="valMonthlySalary">5.000 €</span>
+              
+              <div class="form-row">
+                <div class="form-group col">
+                  <div class="label-with-value">
+                    <label for="inputMonthlySalary"><i class="fa-solid fa-money-check-dollar"></i> Bruttogehalt (€/Monat)</label>
+                    <span class="slider-val" id="valMonthlySalary">5.000 €</span>
+                  </div>
+                  <input type="range" id="inputMonthlySalary" min="1000" max="20000" step="1" value="5000">
+                </div>
+                <div class="form-group col">
+                  <div class="label-with-value">
+                    <label for="inputSavingsRate"><i class="fa-solid fa-percent"></i> Sparquote (% vom Brutto)</label>
+                    <span class="slider-val" id="valSavingsRate">10 %</span>
+                  </div>
+                  <input type="range" id="inputSavingsRate" min="1" max="10" step="1" value="10">
+                </div>
               </div>
-              <input type="range" id="inputMonthlySalary" min="1000" max="20000" step="1" value="5000">
-            </div>
-            <div class="form-group col">
-              <div class="label-with-value">
-                <label for="inputSavingsRate"><i class="fa-solid fa-percent"></i> Sparquote (% vom Brutto)</label>
-                <span class="slider-val" id="valSavingsRate">10 %</span>
-              </div>
-              <input type="range" id="inputSavingsRate" min="1" max="10" step="1" value="10">
-            </div>
-          </div>
-          
-          <div class="input-helper" style="margin-top: -12px; margin-bottom: 20px;">
-            <i class="fa-solid fa-circle-info"></i> <strong>Hinweis:</strong> Es wird nur das monatliche <strong>Grundgehalt</strong> berücksichtigt, variable Vergütungen (wie Provisionen) bleiben ausgeklammert.
-          </div>
-
-          <div class="input-section-label"><i class="fa-solid fa-landmark"></i> Steuerprofil</div>
-
-          <div class="form-row">
-            <div class="form-group col">
-              <label for="selectTaxYear"><i class="fa-solid fa-calendar"></i> Steuerjahr / Gesetz</label>
-              <select id="selectTaxYear">
-                <option value="2026" selected>2026 (2.000 € Freibetrag & Tarif 2026)</option>
-                <option value="2024">2024 / 2025 (2.000 € Freibetrag & Tarif 2024)</option>
-                <option value="2023">Bis 2023 (1.440 € Freibetrag & Tarif 2023)</option>
-              </select>
-            </div>
-            
-            <div class="form-group col">
-              <div class="label-with-value">
-                <label for="inputTaxRate"><i class="fa-solid fa-percent"></i> Grenzsteuersatz <span class="tooltip-trigger" data-tooltip="Dein persönlicher Grenzsteuersatz (Spitzensteuersatz des Einkommens). Steuerklassen beeinflussen nur das monatliche Netto-Einbehaltungsverhalten, nicht aber den tatsächlichen Grenzsteuersatz am Jahresende.">i</span></label>
-                <span class="slider-val" id="valTaxRate">35 %</span>
-              </div>
-              <input type="range" id="inputTaxRate" min="14" max="45" step="1" value="35">
-            </div>
-          </div>
-
-          <div class="form-row">
-            <div class="form-group col">
-              <label for="selectChurchTax"><i class="fa-solid fa-church"></i> Kirchensteuer</label>
-              <select id="selectChurchTax">
-                <option value="0">Keine Kirchensteuer</option>
-                <option value="8">8% Kirchensteuer (BY, BW)</option>
-                <option value="9" selected>9% Kirchensteuer (andere Bundesländer)</option>
-              </select>
-            </div>
-            
-            <div class="form-group col">
-              <label for="selectSoli"><i class="fa-solid fa-scale-unbalanced-flip"></i> Soli (auf Lohnsteuer) <span class="tooltip-trigger" data-tooltip="Betrifft nur die Steuer auf den geldwerten Vorteil (15% Rabatt). Auf die Abgeltungsteuer beim Verkauf wird der Soli (5,5%) ohnehin immer erhoben und ist in den 26,375% bereits enthalten.">i</span></label>
-              <select id="selectSoli">
-                <option value="0" selected>Kein Soli (unterhalb Freigrenze)</option>
-                <option value="5.5">5,5% Soli (Zahler)</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="input-section-label"><i class="fa-solid fa-money-bill-transfer"></i> Verkauf &amp; Haltedauer</div>
-
-          <div class="form-row">
-            <div class="form-group col">
-              <label for="selectBroker"><i class="fa-solid fa-building-columns"></i> Verkaufsweg & Broker</label>
-              <select id="selectBroker">
-                <option value="captrader" selected>CapTrader / IBKR (Empfohlen - ca. 4€)</option>
-                <option value="equateplus">EquatePlus / CS Direkt (Teuer - ca. $55+)</option>
-                <option value="german">Deutscher Broker (Steuer-Falle: 30% Einbehalt)</option>
-              </select>
-            </div>
-
-            <div class="form-group col">
-              <label for="inputSellPrice"><i class="fa-solid fa-money-bill-trend-up"></i> Verkaufskurs (USD)</label>
-              <input type="number" id="inputSellPrice" step="0.01" value="180.00">
-              <div class="input-subtitle">
-                Annahme für Gewinnberechnung beim Verkauf.
+              
+              <div class="input-helper" style="margin-top: 14px;">
+                <i class="fa-solid fa-circle-info"></i> <strong>Hinweis:</strong> Es wird nur das monatliche <strong>Grundgehalt</strong> berücksichtigt, variable Vergütungen (wie Provisionen) bleiben ausgeklammert.
               </div>
             </div>
           </div>
 
-          <div class="form-group">
-            <div class="label-with-value">
-              <label for="inputAccumulatedMonths"><i class="fa-solid fa-clock"></i> Haltedauer (Monate)</label>
-              <span class="slider-val" id="valAccumulatedMonths">12 Monate</span>
+          <div class="input-group-card group-taxes">
+            <div class="input-group-header">
+              <i class="fa-solid fa-landmark"></i>
+              <h4>Steuerprofil</h4>
             </div>
-            <input type="range" id="inputAccumulatedMonths" min="1" max="120" step="1" value="12">
-            <div class="input-helper">Berechnet den kumulierten Gewinn und prüft die Ausschöpfung des Freibetrags über das Jahr.</div>
+            <div class="input-group-body">
+              <div class="form-row">
+                <div class="form-group col">
+                  <label for="selectTaxYear"><i class="fa-solid fa-calendar"></i> Steuerjahr / Gesetz</label>
+                  <select id="selectTaxYear">
+                    <option value="2026" selected>2026 (2.000 € Freibetrag & Tarif 2026)</option>
+                    <option value="2024">2024 / 2025 (2.000 € Freibetrag & Tarif 2024)</option>
+                    <option value="2023">Bis 2023 (1.440 € Freibetrag & Tarif 2023)</option>
+                  </select>
+                </div>
+                
+                <div class="form-group col">
+                  <div class="label-with-value">
+                    <label for="inputTaxRate"><i class="fa-solid fa-percent"></i> Grenzsteuersatz <span class="tooltip-trigger" data-tooltip="Dein Spitzensteuersatz. Aus einer Gehaltsabrechnung nur grob geschätzt (das Monatsgehalt × 12), denn der echte Satz hängt vom gesamten Jahreseinkommen ab. Am genauesten: Wert aus dem Steuerbescheid eintragen.">i</span></label>
+                    <span class="slider-val" id="valTaxRate">35 %</span>
+                  </div>
+                  <input type="range" id="inputTaxRate" min="14" max="45" step="1" value="35">
+                </div>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group col">
+                  <label for="selectChurchTax"><i class="fa-solid fa-church"></i> Kirchensteuer</label>
+                  <select id="selectChurchTax">
+                    <option value="0">Keine Kirchensteuer</option>
+                    <option value="8">8% Kirchensteuer (BY, BW)</option>
+                    <option value="9" selected>9% Kirchensteuer (andere Bundesländer)</option>
+                  </select>
+                </div>
+                
+                <div class="form-group col">
+                  <label for="selectSoli"><i class="fa-solid fa-scale-unbalanced-flip"></i> Soli (auf Lohnsteuer) <span class="tooltip-trigger" data-tooltip="Betrifft nur die Steuer auf den geldwerten Vorteil (15% Rabatt). Auf die Abgeltungsteuer beim Verkauf wird der Soli (5,5%) ohnehin immer erhoben und ist in den 26,375% bereits enthalten.">i</span></label>
+                  <select id="selectSoli">
+                    <option value="0" selected>Kein Soli (unterhalb Freigrenze)</option>
+                    <option value="5.5">5,5% Soli (Zahler)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="input-group-card group-selling">
+            <div class="input-group-header">
+              <i class="fa-solid fa-money-bill-transfer"></i>
+              <h4>Verkauf &amp; Haltedauer</h4>
+            </div>
+            <div class="input-group-body">
+              <div class="form-row">
+                <div class="form-group col">
+                  <label for="selectBroker"><i class="fa-solid fa-building-columns"></i> Verkaufsweg & Broker</label>
+                  <select id="selectBroker">
+                    <option value="captrader" selected>CapTrader / IBKR (Empfohlen - ca. 4€)</option>
+                    <option value="equateplus">EquatePlus / CS Direkt (Teuer - ca. $55+)</option>
+                    <option value="german">Deutscher Broker (Steuer-Falle: 30% Einbehalt)</option>
+                  </select>
+                </div>
+
+                <div class="form-group col">
+                  <label for="inputSellPrice"><i class="fa-solid fa-money-bill-trend-up"></i> Verkaufskurs (USD)</label>
+                  <input type="number" id="inputSellPrice" step="0.01" value="180.00">
+                  <div class="input-subtitle">
+                    Annahme für Gewinnberechnung beim Verkauf.
+                  </div>
+                </div>
+              </div>
+
+              <div class="form-group">
+                <div class="label-with-value">
+                  <label for="inputAccumulatedMonths"><i class="fa-solid fa-clock"></i> Haltedauer (Monate)</label>
+                  <span class="slider-val" id="valAccumulatedMonths">12 Monate</span>
+                </div>
+                <input type="range" id="inputAccumulatedMonths" min="1" max="120" step="1" value="12">
+                <div class="input-helper">Berechnet den kumulierten Gewinn und prüft die Ausschöpfung des Freibetrags über das Jahr.</div>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -241,35 +275,38 @@
             <span class="badge badge-success">Ergebnisse (Netto)</span>
           </div>
           
-          <div class="profit-summary">
-            <div class="profit-main">
-              <span class="profit-label">Gesamter Netto-Gewinn (nach Steuern & Gebühren)</span>
-              <div class="profit-value-group">
+          <!-- HERO: the donut is the focal point, with the net profit centered inside it -->
+          <div class="result-hero">
+            <div class="donut-wrap">
+              <canvas id="profitChart"></canvas>
+              <div class="chart-center">
+                <span class="chart-center-label">Netto-Gewinn</span>
                 <h4 id="netProfitEuro">0,00 €</h4>
                 <span class="percentage-pill positive" id="netProfitPercent">+0,0%</span>
               </div>
             </div>
-            <div class="profit-meta">
-              <div class="meta-item">
-                <span>Eingesetztes Netto-Kapital</span>
-                <strong id="netInvestment">0,00 €</strong>
-              </div>
-              <div class="meta-item">
-                <span>Rendite auf eingesetztes Netto</span>
-                <strong class="text-success" id="netReturnOnCapital">0,0%</strong>
-              </div>
+            <div class="chart-legend">
+              <span class="cl-item"><i style="background:#3b82f6"></i> Netto-Sparrate</span>
+              <span class="cl-item"><i style="background:#fbbf24"></i> Lohnsteuer</span>
+              <span class="cl-item"><i style="background:#f87171"></i> Gebühren &amp; KSt.</span>
+              <span class="cl-item"><i style="background:#10b981"></i> Netto-Gewinn</span>
             </div>
           </div>
-          
-          <div class="divider"></div>
-          
-          <!-- Visual Chart Container -->
-          <div class="chart-container">
-            <canvas id="profitChart"></canvas>
+
+          <!-- At-a-glance key figures -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <span class="kpi-label">Eingesetztes Netto-Kapital</span>
+              <strong id="netInvestment">0,00 €</strong>
+            </div>
+            <div class="kpi-card">
+              <span class="kpi-label">Rendite aufs Netto</span>
+              <strong class="text-success" id="netReturnOnCapital">0,0%</strong>
+            </div>
           </div>
-          
-          <div class="divider"></div>
-          
+
+          <div class="result-breakdown-heading">Aufschlüsselung</div>
+
           <!-- Detailed Breakdown Table -->
           <div class="breakdown-details">
             <div class="detail-row">
@@ -1292,9 +1329,20 @@
           <i class="fa-brands fa-linkedin"></i> Maximilian Rautland
         </a>
       </p>
+      <p class="footer-source">
+        <i class="fa-solid fa-book"></i> Weitere Informationen:
+        <a href="https://github.ibm.com/hajo-pross/ExtendedBrain/blob/master/ESPP/ESPP.md" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> ESPP-Dokumentation</a>
+        <span class="footer-source-note">— IBM-intern</span>
+      </p>
       <div class="disclaimer">
         <strong>Disclaimer:</strong> Dieser Web-Rechner und die bereitgestellten Informationen dienen ausschließlich Informationszwecken und stellen keine Finanz- oder Steuerberatung dar. Ich übernehme <strong>keine Gewähr für die Richtigkeit</strong> der Berechnungen – sie sind mit Vorsicht zu genießen und ersetzen keine eigene Prüfung.
       </div>
+      <p class="footer-madewith">
+        <span class="mw-text">Built with</span>
+        <span class="mw-and">&amp;</span>
+        <svg class="mw-logo" viewBox="0 -.01 39.5 39.53" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Claude"><path d="m7.75 26.27 7.77-4.36.13-.38-.13-.21h-.38l-1.3-.08-4.44-.12-3.85-.16-3.73-.2-.94-.2-.88-1.16.09-.58.79-.53 1.13.1 2.5.17 3.75.26 2.72.16 4.03.42h.64l.09-.26-.22-.16-.17-.16-3.88-2.63-4.2-2.78-2.2-1.6-1.19-.81-.6-.76-.26-1.66 1.08-1.19 1.45.1.37.1 1.47 1.13 3.14 2.43 4.1 3.02.6.5.24-.17.03-.12-.27-.45-2.23-4.03-2.38-4.1-1.06-1.7-.28-1.02c-.1-.42-.17-.77-.17-1.2l1.23-1.67.68-.22 1.64.22.69.6 1.02 2.33 1.65 3.67 2.56 4.99.75 1.48.4 1.37.15.42h.26v-.24l.21-2.81.39-3.45.38-4.44.13-1.25.62-1.5 1.23-.81.96.46.79 1.13-.11.73-.47 3.05-.92 4.78-.6 3.2h.35l.4-.4 1.62-2.15 2.72-3.4 1.2-1.35 1.4-1.49.9-.71h1.7l1.25 1.86-.56 1.92-1.75 2.22-1.45 1.88-2.08 2.8-1.3 2.24.12.18.31-.03 4.7-1 2.54-.46 3.03-.52 1.37.64.15.65-.54 1.33-3.24.8-3.8.76-5.66 1.34-.07.05.08.1 2.55.24 1.09.06h2.67l4.97.37 1.3.86.78 1.05-.13.8-2 1.02-2.7-.64-6.3-1.5-2.16-.54h-.3v.18l1.8 1.76 3.3 2.98 4.13 3.84.21.95-.53.75-.56-.08-3.63-2.73-1.4-1.23-3.17-2.67h-.21v.28l.73 1.07 3.86 5.8.2 1.78-.28.58-1 .35-1.1-.2-2.26-3.17-2.33-3.57-1.88-3.2-.23.13-1.11 11.95-.52.61-1.2.46-1-.76-.53-1.23.53-2.43.64-3.17.52-2.52.47-3.13.28-1.04-.02-.07-.23.03-2.36 3.24-3.59 4.85-2.84 3.04-.68.27-1.18-.61.11-1.09.66-.97 3.93-5 2.37-3.1 1.53-1.79-.01-.26h-.09l-10.44 6.78-1.86.24-.8-.75.1-1.23.38-.4 3.14-2.16z" fill="#d97757"/></svg>
+        <svg class="mw-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Antigravity"><mask height="23" id="ag-mask-0" maskUnits="userSpaceOnUse" width="24" x="0" y="1"><path d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z" fill="#fff"></path></mask><g mask="url(#ag-mask-0)"><g filter="url(#ag-f1)"><path d="M-1.018-3.992c-.408 3.591 2.686 6.89 6.91 7.37 4.225.48 7.98-2.043 8.387-5.633.408-3.59-2.686-6.89-6.91-7.37-4.225-.479-7.98 2.043-8.387 5.633z" fill="#FFE432"></path></g><g filter="url(#ag-f2)"><path d="M15.269 7.747c1.058 4.557 5.691 7.374 10.348 6.293 4.657-1.082 7.575-5.653 6.516-10.21-1.058-4.556-5.691-7.374-10.348-6.292-4.657 1.082-7.575 5.653-6.516 10.21z" fill="#FC413D"></path></g><g filter="url(#ag-f3)"><path d="M-12.443 10.804c1.338 4.703 7.36 7.11 13.453 5.378 6.092-1.733 9.947-6.95 8.61-11.652C8.282-.173 2.26-2.58-3.833-.848-9.925.884-13.78 6.1-12.443 10.804z" fill="#00B95C"></path></g><g filter="url(#ag-f5)"><path d="M-7.608 14.703c3.352 3.424 9.126 3.208 12.896-.483 3.77-3.69 4.108-9.459.756-12.883C2.69-2.087-3.083-1.871-6.853 1.82c-3.77 3.69-4.108 9.458-.755 12.883z" fill="#00B95C"></path></g><g filter="url(#ag-f6)"><path d="M9.932 27.617c1.04 4.482 5.384 7.303 9.7 6.3 4.316-1.002 6.971-5.448 5.93-9.93-1.04-4.483-5.384-7.304-9.7-6.301-4.316 1.002-6.971 5.448-5.93 9.93z" fill="#3186FF"></path></g><g filter="url(#ag-f7)"><path d="M2.572-8.185C.392-3.329 2.778 2.472 7.9 4.771c5.122 2.3 11.042.227 13.222-4.63 2.18-4.855-.205-10.656-5.327-12.955-5.122-2.3-11.042-.227-13.222 4.63z" fill="#FBBC04"></path></g><g filter="url(#ag-f8)"><path d="M-3.267 38.686c-5.277-2.072 3.742-19.117 5.984-24.83 2.243-5.712 8.34-8.664 13.616-6.592 5.278 2.071 11.533 13.482 9.29 19.195-2.242 5.713-23.613 14.298-28.89 12.227z" fill="#3186FF"></path></g><g filter="url(#ag-f9)"><path d="M28.71 17.471c-1.413 1.649-5.1.808-8.236-1.878-3.135-2.687-4.531-6.201-3.118-7.85 1.412-1.649 5.1-.808 8.235 1.878s4.532 6.2 3.119 7.85z" fill="#749BFF"></path></g><g filter="url(#ag-f10)"><path d="M18.163 9.077c5.81 3.93 12.502 4.19 14.946.577 2.443-3.612-.287-9.727-6.098-13.658-5.81-3.931-12.502-4.19-14.946-.577-2.443 3.612.287 9.727 6.098 13.658z" fill="#FC413D"></path></g><g filter="url(#ag-f11)"><path d="M-.915 2.684c-1.44 3.473-.97 6.967 1.05 7.804 2.02.837 4.824-1.3 6.264-4.772 1.44-3.473.97-6.967-1.05-7.804-2.02-.837-4.824 1.3-6.264 4.772z" fill="#FFEE48"></path></g></g><defs><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="17.587" id="ag-f1" width="19.838" x="-3.288" y="-11.917"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="1.117"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="38.565" id="ag-f2" width="38.9" x="4.251" y="-13.493"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="5.4"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.517" id="ag-f3" width="40.955" x="-21.889" y="-10.592"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.595" id="ag-f5" width="36.632" x="-19.099" y="-10.278"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="34.087" id="ag-f6" width="33.533" x=".981" y="8.758"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="4.363"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="35.276" id="ag-f7" width="35.978" x="-6.143" y="-21.659"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="3.954"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="46.523" id="ag-f8" width="45.114" x="-11.96" y="-.46"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="3.531"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="24.054" id="ag-f9" width="25.094" x="10.485" y=".58"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="3.159"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="30.007" id="ag-f10" width="33.508" x="5.833" y="-12.467"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="2.669"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="26.151" id="ag-f11" width="22.194" x="-8.355" y="-8.876"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="3.303"></feGaussianBlur></filter></defs></svg>
+      </p>
     </div>
   </footer>
 

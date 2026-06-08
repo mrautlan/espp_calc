@@ -1,0 +1,12 @@
+services:
+  espp-calc:
+    build: .
+    image: espp-calc:latest
+    container_name: espp-calc
+    restart: unless-stopped
+    # Host port (left of the colon) -> container port 3002.
+    # Default 8080; override by exporting APP_PORT (e.g. APP_PORT=80 docker compose up -d).
+    ports:
+      - "${APP_PORT:-8080}:3002"
+    environment:
+      - PORT=3002

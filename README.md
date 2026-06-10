@@ -38,10 +38,12 @@ fees, and the historical USD/EUR rate at the purchase date.
 |-------|--------|
 | **Backend** | Node.js + **Express** (`server.js`). Only runtime dependency is `express`. |
 | **Frontend** | Vanilla **HTML/CSS/JS** in `public/` — no build step, no framework. |
-| **Libraries (CDN)** | **pdf.js** (client-side PDF parsing), **Chart.js**, **FontAwesome**, Google Fonts. |
+| **Libraries (self-hosted)** | **pdf.js** (client-side PDF parsing), **Chart.js**, **FontAwesome**, Inter/Outfit fonts — all vendored in `public/vendor/`, no CDNs. |
 
-The server only acts as a proxy for external calls (live IBM price, USD/EUR rates, product lookups);
-all personal/financial data is processed client-side.
+The server only acts as a proxy for *optional* external calls (live IBM price, USD/EUR rates, product
+lookups); **all personal/financial data — including PDF parsing — is processed entirely in your browser**.
+Because every asset is self-hosted, the page makes **zero external requests**: you can disconnect from the
+internet and the upload + analysis still work. Your statements never leave your machine.
 
 ---
 
@@ -90,8 +92,7 @@ Set via environment variables (sensible defaults are baked in):
 - `SEARXNG_URL` — a self-hosted [SearXNG](https://docs.searxng.org/) instance with JSON output enabled,
   used by the Ziel-Tracker's free-text product search.
 
-Analytics: `public/index.html` includes a [Umami](https://umami.is/) snippet pointing at a self-hosted
-instance — change or remove it for your own deployment.
+Analytics: **none** — there is no telemetry. The app loads only its own self-hosted assets.
 
 ---
 

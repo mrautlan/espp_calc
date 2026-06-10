@@ -6,36 +6,35 @@
   <title>IBM ESPP Navigator & Rechner</title>
   <link rel="icon" type="image/svg+xml" href="favicon.svg">
 
-  <!-- Apply the saved (or system-preferred) theme before first paint to avoid a flash. -->
+  <!-- Apply the saved theme before first paint to avoid a flash. Dark is the default
+       on first visit; light mode only when the user explicitly chose it. -->
   <script>
     (function () {
       try {
-        var saved = localStorage.getItem('espp_theme');
-        var theme = saved || (window.matchMedia &&
-          window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
-        if (theme === 'light') document.documentElement.setAttribute('data-theme', 'light');
+        if (localStorage.getItem('espp_theme') === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        }
       } catch (e) { /* localStorage unavailable — default to dark */ }
     })();
   </script>
 
-  <!-- Modern Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
-  <!-- FontAwesome Icons -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <!-- Chart.js for beautiful visualizations -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  
-  <!-- PDF.js for 100% client-side PDF parsing -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
-  
-  <link rel="stylesheet" href="style.css">
+  <!-- All assets are vendored locally (no CDNs, no external requests). This lets
+       you verify privacy: disconnect from the internet and the app — including the
+       PDF parser — still works. Your statements never leave your browser. -->
 
-  <!-- Umami Analytics (self-hosted) -->
-  <script defer src="https://umami.mraut.de/script.js" data-website-id="768dcc7c-f0eb-4756-87bc-36db8501228c"></script>
+  <!-- Modern Fonts (self-hosted Inter + Outfit) -->
+  <link rel="stylesheet" href="vendor/fonts/fonts.css">
+
+  <!-- FontAwesome Icons (self-hosted) -->
+  <link rel="stylesheet" href="vendor/fontawesome/css/all.min.css">
+
+  <!-- Chart.js for beautiful visualizations (self-hosted) -->
+  <script src="vendor/chart.umd.min.js"></script>
+
+  <!-- PDF.js for 100% client-side PDF parsing (self-hosted) -->
+  <script src="vendor/pdf.min.js"></script>
+
+  <link rel="stylesheet" href="style.css">
 
 </head>
 <body>
@@ -79,14 +78,20 @@
       <button class="welcome-close" id="welcomeClose" type="button" aria-label="Schließen">&times;</button>
       <div class="welcome-logo"><i class="fa-solid fa-arrow-trend-up"></i></div>
       <h2 id="welcomeTitle">Willkommen beim IBM ESPP Navigator</h2>
-      <p class="welcome-lead">Dieses Tool hilft Dir als IBMer, Deinen <strong>Employee Stock Purchase Plan (ESPP) </strong> wirklich zu verstehen und zu optimieren – mit korrekter deutscher Steuerberechnung.</p>
+      <p class="welcome-lead">Lohnt sich das IBM-Aktienprogramm für Dich? Dieses Tool rechnet es Dir durch – mit <strong>deutschen Steuerregeln</strong>, Live-Kursen und Deinen eigenen Zahlen.</p>
       <div class="welcome-features">
-        <div class="welcome-feature"><i class="fa-solid fa-calculator"></i><div><strong>Rechner</strong><span>Lohnt sich das Aktienprogramm? Netto-Gewinn nach Steuern &amp; Gebühren – optional aus Deiner Gehaltsabrechnung.</span></div></div>
-        <div class="welcome-feature"><i class="fa-solid fa-chart-pie"></i><div><strong>Portfolio-Analyse</strong><span>Lade Deine Statements von EquatePlus, CapTrader oder Interactive Brokers (IBKR) hoch und sieh echten Bestand, Wert &amp; Netto-Erlös bei Verkauf.</span></div></div>
-        <div class="welcome-feature"><i class="fa-solid fa-bullseye"></i><div><strong>Ziel-Tracker</strong><span>Setz ein Sparziel und sieh, wie viele Aktien Du dafür verkaufen müsstest – oder wie lange Du noch sparst.</span></div></div>
+        <div class="welcome-feature"><i class="fa-solid fa-calculator"></i><div><strong>Rechner</strong><span>Dein Netto-Gewinn nach Steuern &amp; Gebühren – auf Wunsch automatisch aus Deiner Gehaltsabrechnung.</span></div></div>
+        <div class="welcome-feature"><i class="fa-solid fa-chart-pie"></i><div><strong>Portfolio-Analyse</strong><span>EquatePlus- &amp; CapTrader-/IBKR-Statements hochladen und echten Bestand, Wert &amp; Verkaufs-Erlös sehen.</span></div></div>
+        <div class="welcome-feature"><i class="fa-solid fa-bullseye"></i><div><strong>Ziel-Tracker</strong><span>Sparziel setzen und sehen, wie viele Aktien dafür nötig sind – und wie lange es noch dauert.</span></div></div>
+      </div>
+      <div class="welcome-privacy-card">
+        <i class="fa-solid fa-shield-halved"></i>
+        <div>
+          <strong>Deine Daten bleiben bei Dir.</strong>
+          <span>Gehaltsabrechnungen &amp; Depot-Statements werden zu 100&nbsp;% <strong>lokal in Deinem Browser</strong> ausgelesen – kein Upload, keine Speicherung auf einem Server. Das PDF-Einlesen funktioniert sogar <strong>offline</strong>: Probier's im Flugmodus aus.</span>
+        </div>
       </div>
       <button class="btn btn-primary welcome-start" id="welcomeStart" type="button">Los geht's <i class="fa-solid fa-arrow-right"></i></button>
-      <p class="welcome-privacy"><i class="fa-solid fa-shield-halved text-success"></i> Alle Daten werden nur lokal in Deinem Browser verarbeitet – nichts wird hochgeladen.</p>
     </div>
   </div>
   
@@ -94,74 +99,66 @@
     <!-- CALCULATOR TAB -->
     <section id="tab-calculator" class="tab-content active">
       <div class="hero-section">
-        <h2>IBM Employee Stock Purchase Plan Rechner</h2>
-        <p>Berechne Deinen exakten Gewinn unter Berücksichtigung deutscher Steuern, Freibeträge und Transaktionskosten.</p>
+        <h2>Lohnt sich das ESPP für Dich?</h2>
+        <p>Dein Netto-Gewinn aus dem IBM-Aktienprogramm – nach deutschen Steuern, Freibetrag und Gebühren,
+        live berechnet. Auf Wunsch mit echten historischen Kursen seit Deinem Beitritt.</p>
       </div>
 
-      <!-- Kurzanleitung -->
-      <div class="glass-card howto-card">
-        <div class="howto-head"><i class="fa-solid fa-circle-question"></i> So nutzt Du den Rechner</div>
-        <ol class="howto-steps">
-          <li>
-            <strong>Deine Daten eingeben.</strong> Stelle Gehalt, Sparrate und Steuerprofil einfach
-            selbst per Regler und Eingabefeld ein. Wenn Du möchtest, kannst Du stattdessen Deine
-            <strong>Gehaltsabrechnung (PDF)</strong> hochladen – dann werden diese Werte automatisch
-            befüllt. Ein Upload ist also <strong>nicht nötig</strong>, und Du kannst jeden Wert jederzeit ändern.
-          </li>
-          <li>
-            <strong>Verkauf festlegen.</strong> Wähle Deinen <em>Broker/Verkaufsweg</em>, den
-            erwarteten <em>Verkaufskurs</em> und die <em>Haltedauer</em>.
-          </li>
-          <li>
-            <strong>Ergebnis ablesen.</strong> Rechts erscheint sofort Dein <strong>Netto-Gewinn
-            nach Steuern &amp; Gebühren</strong> – inkl. 15 % ESPP-Rabatt, Freibetrag und
-            Abgeltungsteuer. Alles aktualisiert sich live, sobald Du etwas änderst.
-          </li>
-        </ol>
+      <!-- Hinweis, solange noch kein echtes Gehalt eingestellt wurde -->
+      <div class="alert alert-warning" id="exampleDataNote" style="display: none; margin-bottom: 20px;">
+        <i class="fa-solid fa-circle-info"></i>
+        <div>
+          <strong>Hier fehlen noch Deine Daten:</strong> Stelle in <strong>Schritt 1</strong> Dein
+          Brutto-Gehalt ein oder lade dort Deine <strong>Gehaltsabrechnung (PDF)</strong> hoch –
+          Deine persönliche Gewinn-Analyse erscheint dann sofort.
+          <div style="margin-top: 12px;">
+            <button class="btn btn-outline btn-sm goto-step1" type="button">
+              <i class="fa-solid fa-arrow-down"></i> Zur Eingabe in Schritt 1
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Ergebnis auf einen Blick -->
+      <div class="calc-summary-banner">
+        <div class="calc-kpi primary">
+          <span class="calc-kpi-label"><i class="fa-solid fa-sack-dollar"></i> Netto-Gewinn</span>
+          <strong id="netProfitEuro">0,00 €</strong>
+          <span class="calc-kpi-sub">nach Steuern &amp; Gebühren, wenn Du alle Aktien verkaufst</span>
+        </div>
+        <div class="calc-kpi">
+          <span class="calc-kpi-label"><i class="fa-solid fa-wallet"></i> Dein Einsatz (netto)</span>
+          <strong id="netInvestment">0,00 €</strong>
+          <span class="calc-kpi-sub">echter Netto-Gehaltsverzicht über <span class="months-count">12</span> Monate</span>
+        </div>
+        <div class="calc-kpi">
+          <span class="calc-kpi-label"><i class="fa-solid fa-percent"></i> Rendite aufs Netto</span>
+          <strong id="netProfitPercent" style="color: var(--success);">+0,0%</strong>
+          <span class="calc-kpi-sub">Netto-Gewinn beim Verkauf im Verhältnis zu Deinem Einsatz</span>
+        </div>
+        <div class="calc-kpi">
+          <span class="calc-kpi-label"><i class="fa-solid fa-coins"></i> Erworbene Aktien</span>
+          <strong id="bannerShares">0,00 Stk.</strong>
+          <span class="calc-kpi-sub" id="bannerSharesSub">Marktwert: 0,00 €</span>
+        </div>
       </div>
 
       <div class="grid-2col">
         <!-- Input Panel -->
         <div class="glass-card panel-inputs">
           <div class="panel-header">
-            <h3><i class="fa-solid fa-sliders"></i> Parameter anpassen</h3>
-            <span class="badge badge-primary">Eingaben</span>
+            <h3><i class="fa-solid fa-sliders"></i> Deine Parameter</h3>
+            <span class="badge badge-primary">3 Schritte</span>
           </div>
 
-          <!-- PDF Auto-Fill Zone -->
-          <div class="upload-zone" id="uploadZone">
-            <div class="upload-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-            <div class="upload-text">
-              <strong>Gehaltsabrechnung importieren</strong>
-              <span>PDF hier ablegen oder anklicken</span>
-            </div>
-            <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
-          </div>
-          <div class="upload-privacy-note">
-            <i class="fa-solid fa-shield-halved text-success"></i> <strong>100% Datenschutz:</strong> Verarbeitung nur <strong>lokal im Browser</strong> – kein Server-Upload!
-          </div>
-          <div id="uploadStatus" class="upload-status-message hidden-status"></div>
-          <button id="btnClearCalculator" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
-            <i class="fa-solid fa-trash-can"></i> Rechner-Daten zurücksetzen
-          </button>
-
-          <div class="input-group-card group-stocks-savings">
-            <div class="input-group-header">
-              <i class="fa-solid fa-chart-line"></i>
-              <h4>Aktienkurs &amp; Sparrate</h4>
+          <div class="input-group-card group-stocks-savings collapsible-step open">
+            <div class="input-group-header" role="button" tabindex="0" aria-expanded="true">
+              <span class="calc-step-num">1</span>
+              <h4>Gehalt &amp; Sparrate</h4>
+              <span class="calc-step-summary" id="summaryStep1"></span>
+              <i class="fa-solid fa-chevron-down step-chevron"></i>
             </div>
             <div class="input-group-body">
-              <div class="form-group">
-                <div class="label-with-value">
-                  <label for="inputStockPrice"><i class="fa-solid fa-dollar-sign"></i> Aktueller IBM Kurs (USD)</label>
-                  <div class="input-inline-wrap">
-                    <input type="number" id="inputStockPrice" step="0.01" value="180.00">
-                    <button id="btnFetchStock" title="Aktualisieren"><i class="fa-solid fa-arrows-rotate"></i></button>
-                  </div>
-                </div>
-                <div class="input-subtitle" id="stockPriceEUR">Gegenwert in EUR: <span id="valStockPriceEUR">0,00 €</span> (Kurs: <span id="valExchangeRate">1,00</span>)</div>
-              </div>
-              
               <div class="form-row">
                 <div class="form-group col">
                   <div class="label-with-value">
@@ -178,17 +175,39 @@
                   <input type="range" id="inputSavingsRate" min="1" max="10" step="1" value="10">
                 </div>
               </div>
-              
+
               <div class="input-helper" style="margin-top: 14px;">
-                <i class="fa-solid fa-circle-info"></i> <strong>Hinweis:</strong> Es wird nur das monatliche <strong>Grundgehalt</strong> berücksichtigt, variable Vergütungen (wie Provisionen) bleiben ausgeklammert.
+                <i class="fa-solid fa-circle-info"></i> <strong>Hinweis:</strong> Es zählt nur das monatliche <strong>Grundgehalt</strong> – variable Vergütungen (wie Provisionen) bleiben ausgeklammert.
               </div>
+
+              <div class="upload-divider"><span>oder automatisch ausfüllen</span></div>
+
+              <!-- PDF Auto-Fill Zone (optional) -->
+              <div class="upload-zone" id="uploadZone">
+                <div class="upload-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
+                <div class="upload-text">
+                  <strong>Gehaltsabrechnung (PDF) hochladen – optional</strong>
+                  <span>Füllt Gehalt &amp; Steuersatz automatisch aus. PDF hier ablegen oder klicken.</span>
+                </div>
+                <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
+              </div>
+              <div class="upload-privacy-note">
+                <span class="privacy-line"><i class="fa-solid fa-shield-halved text-success"></i><span><strong>100% Datenschutz:</strong> Dein PDF wird nur <strong>lokal in Deinem Browser</strong> gelesen – es findet <strong>kein Upload</strong> auf einen Server statt, nichts wird gespeichert.</span></span>
+                <span class="privacy-line"><i class="fa-solid fa-plane text-success"></i><span><strong>Funktioniert sogar offline:</strong> Probier's aus – trenne die Internetverbindung (Flugmodus) und das Auslesen klappt trotzdem, weil Deine Daten den Rechner nie verlassen.</span></span>
+              </div>
+              <div id="uploadStatus" class="upload-status-message hidden-status"></div>
+              <button id="btnClearCalculator" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
+                <i class="fa-solid fa-trash-can"></i> Rechner-Daten zurücksetzen
+              </button>
             </div>
           </div>
 
-          <div class="input-group-card group-taxes">
-            <div class="input-group-header">
-              <i class="fa-solid fa-landmark"></i>
+          <div class="input-group-card group-taxes collapsible-step">
+            <div class="input-group-header" role="button" tabindex="0" aria-expanded="false">
+              <span class="calc-step-num">2</span>
               <h4>Steuerprofil</h4>
+              <span class="calc-step-summary" id="summaryStep2"></span>
+              <i class="fa-solid fa-chevron-down step-chevron"></i>
             </div>
             <div class="input-group-body">
               <div class="form-row">
@@ -231,20 +250,45 @@
             </div>
           </div>
 
-          <div class="input-group-card group-selling">
-            <div class="input-group-header">
-              <i class="fa-solid fa-money-bill-transfer"></i>
-              <h4>Verkauf &amp; Haltedauer</h4>
+          <div class="input-group-card group-selling collapsible-step">
+            <div class="input-group-header" role="button" tabindex="0" aria-expanded="false">
+              <span class="calc-step-num">3</span>
+              <h4>Aktienkurs &amp; Verkauf</h4>
+              <span class="calc-step-summary" id="summaryStep3"></span>
+              <i class="fa-solid fa-chevron-down step-chevron"></i>
             </div>
             <div class="input-group-body">
+              <div class="form-group">
+                <label for="selectCalcMode"><i class="fa-solid fa-clock-rotate-left"></i> Berechnungsmodus</label>
+                <select id="selectCalcMode">
+                  <option value="forecast" selected>Prognose – mit angenommenen Kursen</option>
+                  <option value="historical">Historisch – echte IBM-Kurse seit Deinem Beitritt</option>
+                </select>
+              </div>
+
+              <!-- Historical mode: ESPP join month -->
+              <div class="form-group" id="joinDateGroup" style="display: none;">
+                <label for="inputJoinDate"><i class="fa-solid fa-calendar-check"></i> Dabei seit (ESPP-Beitritt)</label>
+                <div class="month-field">
+                  <i class="fa-solid fa-calendar-days month-field-icon"></i>
+                  <input type="text" id="inputJoinDate" data-value="2022-01" data-min="1962-01" readonly inputmode="none" aria-haspopup="dialog">
+                  <i class="fa-solid fa-chevron-down month-field-chevron"></i>
+                </div>
+                <div class="input-subtitle">
+                  Jeder Monatskauf wird mit dem <strong>historischen IBM-Monatskurs</strong> und dem damaligen
+                  USD/EUR-Wechselkurs simuliert – Kursdaten zurück bis <strong>Januar 1962</strong>.
+                </div>
+                <div id="histStatus" class="upload-status-message hidden-status" style="margin-top: 8px;"></div>
+              </div>
+
               <div class="form-row">
-                <div class="form-group col">
-                  <label for="selectBroker"><i class="fa-solid fa-building-columns"></i> Verkaufsweg & Broker</label>
-                  <select id="selectBroker">
-                    <option value="captrader" selected>CapTrader / IBKR (Empfohlen - ca. 4€)</option>
-                    <option value="equateplus">EquatePlus / CS Direkt (Teuer - ca. $55+)</option>
-                    <option value="german">Deutscher Broker (Steuer-Falle: 30% Einbehalt)</option>
-                  </select>
+                <div class="form-group col" id="buyPriceGroup">
+                  <label for="inputStockPrice"><i class="fa-solid fa-cart-shopping"></i> Kaufkurs IBM (USD)</label>
+                  <div class="input-inline-wrap">
+                    <input type="number" id="inputStockPrice" step="0.01" value="180.00">
+                    <button id="btnFetchStock" title="Live-Kurs laden"><i class="fa-solid fa-arrows-rotate"></i></button>
+                  </div>
+                  <div class="input-subtitle" id="stockPriceEUR">In EUR: <span id="valStockPriceEUR">0,00 €</span> (Kurs: <span id="valExchangeRate">1,00</span>)</div>
                 </div>
 
                 <div class="form-group col">
@@ -257,6 +301,15 @@
               </div>
 
               <div class="form-group">
+                <label for="selectBroker"><i class="fa-solid fa-building-columns"></i> Verkaufsweg &amp; Broker</label>
+                <select id="selectBroker">
+                  <option value="captrader" selected>CapTrader / IBKR (Empfohlen - ca. 4€)</option>
+                  <option value="equateplus">EquatePlus / CS Direkt (Teuer - ca. $55+)</option>
+                  <option value="german">Deutscher Broker (Steuer-Falle: 30% Einbehalt)</option>
+                </select>
+              </div>
+
+              <div class="form-group" id="holdingGroup">
                 <div class="label-with-value">
                   <label for="inputAccumulatedMonths"><i class="fa-solid fa-clock"></i> Haltedauer (Monate)</label>
                   <span class="slider-val" id="valAccumulatedMonths">12 Monate</span>
@@ -272,17 +325,25 @@
         <div class="glass-card panel-outputs">
           <div class="panel-header">
             <h3><i class="fa-solid fa-chart-pie"></i> Gewinn-Analyse & Steuern</h3>
-            <span class="badge badge-success">Ergebnisse (Netto)</span>
+            <span class="badge badge-success">Live</span>
           </div>
-          
+
+          <!-- Empty state: shown until the user provides a real salary -->
+          <div class="calc-empty-state" id="calcEmptyState" style="display: none;">
+            <div class="empty-state-icon"><i class="fa-solid fa-chart-pie"></i></div>
+            <h4>Noch keine Berechnung</h4>
+            <p>Deine Gewinn-Analyse erscheint hier, sobald Du die Parameter anpasst oder Deine
+            Gehaltsabrechnung (PDF) hochlädst.</p>
+          </div>
+
+          <div id="calcResultsContent">
           <!-- HERO: the donut is the focal point, with the net profit centered inside it -->
           <div class="result-hero">
             <div class="donut-wrap">
               <canvas id="profitChart"></canvas>
               <div class="chart-center">
                 <span class="chart-center-label">Netto-Gewinn</span>
-                <h4 id="netProfitEuro">0,00 €</h4>
-                <span class="percentage-pill positive" id="netProfitPercent">+0,0%</span>
+                <h4 id="chartCenterProfit">0,00 €</h4>
               </div>
             </div>
             <div class="chart-legend">
@@ -290,18 +351,6 @@
               <span class="cl-item"><i style="background:#fbbf24"></i> Lohnsteuer</span>
               <span class="cl-item"><i style="background:#f87171"></i> Gebühren &amp; KSt.</span>
               <span class="cl-item"><i style="background:#10b981"></i> Netto-Gewinn</span>
-            </div>
-          </div>
-
-          <!-- At-a-glance key figures -->
-          <div class="kpi-grid">
-            <div class="kpi-card">
-              <span class="kpi-label">Eingesetztes Netto-Kapital</span>
-              <strong id="netInvestment">0,00 €</strong>
-            </div>
-            <div class="kpi-card">
-              <span class="kpi-label">Rendite aufs Netto</span>
-              <strong class="text-success" id="netReturnOnCapital">0,0%</strong>
             </div>
           </div>
 
@@ -444,6 +493,7 @@
               <strong>Lohnabrechnung-Effekt:</strong> Für <span class="calc-highlight" id="lblGross500">500 €</span> Brutto-Beitrag fehlen Dir bei <span id="lblTax35">35%</span> Steuersatz netto nur ca. <span class="calc-highlight" id="lblNet276">276 €</span>. Dein Gewinn im Moment des Kaufs beträgt dadurch bereits <strong>satte <span id="lblInstantGain">81%</span>!</strong>
             </div>
           </div>
+          </div><!-- /calcResultsContent -->
         </div>
       </div>
     </section>
@@ -455,41 +505,17 @@
         <p>Lade Deine ESPP-Transaktionshistorie und CapTrader-/IBKR-Auszüge hoch, um Dein Portfolio zu analysieren.</p>
       </div>
 
-      <!-- Kurzanleitung -->
-      <div class="glass-card howto-card">
-        <div class="howto-head"><i class="fa-solid fa-circle-question"></i> So nutzt Du die Portfolio-Analyse</div>
-        <ol class="howto-steps">
-          <li>
-            <strong>Statements hochladen.</strong> Lege Deine <strong>EquatePlus</strong>-PDFs
-            (Plan Holdings bzw. Purchase Activity Statement) und Deine
-            <strong>CapTrader/IBKR</strong>-Jahresübersicht im Import-Feld ab. Du kannst mehrere
-            PDFs auf einmal hochladen – am besten die jeweils <em>aktuellsten</em>.
-          </li>
-          <li>
-            <strong>Verkaufskurs prüfen.</strong> Der aktuelle IBM-Kurs (USD) wird automatisch
-            geladen und für die Bewertung genutzt – Du kannst ihn bei Bedarf anpassen.
-          </li>
-          <li>
-            <strong>„Portfolio analysieren“ klicken.</strong> Du siehst dann Deinen echten Bestand,
-            Einstand, aktuellen Wert und den <strong>Netto-Gewinn bei Verkauf jetzt</strong>.
-          </li>
-          <li>
-            <strong>Verkauf simulieren.</strong> Mit dem Verkaufs-Simulator (FIFO &amp; deutsche
-            Steuer) planst Du einen Teilverkauf. Die Auswertung speist auch den
-            <em>Ziel-Tracker</em> mit Deinen echten Zahlen.
-          </li>
-        </ol>
-      </div>
-
-      <!-- ESPP Life Cycle Workflow Visual -->
-      <div class="glass-card workflow-card" style="margin-bottom: 30px;">
-        <div class="panel-header">
-          <h3><i class="fa-solid fa-route text-accent"></i> IBM ESPP Aktien-Lebenszyklus</h3>
-          <span class="badge badge-primary">Ablauf</span>
-        </div>
+      <!-- ESPP Life Cycle (collapsible background info) -->
+      <details class="sale-process-collapsible" style="margin-bottom: 30px;">
+        <summary class="sale-process-summary">
+          <i class="fa-solid fa-route"></i> Wie hängt alles zusammen? – Der ESPP-Aktien-Lebenszyklus
+          <span class="summary-hint">Hintergrund-Info</span>
+          <i class="fa-solid fa-chevron-down chevron"></i>
+        </summary>
+        <div class="sale-process-body">
         <div class="workflow-steps-container" style="display: flex; justify-content: space-between; align-items: stretch; gap: 15px; margin-top: 20px; flex-wrap: wrap;">
           
-          <div class="workflow-step-box" style="flex: 1; min-width: 200px; background: rgba(255,255,255,0.01); border: 1px dashed rgba(255,255,255,0.08); border-radius: 12px; padding: 15px; position: relative;">
+          <div class="workflow-step-box" style="flex: 1; min-width: 200px; background: var(--surface-soft); border: 1px dashed var(--panel-border); border-radius: 12px; padding: 15px; position: relative;">
             <div class="step-icon-wrap" style="width: 40px; height: 40px; border-radius: 50%; background: rgba(59, 130, 246, 0.1); border: 1px solid var(--primary); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
               <i class="fa-solid fa-money-check-dollar" style="color: var(--primary);"></i>
             </div>
@@ -499,7 +525,7 @@
           
           <div class="workflow-arrow-separator" style="display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 1.2rem;"><i class="fa-solid fa-chevron-right"></i></div>
           
-          <div class="workflow-step-box" style="flex: 1; min-width: 200px; background: rgba(255,255,255,0.01); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: 12px; padding: 15px; position: relative;">
+          <div class="workflow-step-box" style="flex: 1; min-width: 200px; background: var(--surface-soft); border: 1px solid rgba(59, 130, 246, 0.15); border-radius: 12px; padding: 15px; position: relative;">
             <div class="step-icon-wrap" style="width: 40px; height: 40px; border-radius: 50%; background: rgba(16, 185, 129, 0.1); border: 1px solid var(--success); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
               <i class="fa-solid fa-building-columns" style="color: var(--success);"></i>
             </div>
@@ -509,7 +535,7 @@
           
           <div class="workflow-arrow-separator" style="display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 1.2rem;"><i class="fa-solid fa-chevron-right"></i></div>
           
-          <div class="workflow-step-box" style="flex: 1; min-width: 200px; background: rgba(255,255,255,0.01); border: 1px dashed rgba(255,255,255,0.08); border-radius: 12px; padding: 15px; position: relative;">
+          <div class="workflow-step-box" style="flex: 1; min-width: 200px; background: var(--surface-soft); border: 1px dashed var(--panel-border); border-radius: 12px; padding: 15px; position: relative;">
             <div class="step-icon-wrap" style="width: 40px; height: 40px; border-radius: 50%; background: rgba(245, 158, 11, 0.1); border: 1px solid var(--accent); display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
               <i class="fa-solid fa-arrows-rotate" style="color: var(--accent);"></i>
             </div>
@@ -519,74 +545,97 @@
           
           <div class="workflow-arrow-separator" style="display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-size: 1.2rem;"><i class="fa-solid fa-chevron-right"></i></div>
           
-          <div class="workflow-step-box" style="flex: 1; min-width: 200px; background: rgba(255,255,255,0.01); border: 1px solid rgba(245, 158, 11, 0.15); border-radius: 12px; padding: 15px; position: relative;">
+          <div class="workflow-step-box" style="flex: 1; min-width: 200px; background: var(--surface-soft); border: 1px solid rgba(245, 158, 11, 0.15); border-radius: 12px; padding: 15px; position: relative;">
             <div class="step-icon-wrap" style="width: 40px; height: 40px; border-radius: 50%; background: rgba(139, 92, 246, 0.1); border: 1px solid #8b5cf6; display: flex; align-items: center; justify-content: center; margin-bottom: 12px;">
               <i class="fa-solid fa-chart-line" style="color: #8b5cf6;"></i>
             </div>
             <h4 style="font-size: 0.9rem; margin-bottom: 5px; font-weight: 600;">4. CapTrader / IBKR Verkauf</h4>
             <p style="font-size: 0.75rem; color: var(--text-muted); line-height: 1.3;">Günstiger Verkauf der Positionen (ca. 2 €) und bequeme EUR-Auszahlung.</p>
           </div>
-          
+
         </div>
-      </div>
-      
+        </div>
+      </details>
+
       <div class="grid-2col">
         <!-- Upload Panel -->
         <div class="glass-card panel-inputs">
           <div class="panel-header">
             <h3><i class="fa-solid fa-file-invoice"></i> Statements importieren</h3>
-            <span class="badge badge-primary">Import</span>
+            <span class="badge badge-primary">3 Schritte</span>
           </div>
 
-          <!-- PDF Upload Zone -->
-          <div class="upload-zone" id="csvUploadZone">
-            <div class="upload-icon"><i class="fa-solid fa-file-pdf"></i></div>
-            <div class="upload-text">
-              <strong>ESPP Transaktionshistorie / Statements importieren</strong>
-              <span>PDF-Dateien hier ablegen oder anklicken</span>
+          <div class="input-group-card group-stocks-savings">
+            <div class="input-group-header">
+              <span class="calc-step-num">1</span>
+              <h4>Statements hochladen</h4>
             </div>
-            <input type="file" id="csvFileInput" accept=".pdf" style="display: none;" multiple>
-          </div>
-          
-          <div class="upload-privacy-note">
-            <i class="fa-solid fa-shield-halved text-success"></i> <strong>100% Datenschutz:</strong> Verarbeitung nur <strong>lokal im Browser</strong> – kein Server-Upload!
-          </div>
-          
-          <div id="csvUploadStatus" class="upload-status-message hidden-status"></div>
-          <button id="btnClearPortfolio" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
-            <i class="fa-solid fa-trash-can"></i> Portfolio-Daten zurücksetzen
-          </button>
-
-          <div class="alert alert-info" style="margin-top: 20px;">
-            <i class="fa-solid fa-circle-info"></i>
-            <div>
-              <strong>Unterstützte Formate (EquatePlus & CapTrader/IBKR PDFs):</strong>
-              <ul style="margin-left: 15px; margin-top: 5px; font-size: 0.85rem; padding-left: 10px; line-height: 1.4;">
-                <li><strong>EquatePlus PDF Jahres-Statement:</strong> Plan Holdings Statement</li>
-                <li><strong>EquatePlus PDF Quartals-Statement:</strong> Purchase Activity Statement</li>
-                <li><strong>CapTrader / IBKR Activity Statement:</strong> PDF-Jahresübersicht (z.B. 2024, 2025, 2026)</li>
-              </ul>
+            <div class="input-group-body">
+              <div class="upload-zone" id="csvUploadZone">
+                <div class="upload-icon"><i class="fa-solid fa-file-pdf"></i></div>
+                <div class="upload-text">
+                  <strong>EquatePlus- &amp; CapTrader-/IBKR-PDFs hochladen</strong>
+                  <span>Mehrere Dateien auf einmal möglich – am besten die jeweils aktuellsten. Hier ablegen oder klicken.</span>
+                </div>
+                <input type="file" id="csvFileInput" accept=".pdf" style="display: none;" multiple>
+              </div>
+              <div class="upload-privacy-note">
+                <span class="privacy-line"><i class="fa-solid fa-shield-halved text-success"></i><span><strong>100% Datenschutz:</strong> Dein PDF wird nur <strong>lokal in Deinem Browser</strong> gelesen – es findet <strong>kein Upload</strong> auf einen Server statt, nichts wird gespeichert.</span></span>
+                <span class="privacy-line"><i class="fa-solid fa-plane text-success"></i><span><strong>Funktioniert sogar offline:</strong> Probier's aus – trenne die Internetverbindung (Flugmodus) und das Auslesen klappt trotzdem, weil Deine Daten den Rechner nie verlassen.</span></span>
+              </div>
+              <details class="formats-details">
+                <summary><i class="fa-solid fa-circle-question"></i> Welche PDFs werden unterstützt?</summary>
+                <ul>
+                  <li><strong>EquatePlus Jahres-Statement:</strong> Plan Holdings Statement</li>
+                  <li><strong>EquatePlus Quartals-Statement:</strong> Purchase Activity Statement</li>
+                  <li><strong>CapTrader / IBKR Activity Statement:</strong> PDF-Jahresübersicht (z. B. 2024, 2025, 2026)</li>
+                </ul>
+              </details>
+              <div id="csvUploadStatus" class="upload-status-message hidden-status"></div>
+              <button id="btnClearPortfolio" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
+                <i class="fa-solid fa-trash-can"></i> Portfolio-Daten zurücksetzen
+              </button>
             </div>
           </div>
 
-          <!-- Analysis Settings -->
-          <div class="form-group" style="margin-top: 30px;">
-            <label for="portfolioCurrentPrice"><i class="fa-solid fa-dollar-sign"></i> Aktueller Verkaufskurs (USD)</label>
-            <div class="input-inline-wrap">
-              <input type="number" id="portfolioCurrentPrice" step="0.01" value="180.00">
-              <button id="btnFetchPortfolioPrice" title="Aktualisieren"><i class="fa-solid fa-arrows-rotate"></i></button>
+          <div class="input-group-card group-taxes">
+            <div class="input-group-header">
+              <span class="calc-step-num">2</span>
+              <h4>Kurs prüfen</h4>
             </div>
-            <div class="input-subtitle">Wird für Gewinn/Verlust-Berechnung verwendet</div>
+            <div class="input-group-body">
+              <div class="form-row">
+                <div class="form-group col">
+                  <label for="portfolioCurrentPrice"><i class="fa-solid fa-dollar-sign"></i> Verkaufskurs (USD)</label>
+                  <div class="input-inline-wrap">
+                    <input type="number" id="portfolioCurrentPrice" step="0.01" value="180.00">
+                    <button id="btnFetchPortfolioPrice" title="Live-Kurs laden"><i class="fa-solid fa-arrows-rotate"></i></button>
+                  </div>
+                  <div class="input-subtitle">Wird automatisch geladen – bei Bedarf anpassen.</div>
+                </div>
+                <div class="form-group col">
+                  <label for="portfolioExchangeRate"><i class="fa-solid fa-euro-sign"></i> Wechselkurs USD/EUR</label>
+                  <input type="number" id="portfolioExchangeRate" step="0.0001" value="0.92" readonly>
+                  <div class="input-subtitle">Live-Kurs, wird automatisch gesetzt.</div>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="form-group">
-            <label for="portfolioExchangeRate"><i class="fa-solid fa-euro-sign"></i> Wechselkurs USD/EUR</label>
-            <input type="number" id="portfolioExchangeRate" step="0.0001" value="0.92" readonly>
+          <div class="input-group-card group-selling">
+            <div class="input-group-header">
+              <span class="calc-step-num">3</span>
+              <h4>Analysieren</h4>
+            </div>
+            <div class="input-group-body">
+              <button id="btnAnalyzePortfolio" class="btn btn-primary" style="width: 100%;" disabled>
+                <i class="fa-solid fa-chart-line"></i> Portfolio analysieren
+              </button>
+              <div class="input-helper" style="margin-top: 10px;">
+                Zeigt Bestand, Einstand, aktuellen Wert und Deinen Netto-Gewinn bei Verkauf – inkl. Verkaufs-Simulator weiter unten.
+              </div>
+            </div>
           </div>
-
-          <button id="btnAnalyzePortfolio" class="btn btn-primary" style="width: 100%; margin-top: 20px;" disabled>
-            <i class="fa-solid fa-chart-line"></i> Portfolio analysieren
-          </button>
         </div>
         
         <!-- Results Panel -->
@@ -597,9 +646,12 @@
           </div>
           
           <div id="portfolioResults" class="portfolio-results-container">
-            <div class="empty-state">
-              <i class="fa-solid fa-chart-line" style="font-size: 3rem; opacity: 0.3; margin-bottom: 15px;"></i>
-              <p>Lade ein Statement (PDF) hoch, um Dein Portfolio zu analysieren.</p>
+            <div class="calc-empty-state">
+              <div class="empty-state-icon"><i class="fa-solid fa-chart-line"></i></div>
+              <h4>Noch keine Analyse</h4>
+              <p>Lade links in <strong>Schritt 1</strong> Deine Statements (PDF) hoch und klicke auf
+              <strong>„Portfolio analysieren“</strong> – hier erscheinen dann Dein Bestand, der aktuelle
+              Wert und Dein Netto-Gewinn bei Verkauf.</p>
             </div>
           </div>
         </div>
@@ -624,7 +676,7 @@
             <span style="color: var(--success);"><i class="fa-solid fa-building-columns"></i> EquatePlus (<span id="consolidationEqPercent">0%</span>)</span>
             <span style="color: #8b5cf6;"><i class="fa-solid fa-chart-line"></i> CapTrader / IBKR (<span id="consolidationCtPercent">0%</span>)</span>
           </div>
-          <div class="progress-bar-container" style="height: 14px; background: rgba(255,255,255,0.05); border-radius: 7px; overflow: hidden; display: flex;">
+          <div class="progress-bar-container" style="height: 14px; background: var(--surface-soft-hover); border-radius: 7px; overflow: hidden; display: flex;">
             <div id="consolidationEqBar" style="height: 100%; background: var(--success); width: 50%; transition: width 0.5s ease;"></div>
             <div id="consolidationCtBar" style="height: 100%; background: #8b5cf6; width: 50%; transition: width 0.5s ease;"></div>
           </div>
@@ -632,7 +684,7 @@
 
         <div class="grid-2col" style="margin-top: 25px;">
           <!-- EquatePlus Platform Status -->
-          <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px;">
+          <div style="background: var(--surface-soft); border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px;">
             <h4 style="font-weight: 600; color: var(--success); margin-bottom: 15px;"><i class="fa-solid fa-building-columns"></i> EquatePlus (Anspar-Depot)</h4>
             <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.9rem;">
               <div style="display: flex; justify-content: space-between;">
@@ -647,7 +699,7 @@
                 <span class="text-muted">Aktueller Wert (EUR):</span>
                 <strong id="consolidationEqValue" style="color: var(--success);">0,00 €</strong>
               </div>
-              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; border-top: 1px solid var(--surface-soft-hover); padding-top: 8px;">
                 <span class="text-muted">ESPP Käufe / Dividenden:</span>
                 <span id="consolidationEqItems">0 Posten</span>
               </div>
@@ -655,7 +707,7 @@
           </div>
           
           <!-- CapTrader Platform Status -->
-          <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px;">
+          <div style="background: var(--surface-soft); border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px;">
             <h4 style="font-weight: 600; color: #8b5cf6; margin-bottom: 15px;"><i class="fa-solid fa-chart-line"></i> CapTrader / IBKR (Verkaufs-Depot)</h4>
             <div style="display: flex; flex-direction: column; gap: 10px; font-size: 0.9rem;">
               <div style="display: flex; justify-content: space-between;">
@@ -670,11 +722,11 @@
                 <span class="text-muted">Aktueller Wert (EUR):</span>
                 <strong id="consolidationCtValue" style="color: #8b5cf6;">0,00 €</strong>
               </div>
-              <div style="display: flex; justify-content: space-between; border-top: 1px dashed rgba(255,255,255,0.05); padding-top: 8px;">
+              <div style="display: flex; justify-content: space-between; border-top: 1px dashed var(--surface-soft-hover); padding-top: 8px;">
                 <span class="text-muted">Realisierter Verkaufsgewinn:</span>
                 <strong id="consolidationCtRealized" class="value-positive">0,00 €</strong>
               </div>
-              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 8px;">
+              <div style="display: flex; justify-content: space-between; font-size: 0.8rem; border-top: 1px solid var(--surface-soft-hover); padding-top: 8px;">
                 <span class="text-muted">Verkäufe / DTC Transfers:</span>
                 <span id="consolidationCtStats">0 Sells / 0 Transfers</span>
               </div>
@@ -803,7 +855,7 @@
           </div>
           
           <!-- Results Panel -->
-          <div class="simulator-results-panel" style="background: rgba(255, 255, 255, 0.02); border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px;">
+          <div class="simulator-results-panel" style="background: var(--surface-soft); border: 1px solid var(--panel-border); border-radius: 12px; padding: 20px;">
             <h4 style="margin-bottom: 15px; font-weight: 600;"><i class="fa-solid fa-chart-line text-success"></i> Simulationsergebnisse</h4>
             
             <div class="sim-metrics-grid" style="display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 20px;">
@@ -942,49 +994,77 @@
             <span class="badge badge-primary" id="goalBadge">Ziel</span>
           </div>
 
-          <!-- Ziel per Link oder Freitext laden (Suche via SearXNG) -->
-          <div class="goal-url-section">
-            <label for="goalUrl"><i class="fa-solid fa-magnifying-glass"></i> Ziel laden <span class="optional-tag">Link oder Suchbegriff</span></label>
-            <div class="goal-url-row">
-              <input type="text" id="goalUrl" placeholder="Produktlink einfügen oder Ziel eingeben (z. B. „PlayStation 5 Pro“)…">
-              <button id="btnLoadGoal" type="button" class="goal-load-btn"><i class="fa-solid fa-cloud-arrow-down"></i> Laden</button>
+          <div class="input-group-card group-stocks-savings">
+            <div class="input-group-header">
+              <span class="calc-step-num">1</span>
+              <h4>Ziel festlegen</h4>
             </div>
-            <div id="goalStatus" class="goal-status"></div>
-          </div>
+            <div class="input-group-body">
+              <div class="form-group">
+                <label for="goalName" class="goal-name-label"><i class="fa-solid fa-flag-checkered"></i> Bezeichnung des Ziels</label>
+                <div class="goal-name-field">
+                  <input type="text" id="goalName" class="goal-name-input" placeholder="z. B. Traumreise, Laptop, Auto…" value="">
+                  <i class="fa-solid fa-pen goal-name-edit-icon"></i>
+                </div>
+              </div>
 
-          <!-- Produktbild (nur falls vorhanden) -->
-          <div id="goalImageWrap" class="goal-image-wrap" style="display: none;">
-            <img id="goalImage" src="" alt="Ziel" class="goal-product-img-lg">
-          </div>
+              <div class="form-group">
+                <label for="goalPrice"><i class="fa-solid fa-tag"></i> Zielbetrag (EUR)</label>
+                <input type="number" id="goalPrice" step="0.01" min="0" placeholder="z. B. 50.000">
+              </div>
 
-          <div class="form-group">
-            <label for="goalName" class="goal-name-label"><i class="fa-solid fa-flag-checkered"></i> Bezeichnung des Ziels</label>
-            <div class="goal-name-field">
-              <input type="text" id="goalName" class="goal-name-input" placeholder="z. B. Traumreise, Laptop, Auto…" value="Mein Sparziel">
-              <i class="fa-solid fa-pen goal-name-edit-icon"></i>
+              <div class="upload-divider"><span>oder automatisch laden</span></div>
+
+              <!-- Ziel per Link oder Freitext laden (Suche via SearXNG) -->
+              <div class="goal-url-section">
+                <label for="goalUrl"><i class="fa-solid fa-magnifying-glass"></i> Produkt suchen oder Link einfügen</label>
+                <div class="goal-url-row">
+                  <input type="text" id="goalUrl" placeholder="Produktlink oder Suchbegriff (z. B. „PlayStation 5 Pro“)…">
+                  <button id="btnLoadGoal" type="button" class="goal-load-btn"><i class="fa-solid fa-cloud-arrow-down"></i> Laden</button>
+                </div>
+                <div id="goalStatus" class="goal-status"></div>
+              </div>
+
+              <!-- Produktbild (nur falls vorhanden) -->
+              <div id="goalImageWrap" class="goal-image-wrap" style="display: none;">
+                <img id="goalImage" src="" alt="Ziel" class="goal-product-img-lg">
+              </div>
+              <a id="goalLink" href="#" target="_blank" rel="noopener" class="goal-product-link" style="display: none; margin-top: 10px;"><i class="fa-solid fa-up-right-from-square"></i> Produkt ansehen</a>
             </div>
           </div>
 
-          <div class="form-group">
-            <label for="goalPrice"><i class="fa-solid fa-tag"></i> Zielbetrag (EUR)</label>
-            <input type="number" id="goalPrice" step="0.01" min="0" value="50000">
-            <a id="goalLink" href="#" target="_blank" rel="noopener" class="goal-product-link" style="display: none; margin-top: 10px;"><i class="fa-solid fa-up-right-from-square"></i> Produkt ansehen</a>
-          </div>
-
-          <div class="divider"></div>
-
-          <div class="form-group">
-            <div class="label-with-value">
-              <label for="inputStockGrowth"><i class="fa-solid fa-chart-line"></i> Erwartetes Aktienwachstum (p.a.)</label>
-              <span class="slider-val" id="valStockGrowth">7 %</span>
+          <div class="input-group-card group-taxes">
+            <div class="input-group-header">
+              <span class="calc-step-num">2</span>
+              <h4>Annahme: Aktienwachstum</h4>
             </div>
-            <input type="range" id="inputStockGrowth" min="0" max="25" step="1" value="7">
-            <div class="input-helper">Der jährliche Kurszuwachs der IBM-Aktie verkürzt Deine Sparzeit durch Zinseszins-Effekte.</div>
+            <div class="input-group-body">
+              <div class="form-group">
+                <div class="label-with-value">
+                  <label for="inputStockGrowth"><i class="fa-solid fa-chart-line"></i> Erwartetes Wachstum (p.a.)</label>
+                  <span class="slider-val" id="valStockGrowth">7 %</span>
+                </div>
+                <input type="range" id="inputStockGrowth" min="0" max="25" step="1" value="7">
+                <div class="input-helper">Der jährliche Kurszuwachs der IBM-Aktie verkürzt Deine Sparzeit durch Zinseszins-Effekte.</div>
+              </div>
+            </div>
           </div>
         </div>
         
         <!-- Progress & Timeline Card -->
         <div class="porsche-right-column">
+          <!-- Empty state: shown until a goal (price > 0) is set -->
+          <div class="glass-card porsche-card" id="goalEmptyState" style="display: none;">
+            <div class="calc-empty-state">
+              <div class="empty-state-icon"><i class="fa-solid fa-bullseye"></i></div>
+              <h4>Noch kein Ziel festgelegt</h4>
+              <p>Gib links in <strong>Schritt 1</strong> Deinen <strong>Zielbetrag</strong> ein – oder lade ein
+              Produkt per Link bzw. Suchbegriff. Hier erscheinen dann Dein Spar-Fortschritt, die Projektion
+              und wie viele IBM-Aktien Du für das Ziel verkaufen müsstest.</p>
+            </div>
+          </div>
+
+          <div id="goalTrackerContent">
           <!-- Progress Card -->
           <div class="glass-card porsche-card" style="margin-bottom: 30px;">
             <div class="panel-header">
@@ -1060,6 +1140,7 @@
               </div>
             </div>
           </div>
+          </div><!-- /goalTrackerContent -->
         </div>
       </div>
     </section>
@@ -1068,65 +1149,78 @@
     <section id="tab-guide" class="tab-content">
       <div class="hero-section">
         <h2>Der ESPP-Reiseführer</h2>
-        <p>Was dieses Tool für Dich tut – und welche Wege es gibt, mit Deinen IBM-Aktien umzugehen.</p>
+        <p>Dein Wegweiser durch das IBM-Aktienprogramm – in vier kurzen Kapiteln.</p>
       </div>
 
-      <!-- Über dieses Tool -->
-      <div class="glass-card" style="margin-bottom: 30px;">
-        <h3><i class="fa-solid fa-circle-info text-accent"></i> Was ist der IBM ESPP Navigator?</h3>
-        <p style="margin-top: 10px;">
-          Der <strong>IBM Employee Stock Purchase Plan (ESPP)</strong> lässt Dich monatlich IBM-Aktien
-          mit <strong>15&nbsp;% Rabatt</strong> kaufen. Was sich dadurch wirklich lohnt, ist aber nicht
-          leicht zu durchschauen: deutscher Lohnsteuer-Freibetrag, geldwerter Vorteil, Abgeltungsteuer
-          beim Verkauf, Broker-Gebühren und Wechselkurse beeinflussen Deinen echten Netto-Gewinn.
-          <strong>Dieses Tool macht genau das transparent</strong> – kostenlos und speziell für IBMer in Deutschland.
+      <!-- Kapitel-Navigation -->
+      <nav class="guide-toc" aria-label="Kapitel">
+        <a href="#guide-about"><span class="toc-num">1</span> Was ist das Tool?</a>
+        <a href="#guide-strategy"><span class="toc-num">2</span> Strategie wählen</a>
+        <a href="#guide-transfer"><span class="toc-num">3</span> Aktien übertragen</a>
+        <a href="#guide-pitfalls"><span class="toc-num">4</span> Stolperfallen</a>
+      </nav>
+
+      <!-- Kapitel 1: Über dieses Tool -->
+      <div class="guide-section" id="guide-about">
+        <div class="guide-section-head">
+          <div class="guide-section-num">1</div>
+          <div>
+            <h3>Was ist der IBM ESPP Navigator?</h3>
+            <p class="guide-section-sub">In 30 Sekunden verstehen, was Dir dieses Tool bringt.</p>
+          </div>
+        </div>
+
+        <p class="guide-lead">
+          Mit dem <strong>IBM Employee Stock Purchase Plan (ESPP)</strong> kaufst Du monatlich IBM-Aktien
+          mit <strong>15&nbsp;% Rabatt</strong> – direkt vom Bruttogehalt. Ob sich das wirklich lohnt, hängt
+          von Freibetrag, geldwertem Vorteil, Abgeltungsteuer, Broker-Gebühren und Wechselkursen ab.
+          <strong>Dieses Tool rechnet all das für Dich durch</strong> – kostenlos und speziell für IBMer in Deutschland.
         </p>
 
-        <div class="grid-2col" style="margin-top: 22px; gap: 18px;">
-          <div>
-            <h4 style="color:#fff; margin-bottom: 6px;"><i class="fa-solid fa-calculator text-primary"></i> Rechner</h4>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">
-              Spiele durch, was sich ein Kauf lohnt: Gehalt, Sparrate, Haltedauer und Verkaufskurs rein –
-              und Du siehst den <strong>Netto-Gewinn nach allen deutschen Steuern und Gebühren</strong>.
-              Optional füllst Du die Werte automatisch aus Deiner Gehaltsabrechnung (PDF).
-            </p>
+        <div class="guide-feature-grid">
+          <div class="guide-feature-card">
+            <div class="guide-feature-icon"><i class="fa-solid fa-calculator"></i></div>
+            <h4>Rechner</h4>
+            <p>Lohnt sich das Programm für Dich? Gehalt, Sparrate und Verkaufskurs einstellen – und sofort den <strong>Netto-Gewinn nach allen Steuern und Gebühren</strong> sehen. Optional per Gehaltsabrechnung (PDF) automatisch befüllt.</p>
+            <button class="btn btn-outline btn-sm guide-goto" data-goto-tab="calculator">Zum Rechner <i class="fa-solid fa-arrow-right"></i></button>
           </div>
-          <div>
-            <h4 style="color:#fff; margin-bottom: 6px;"><i class="fa-solid fa-chart-pie text-primary"></i> Portfolio-Analyse</h4>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">
-              Lade Deine echten <strong>EquatePlus-</strong> und <strong>CapTrader-/IBKR-Statements</strong> hoch
-              und sieh Deinen tatsächlichen Bestand, Einstand, aktuellen Wert und den
-              <strong>Netto-Erlös bei Verkauf jetzt</strong> – inklusive FIFO-Verkaufssimulator mit korrekter deutscher Steuer.
-            </p>
+          <div class="guide-feature-card">
+            <div class="guide-feature-icon"><i class="fa-solid fa-chart-pie"></i></div>
+            <h4>Portfolio-Analyse</h4>
+            <p>Echte <strong>EquatePlus-</strong> und <strong>CapTrader-/IBKR-Statements</strong> hochladen und Bestand, Einstand, aktuellen Wert und den <strong>Netto-Erlös bei Verkauf jetzt</strong> sehen – inkl. FIFO-Verkaufssimulator.</p>
+            <button class="btn btn-outline btn-sm guide-goto" data-goto-tab="portfolio">Zur Analyse <i class="fa-solid fa-arrow-right"></i></button>
           </div>
-          <div>
-            <h4 style="color:#fff; margin-bottom: 6px;"><i class="fa-solid fa-bullseye text-primary"></i> Ziel-Tracker</h4>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">
-              Setz Dir ein Sparziel und sieh, <strong>wie viele Aktien Du dafür verkaufen müsstest</strong> –
-              oder, wenn Dein Bestand noch nicht reicht, wie lange Du noch sparen musst.
-            </p>
+          <div class="guide-feature-card">
+            <div class="guide-feature-icon"><i class="fa-solid fa-bullseye"></i></div>
+            <h4>Ziel-Tracker</h4>
+            <p>Setz Dir ein Sparziel und sieh, <strong>wie viele Aktien Du dafür verkaufen müsstest</strong> – oder wie lange Du noch sparen musst, wenn Dein Bestand noch nicht reicht.</p>
+            <button class="btn btn-outline btn-sm guide-goto" data-goto-tab="porsche">Zum Tracker <i class="fa-solid fa-arrow-right"></i></button>
           </div>
-          <div>
-            <h4 style="color:#fff; margin-bottom: 6px;"><i class="fa-solid fa-shield-halved text-success"></i> Dein Vorteil & Datenschutz</h4>
-            <p style="color: var(--text-muted); font-size: 0.9rem;">
-              Statt Bauchgefühl kennst Du Deinen <strong>echten Netto-Gewinn</strong> und triffst bessere
-              Entscheidungen. Alle Statements werden <strong>nur lokal in Deinem Browser</strong> verarbeitet –
-              es wird nichts hochgeladen oder gespeichert.
-            </p>
+          <div class="guide-feature-card">
+            <div class="guide-feature-icon"><i class="fa-solid fa-receipt"></i></div>
+            <h4>Steuern (DE)</h4>
+            <p>Der Überblick über die deutsche Besteuerung: Kauf vom Brutto, Freibetrag, geldwerter Vorteil, Dividenden und Veräußerungsgewinne – verständlich erklärt.</p>
+            <button class="btn btn-outline btn-sm guide-goto" data-goto-tab="taxes">Zu den Steuern <i class="fa-solid fa-arrow-right"></i></button>
           </div>
         </div>
 
-        <div class="alert alert-info" style="margin-top: 20px;">
-          <i class="fa-solid fa-wand-magic-sparkles"></i>
-          <div>
-            <strong>So funktioniert's:</strong> PDF-Statements von EquatePlus, CapTrader oder IBKR werden direkt im Browser
-            ausgelesen, Kurse &amp; Wechselkurse werden live geladen, und alle deutschen Steuerregeln (15&nbsp;%
-            Rabatt, § 3 Nr. 39 EStG, Abgeltungsteuer, Kirchensteuer/Soli) sind bereits eingebaut. Du musst nichts installieren.
-          </div>
+        <div class="guide-fact-strip">
+          <div class="guide-fact"><i class="fa-solid fa-shield-halved"></i><span><strong>100&nbsp;% Datenschutz:</strong> Deine PDFs werden nur lokal im Browser gelesen – nichts wird hochgeladen.</span></div>
+          <div class="guide-fact"><i class="fa-solid fa-bolt"></i><span><strong>Live-Daten:</strong> IBM-Kurs und USD/EUR-Wechselkurs werden automatisch geladen.</span></div>
+          <div class="guide-fact"><i class="fa-solid fa-scale-balanced"></i><span><strong>Steuerregeln eingebaut:</strong> 15&nbsp;% Rabatt, Freibetrag (§ 3 Nr. 39 EStG), Abgeltungsteuer, Kirchensteuer &amp; Soli.</span></div>
         </div>
       </div>
 
-      <h3 style="margin: 0 0 16px;"><i class="fa-solid fa-route text-accent"></i> Welche Strategie passt zu Dir?</h3>
+      <!-- Kapitel 2: Strategie wählen -->
+      <div class="guide-section" id="guide-strategy">
+        <div class="guide-section-head">
+          <div class="guide-section-num">2</div>
+          <div>
+            <h3>Welche Strategie passt zu Dir?</h3>
+            <p class="guide-section-sub">Drei bewährte Wege, mit Deinen ESPP-Aktien umzugehen. <strong>Klicke eine Karte an</strong> – darunter erscheinen Vor- und Nachteile.</p>
+          </div>
+        </div>
+
       <div class="strategy-selector">
         <div class="strategy-card active" data-strategy="path-c">
           <div class="path-badge">Empfohlen</div>
@@ -1151,10 +1245,17 @@
       <div class="glass-card path-details-box" id="path-details">
         <!-- Content dynamic via JS based on selected strategy -->
       </div>
+      </div>
 
-      <!-- Aktientransfer (vormals eigener Tab) -->
-      <h3 style="margin: 40px 0 6px;"><i class="fa-solid fa-right-left text-accent"></i> Aktientransfer: EquatePlus → CapTrader / IBKR</h3>
-      <p style="color: var(--text-muted); margin-bottom: 22px;">So überträgst Du Deine Aktien (für Weg C) kostenfrei von EquatePlus (Computershare) zu CapTrader / Interactive Brokers.</p>
+      <!-- Kapitel 3: Aktientransfer (vormals eigener Tab) -->
+      <div class="guide-section" id="guide-transfer">
+        <div class="guide-section-head">
+          <div class="guide-section-num">3</div>
+          <div>
+            <h3>Aktientransfer: EquatePlus → CapTrader / IBKR</h3>
+            <p class="guide-section-sub">Der wichtigste Handgriff für Weg C: Aktien <strong>kostenfrei</strong> zum US-Broker übertragen und dort für ca. 2&nbsp;€ statt über $50 verkaufen.</p>
+          </div>
+        </div>
 
       <div class="transfer-flow">
         <div class="flow-step">
@@ -1226,11 +1327,37 @@
           </ol>
         </div>
       </div>
-      
-      <div class="alert alert-danger" style="margin-top: 30px;">
-        <i class="fa-solid fa-circle-radiation"></i>
-        <div>
-          <strong>Steuer-Warnung bei deutschen Depots:</strong> Übertrage Deine Aktien <em>nicht</em> auf ein deutsches Standard-Depot! Bei einem späteren Verkauf müssen die deutschen Banken mangels bekannter Costbasis gesetzlich <strong>30% des gesamten Verkaufserlöses</strong> (nicht nur des Gewinns) als Steuer einbehalten (§ 43a Abs. 2 EStG). Dies lässt sich nur mühsam über die Steuererklärung korrigieren.
+      </div>
+
+      <!-- Kapitel 4: Stolperfallen -->
+      <div class="guide-section" id="guide-pitfalls">
+        <div class="guide-section-head">
+          <div class="guide-section-num">4</div>
+          <div>
+            <h3>Stolperfallen vermeiden</h3>
+            <p class="guide-section-sub">Die drei häufigsten (und teuersten) Fehler – und wie Du sie umgehst.</p>
+          </div>
+        </div>
+
+        <div class="guide-pitfalls">
+          <div class="alert alert-danger">
+            <i class="fa-solid fa-circle-radiation"></i>
+            <div>
+              <strong>Kein Transfer auf ein deutsches Standard-Depot!</strong> Bei einem späteren Verkauf müssen deutsche Banken mangels bekannter Costbasis gesetzlich <strong>30&nbsp;% des gesamten Verkaufserlöses</strong> (nicht nur des Gewinns) als Steuer einbehalten (§ 43a Abs. 2 EStG). Dies lässt sich nur mühsam über die Steuererklärung korrigieren.
+            </div>
+          </div>
+          <div class="alert alert-warning">
+            <i class="fa-solid fa-file-signature"></i>
+            <div>
+              <strong>W-8BEN-Formular gültig halten:</strong> Prüfe bei EquatePlus (und Deinem US-Broker), ob Dein <strong>W-8BEN</strong>-Steuerformular hinterlegt und gültig ist – sonst werden <strong>30&nbsp;% statt 15&nbsp;%</strong> US-Quellensteuer von Deinen Dividenden einbehalten.
+            </div>
+          </div>
+          <div class="alert alert-info">
+            <i class="fa-solid fa-puzzle-piece"></i>
+            <div>
+              <strong>Bruchteile &amp; Dividenden bleiben bei EquatePlus:</strong> Es lassen sich nur <strong>ganze Aktien</strong> übertragen – Bruchteile bleiben zurück. Auch Dividenden fallen weiterhin zuerst bei EquatePlus an: Stelle dort ein, ob sie als <strong>Cash ausgezahlt</strong> (gebührenfrei aufs US-Konto) oder reinvestiert werden (unrabattiert, +2&nbsp;% Gebühr).
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -1238,111 +1365,223 @@
     <!-- TAXES TAB -->
     <section id="tab-taxes" class="tab-content">
       <div class="hero-section">
-        <h2>Steuerliche Behandlung in Deutschland</h2>
-        <p>Das IBM ESPP-Programm unterliegt klaren steuerlichen Vorschriften des deutschen Fiskus. Hier ist der Überblick.</p>
+        <h2>Steuern in Deutschland</h2>
+        <p>Was beim Kauf, bei Dividenden und beim Verkauf steuerlich passiert – Schritt für Schritt erklärt.</p>
       </div>
-      
-      <div class="grid-2col">
-        <div class="glass-card">
-          <h3><i class="fa-solid fa-briefcase"></i> 1. Besteuerung beim Aktienkauf</h3>
-          <p>Der Kauf erfolgt als <strong>Barlohnumwandlung</strong> direkt vom Bruttogehalt. Das hat den Vorteil, dass dieser Teil Deines Gehalts zunächst steuerfrei bleibt.</p>
-          <h4 class="text-primary" style="margin-top: 15px;">Mitarbeiter-Freibetrag (§ 3 Nr. 39 EStG)</h4>
-          <p>Der gewährte Rabatt von 15% ist bis zu einer Höhe von <strong>2.000 € pro Jahr</strong> (bis einschließlich 2023 lag die Grenze bei 1.440 €) komplett <strong>steuerfrei</strong>.</p>
-          <ul>
-            <li>Du kannst jährlich Aktien im Wert von ca. <strong>13.333 €</strong> steuerfrei erwerben (Rabatt = 2.000 €).</li>
-            <li>Ein Rabatt, der diesen Freibetrag übersteigt, wird auf Deiner Lohnabrechnung als <strong>geldwerter Vorteil</strong> (AKP discount GwV, Lohnart 46E0) mit Deinem normalen Einkommensteuersatz versteuert.</li>
-          </ul>
+
+      <!-- Kapitel-Navigation -->
+      <nav class="guide-toc" aria-label="Kapitel">
+        <a href="#tax-kauf"><span class="toc-num">1</span> Beim Kauf</a>
+        <a href="#tax-dividenden"><span class="toc-num">2</span> Dividenden</a>
+        <a href="#tax-verkauf"><span class="toc-num">3</span> Beim Verkauf</a>
+        <a href="#tax-w8ben"><span class="toc-num">4</span> W-8BEN &amp; Praxis</a>
+      </nav>
+
+      <!-- Auf einen Blick -->
+      <div class="tax-glance-grid">
+        <div class="guide-feature-card">
+          <div class="guide-feature-icon"><i class="fa-solid fa-cart-shopping"></i></div>
+          <h4>Beim Kauf</h4>
+          <div class="tax-glance-value text-success">0&nbsp;%</div>
+          <p>Der 15&nbsp;%-Rabatt ist bis <strong>2.000&nbsp;€ pro Jahr</strong> steuerfrei (Freibetrag § 3 Nr. 39 EStG). Erst darüber wird Lohnsteuer fällig.</p>
+        </div>
+        <div class="guide-feature-card">
+          <div class="guide-feature-icon"><i class="fa-solid fa-money-bill-wave"></i></div>
+          <h4>Auf Dividenden</h4>
+          <div class="tax-glance-value">26,375&nbsp;%</div>
+          <p>Abgeltungsteuer inkl. Soli. <strong>15&nbsp;%</strong> davon behalten die USA bereits ein (mit W-8BEN) – sie werden voll angerechnet.</p>
+        </div>
+        <div class="guide-feature-card">
+          <div class="guide-feature-icon"><i class="fa-solid fa-money-bill-trend-up"></i></div>
+          <h4>Beim Verkauf</h4>
+          <div class="tax-glance-value">26,375&nbsp;%</div>
+          <p>Abgeltungsteuer – aber <strong>nur auf den Gewinn</strong> über dem <strong>unrabattierten</strong> Kaufpreis, nicht auf den ganzen Erlös.</p>
+        </div>
+      </div>
+
+      <!-- Kapitel 1: Beim Kauf -->
+      <div class="guide-section" id="tax-kauf">
+        <div class="guide-section-head">
+          <div class="guide-section-num">1</div>
+          <div>
+            <h3>Besteuerung beim Aktienkauf</h3>
+            <p class="guide-section-sub">Warum der Kauf vom Bruttogehalt Dein größter Hebel ist.</p>
+          </div>
         </div>
 
         <div class="glass-card">
-          <h3><i class="fa-solid fa-money-bill-wave"></i> 2. Besteuerung der Dividenden</h3>
-          <p>Dividenden sind Einkünfte aus Kapitalvermögen und unterliegen der deutschen Abgeltungsteuer (25% + Soli = <strong>26,375%</strong>).</p>
-          <h4 class="text-primary" style="margin-top: 15px;">Quellensteuer-Anrechnung</h4>
-          <p>Bei ausgefülltem W-8BEN-Formular behalten die USA 15% Quellensteuer ein. Diese 15% werden in Deutschland voll angerechnet. Du zahlst bei der Steuererklärung also nur noch die Differenz von ca. 11,375%.</p>
-          <div class="alert alert-info" style="margin-top: 15px;">
+          <p>Der Kauf erfolgt als <strong>Barlohnumwandlung</strong> direkt vom <strong>Bruttogehalt</strong>: Dieser Teil Deines Lohns wird gar nicht erst besteuert. (Auf die Sozialversicherungsbeiträge wirkt sich das allerdings nicht mindernd aus.)</p>
+
+          <h4 class="text-primary" style="margin-top: 18px;">Mitarbeiter-Freibetrag (§ 3 Nr. 39 EStG)</h4>
+          <p>Der gewährte Rabatt von 15&nbsp;% ist bis zu <strong>2.000&nbsp;€ pro Jahr</strong> komplett <strong>steuerfrei</strong> (bis einschließlich 2023: 1.440&nbsp;€). Das heißt:</p>
+          <ul class="styled-list" style="margin-top: 8px;">
+            <li>Du kannst jährlich Aktien im Wert von ca. <strong>13.333&nbsp;€</strong> erwerben, ohne dass auf den Rabatt Steuern anfallen.</li>
+            <li>Nur der Rabatt <em>über</em> dem Freibetrag wird als <strong>geldwerter Vorteil</strong> mit Deinem normalen Einkommensteuersatz versteuert – auf der Gehaltsabrechnung als <em>„46E0 AKP discount GwV“</em> zu erkennen.</li>
+            <li>Die Lohnanteile der Barlohnumwandlung erscheinen <strong>nicht</strong> in der Lohnsteuerbescheinigung und müssen nicht extra in der Steuererklärung angegeben werden.</li>
+          </ul>
+
+          <h4 class="text-primary" style="margin-top: 18px;">Beispiel: 500&nbsp;€ Aktien, Freibetrag bereits ausgeschöpft</h4>
+          <div class="formula-box" style="margin-top: 10px;">
+            <code>Abzug vom Bruttolohn:        425,00 €<br>
+Bezug von Aktien für:        500,00 €<br>
+Davon 15 % Rabatt = GwV:      75,00 €<br>
+Steuer darauf (z. B. 35 %):   26,25 €</code>
+          </div>
+          <p class="text-sm text-muted" style="margin-top: 8px;">Solange der Freibetrag noch nicht ausgeschöpft ist, entfallen die 26,25&nbsp;€ – der Rabatt ist dann komplett steuerfrei.</p>
+        </div>
+      </div>
+
+      <!-- Kapitel 2: Dividenden -->
+      <div class="guide-section" id="tax-dividenden">
+        <div class="guide-section-head">
+          <div class="guide-section-num">2</div>
+          <div>
+            <h3>Besteuerung der Dividenden</h3>
+            <p class="guide-section-sub">IBM zahlt viermal im Jahr – und zwei Länder wollen etwas davon.</p>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <p>Dividenden sind <strong>Einkünfte aus Kapitalvermögen</strong> (§ 20 Abs. 1 Nr. 1 EStG) und unterliegen der deutschen Abgeltungsteuer von 25&nbsp;% + Soli = <strong>26,375&nbsp;%</strong> (mit Kirchensteuer entsprechend mehr).</p>
+
+          <h4 class="text-primary" style="margin-top: 18px;">So teilen sich USA und Deutschland die Steuer</h4>
+          <div class="grid-2col" style="margin-top: 12px;">
+            <div class="kap-box">
+              <h5>Schritt 1: USA behalten 15&nbsp;% ein</h5>
+              <p>Mit gültigem <strong>W-8BEN</strong> ziehen die USA direkt bei der Ausschüttung 15&nbsp;% Quellensteuer ab (ohne W-8BEN: 30&nbsp;%!).</p>
+            </div>
+            <div class="kap-box">
+              <h5>Schritt 2: Deutschland rechnet an</h5>
+              <p>Die 15&nbsp;% werden voll auf Deine Abgeltungsteuer angerechnet – über die Steuererklärung zahlst Du nur noch die Differenz von ca. <strong>11,375&nbsp;%</strong> (+ ggf. Kirchensteuer).</p>
+            </div>
+          </div>
+
+          <div class="alert alert-info" style="margin-top: 18px;">
             <i class="fa-solid fa-clock"></i>
             <div>
-              <strong>Zuflussprinzip:</strong> Dividenden müssen in dem Jahr versteuert werden, in dem sie auf Deinem EquatePlus-Konto eingehen, unabhängig davon, ob Du diese reinvestierst oder auf Dein Bankkonto auszahlen!
+              <strong>Zuflussprinzip:</strong> Dividenden versteuerst Du in dem Jahr, in dem sie Dir zufließen – <strong>unabhängig davon</strong>, ob Du sie reinvestierst oder auszahlen lässt.
+            </div>
+          </div>
+          <div class="alert alert-info" style="margin-top: 12px;">
+            <i class="fa-solid fa-euro-sign"></i>
+            <div>
+              <strong>Umrechnung in Euro:</strong> Für die Anlage KAP rechnest Du jede einzelne Zahlung mit dem Kurs am Zahltag um (z.&nbsp;B. EZB-Referenzkurs). Viele Finanzämter akzeptieren auch die Jahressumme mit einem mittleren Umrechnungskurs.
             </div>
           </div>
         </div>
       </div>
 
-      <div class="glass-card" style="margin-top: 30px;">
-        <h3><i class="fa-solid fa-user-shield"></i> Das W-8BEN-Formular: US-Quellensteuer von 30&nbsp;% auf 15&nbsp;% senken</h3>
-        <p>Als in Deutschland steuerpflichtige Person solltest Du bei EquatePlus/Computershare ein gültiges <strong>W-8BEN-Formular</strong> hinterlegen. Es bestätigt Deinen Status als Nicht-US-Person und sichert Dir den reduzierten Quellensteuersatz aus dem deutsch-amerikanischen Doppelbesteuerungsabkommen.</p>
-        <div class="grid-2col" style="margin-top: 18px;">
-          <div class="kap-box">
-            <h5>Ohne W-8BEN</h5>
-            <p>Die USA behalten <strong>30&nbsp;%</strong> Quellensteuer auf jede Dividende ein.</p>
-          </div>
-          <div class="kap-box">
-            <h5>Mit W-8BEN</h5>
-            <p>Nur noch <strong>15&nbsp;%</strong> – und diese 15&nbsp;% werden in Deutschland voll auf Deine Abgeltungsteuer angerechnet.</p>
-          </div>
-        </div>
-        <div class="alert alert-warning" style="margin-top: 18px;">
-          <i class="fa-solid fa-circle-exclamation"></i>
+      <!-- Kapitel 3: Beim Verkauf -->
+      <div class="guide-section" id="tax-verkauf">
+        <div class="guide-section-head">
+          <div class="guide-section-num">3</div>
           <div>
-            <strong>EquatePlus-Migration prüfen:</strong> Mit dem Umzug zu EquatePlus in 2025 sind viele W-8BEN-Formulare abgelaufen. Prüfe Deinen Status unter <em>My Profile &gt; Tax Certification</em> und erneuere es bei Bedarf.
+            <h3>Besteuerung beim Verkauf</h3>
+            <p class="guide-section-sub">Veräußerungsgewinne gehören in die Anlage KAP – so rechnest Du richtig.</p>
           </div>
         </div>
-        <p class="text-sm" style="margin-top: 14px;">Sollte die Online-Eingabe fehlschlagen (oft wegen hinterlegter US-Kontodaten), lösche kurzzeitig Deine Banking Details, fülle das W-8BEN aus und trage die Bankdaten wieder ein. Alternativ schreibe an <a href="mailto:USTaxcertificationsEQ@computershare.com">USTaxcertificationsEQ@computershare.com</a>.</p>
+
+        <div class="glass-card">
+          <p>Beim Verkauf versteuerst Du den <strong>Gewinn</strong> (§ 20 Abs. 2 Nr. 1 EStG) mit der Abgeltungsteuer von 26,375&nbsp;%. Als Kostenbasis gilt der <strong>unrabattierte</strong> Kaufpreis – der 15&nbsp;%-Rabatt wurde ja bereits beim Kauf (steuerfrei oder als GwV) berücksichtigt.</p>
+
+          <div class="formula-box" style="margin-top: 14px;">
+            <code>Gewinn = Verkaufserlös − unrabattierter Einstandspreis (Cost Basis) − Gebühren</code>
+          </div>
+
+          <h4 class="text-primary" style="margin-top: 18px;">Eintragen in der Steuererklärung</h4>
+          <p>Da US-Broker keine deutsche Steuer abführen, gibst Du die Werte selbst in der <strong>Anlage KAP</strong> an:</p>
+          <div class="grid-2col" style="margin-top: 12px;">
+            <div class="kap-box">
+              <h5>Anlage KAP – Zeile 19</h5>
+              <p>In Euro umgerechnete ausländische Kapitalerträge: Dividenden <em>und</em> Veräußerungsgewinne (ohne inländischen Steuerabzug).</p>
+            </div>
+            <div class="kap-box">
+              <h5>Anlage KAP – Zeile 41</h5>
+              <p>Anrechenbare ausländische Quellensteuer: die in den USA bereits einbehaltenen 15&nbsp;% auf Dividenden.</p>
+            </div>
+          </div>
+
+          <div class="guide-fact-strip" style="margin-top: 18px;">
+            <div class="guide-fact"><i class="fa-solid fa-flag-usa"></i><span>Die USA besteuern Kursgewinne von Ausländern <strong>nicht</strong> – deshalb bekommst Du dafür auch keine US-Steuerunterlagen.</span></div>
+            <div class="guide-fact"><i class="fa-solid fa-file-lines"></i><span><strong>CapTrader-Vorteil:</strong> Es gibt einen deutschen <em>„Informativen Steuerbericht“</em> mit allen für die Anlage KAP relevanten Summen – wie von deutschen Banken gewohnt.</span></div>
+          </div>
+
+          <div class="alert alert-warning" style="margin-top: 18px;">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <div>
+              <strong>Cost Basis nach dem Transfer korrigieren:</strong> Nach dem Aktientransfer von EquatePlus zu CapTrader/IBKR ist die Cost Basis oft falsch oder leer. Korrigiere sie unter <em>Performance &amp; Reports &gt; Tax Documents &gt; Cost Basis &gt; Position Transfer</em>, damit die Umsatzübersicht fürs Finanzamt korrekte Gewinne ausweist.
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div class="glass-card" style="margin-top: 30px;">
-        <h3><i class="fa-solid fa-file-invoice-dollar"></i> 3. Besteuerung beim Verkauf (Veräußerungsgewinn)</h3>
-        <p>Wenn Du die Aktien verkaufst, musst Du den erzielten Gewinn in Deutschland versteuern. Der Gewinn errechnet sich aus dem Verkaufserlös abzüglich des <strong>unrabattierten</strong> Kaufpreises (Einstandspreis).</p>
-        
-        <div class="step-card-tax">
-          <div class="formula-box">
-            <code>Gewinn = Verkaufserlös - unrabattierter Einstandspreis (Cost Basis) - Gebühren</code>
-          </div>
-          <p>Der Gewinn unterliegt ebenfalls der Abgeltungsteuer von 26,375%. In Deiner Steuererklärung trägst Du die Werte in die <strong>Anlage KAP</strong> ein:</p>
-          <div class="grid-2col" style="margin-top: 20px;">
-            <div class="kap-box">
-              <h5>Anlage KAP - Zeile 19</h5>
-              <p>In Euro umgerechnete ausländische Dividenden und Veräußerungsgewinne (ohne Steuerabzug im Inland).</p>
-            </div>
-            <div class="kap-box">
-              <h5>Anlage KAP - Zeile 41</h5>
-              <p>Anrechenbare ausländische Quellensteuer (die in den USA bereits einbehaltenen 15%).</p>
-            </div>
+      <!-- Kapitel 4: W-8BEN & Praxis -->
+      <div class="guide-section" id="tax-w8ben">
+        <div class="guide-section-head">
+          <div class="guide-section-num">4</div>
+          <div>
+            <h3>Das W-8BEN-Formular &amp; Praxis-Tipps</h3>
+            <p class="guide-section-sub">Ein Formular, das Dir bares Geld spart: US-Quellensteuer von 30&nbsp;% auf 15&nbsp;% senken.</p>
           </div>
         </div>
 
-        <div class="alert alert-warning" style="margin-top: 20px;">
-          <i class="fa-solid fa-circle-exclamation"></i>
-          <div>
-            <strong>Cost Basis Korrektur bei CapTrader/IBKR:</strong> Nach dem Aktientransfer von EquatePlus zu CapTrader wird die Cost Basis oft fehlerhaft oder gar nicht angezeigt. Du solltest diese unter <em>Performance & Reports > Tax Documents > Cost Basis -> Position Transfer</em> manuell korrigieren, damit Deine Umsatzübersicht für das Finanzamt korrekte Gewinne ausweist.
+        <div class="glass-card">
+          <p>Als in Deutschland steuerpflichtige Person solltest Du bei EquatePlus <em>und</em> Deinem US-Broker ein gültiges <strong>W-8BEN-Formular</strong> hinterlegen. Es bestätigt Deinen Status als Nicht-US-Person und sichert Dir den reduzierten Quellensteuersatz aus dem deutsch-amerikanischen Doppelbesteuerungsabkommen.</p>
+          <div class="grid-2col" style="margin-top: 14px;">
+            <div class="kap-box">
+              <h5><i class="fa-solid fa-circle-xmark" style="color: var(--danger);"></i> Ohne W-8BEN</h5>
+              <p>Die USA behalten <strong>30&nbsp;%</strong> Quellensteuer auf jede Dividende ein – die Hälfte davon ist faktisch verschenkt.</p>
+            </div>
+            <div class="kap-box">
+              <h5><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Mit W-8BEN</h5>
+              <p>Nur noch <strong>15&nbsp;%</strong> – und diese werden in Deutschland voll auf Deine Abgeltungsteuer angerechnet.</p>
+            </div>
+          </div>
+
+          <div class="alert alert-warning" style="margin-top: 18px;">
+            <i class="fa-solid fa-circle-exclamation"></i>
+            <div>
+              <strong>EquatePlus-Migration prüfen:</strong> Mit dem Umzug von Computershare zu EquatePlus in 2025 sind viele W-8BEN-Formulare abgelaufen (<em>expired</em>). Prüfe Deinen Status unter <em>My Profile &gt; Tax Certification</em> und erneuere das Formular bei Bedarf.
+            </div>
+          </div>
+          <div class="alert alert-info" style="margin-top: 12px;">
+            <i class="fa-solid fa-lightbulb"></i>
+            <div>
+              <strong>Wenn die Online-Eingabe fehlschlägt</strong> (oft wegen hinterlegter US-Kontodaten): Banking Details kurzzeitig löschen, W-8BEN ausfüllen, Bankdaten wieder eintragen. Alternativ hilft eine Mail an <a href="mailto:USTaxcertificationsEQ@computershare.com">USTaxcertificationsEQ@computershare.com</a>.
+            </div>
           </div>
         </div>
+      </div>
+
+      <div class="detail-note" style="margin-top: -20px;">
+        <i class="fa-solid fa-scale-balanced"></i> Alle Angaben ohne Gewähr und keine Steuerberatung – sie basieren auf den HR-Hinweisen zur Gehaltsabrechnung und Erfahrungswerten von Kollegen. Im Zweifel hilft Dir ein Steuerberater.
       </div>
     </section>
   </main>
   
   <footer>
     <div class="footer-container">
-      <p class="footer-contact">
-        <i class="fa-solid fa-envelope"></i> Kontakt &amp; Feedback:
-        <a href="https://www.linkedin.com/in/maximilian-rautland/" target="_blank" rel="noopener">
-          <i class="fa-brands fa-linkedin"></i> Maximilian Rautland
+      <div class="footer-links-row">
+        <a class="footer-link" href="https://ibm.enterprise.slack.com/team/U01JQJ08BNC" target="_blank" rel="noopener">
+          <svg class="footer-slack-logo" viewBox="-18.42 -30.7 159.64 184.2" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Slack"><g transform="translate(-73.6 -73.6)"><path d="M99.4 151.2c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9h12.9z" fill="#e01e5a"/><path d="M105.9 151.2c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9v32.3c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9z" fill="#e01e5a"/><path d="M118.8 99.4c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9v12.9z" fill="#36c5f0"/><path d="M118.8 105.9c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9H86.5c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9z" fill="#36c5f0"/><path d="M170.6 118.8c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9h-12.9z" fill="#2eb67d"/><path d="M164.1 118.8c0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9V86.5c0-7.1 5.8-12.9 12.9-12.9 7.1 0 12.9 5.8 12.9 12.9z" fill="#2eb67d"/><path d="M151.2 170.6c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9-7.1 0-12.9-5.8-12.9-12.9v-12.9z" fill="#ecb22e"/><path d="M151.2 164.1c-7.1 0-12.9-5.8-12.9-12.9 0-7.1 5.8-12.9 12.9-12.9h32.3c7.1 0 12.9 5.8 12.9 12.9 0 7.1-5.8 12.9-12.9 12.9z" fill="#ecb22e"/></g></svg> Kontakt &amp; Feedback
         </a>
-      </p>
-      <p class="footer-source">
-        <i class="fa-solid fa-book"></i> Weitere Informationen:
-        <a href="https://github.ibm.com/hajo-pross/ExtendedBrain/blob/master/ESPP/ESPP.md" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> ESPP-Dokumentation</a>
-        <span class="footer-source-note">— IBM-intern</span>
-      </p>
-      <div class="disclaimer">
-        <strong>Disclaimer:</strong> Dieser Web-Rechner und die bereitgestellten Informationen dienen ausschließlich Informationszwecken und stellen keine Finanz- oder Steuerberatung dar. Ich übernehme <strong>keine Gewähr für die Richtigkeit</strong> der Berechnungen – sie sind mit Vorsicht zu genießen und ersetzen keine eigene Prüfung.
+        <span class="footer-link-sep"></span>
+        <a class="footer-link" href="https://github.ibm.com/hajo-pross/ExtendedBrain/blob/master/ESPP/ESPP.md" target="_blank" rel="noopener">
+          <i class="fa-brands fa-github"></i> ESPP-Dokumentation <span class="footer-link-note">IBM-intern</span>
+        </a>
       </div>
-      <p class="footer-madewith">
+
+      <div class="footer-bottom">
+        <div class="disclaimer">
+          <strong>Disclaimer:</strong> Dieser Web-Rechner und die bereitgestellten Informationen dienen ausschließlich Informationszwecken und stellen keine Finanz- oder Steuerberatung dar. Ich übernehme <strong>keine Gewähr für die Richtigkeit</strong> der Berechnungen – sie sind mit Vorsicht zu genießen und ersetzen keine eigene Prüfung.
+        </div>
+        <p class="footer-madewith">
         <span class="mw-text">Built with</span>
         <span class="mw-and">&amp;</span>
         <svg class="mw-logo" viewBox="0 -.01 39.5 39.53" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Claude"><path d="m7.75 26.27 7.77-4.36.13-.38-.13-.21h-.38l-1.3-.08-4.44-.12-3.85-.16-3.73-.2-.94-.2-.88-1.16.09-.58.79-.53 1.13.1 2.5.17 3.75.26 2.72.16 4.03.42h.64l.09-.26-.22-.16-.17-.16-3.88-2.63-4.2-2.78-2.2-1.6-1.19-.81-.6-.76-.26-1.66 1.08-1.19 1.45.1.37.1 1.47 1.13 3.14 2.43 4.1 3.02.6.5.24-.17.03-.12-.27-.45-2.23-4.03-2.38-4.1-1.06-1.7-.28-1.02c-.1-.42-.17-.77-.17-1.2l1.23-1.67.68-.22 1.64.22.69.6 1.02 2.33 1.65 3.67 2.56 4.99.75 1.48.4 1.37.15.42h.26v-.24l.21-2.81.39-3.45.38-4.44.13-1.25.62-1.5 1.23-.81.96.46.79 1.13-.11.73-.47 3.05-.92 4.78-.6 3.2h.35l.4-.4 1.62-2.15 2.72-3.4 1.2-1.35 1.4-1.49.9-.71h1.7l1.25 1.86-.56 1.92-1.75 2.22-1.45 1.88-2.08 2.8-1.3 2.24.12.18.31-.03 4.7-1 2.54-.46 3.03-.52 1.37.64.15.65-.54 1.33-3.24.8-3.8.76-5.66 1.34-.07.05.08.1 2.55.24 1.09.06h2.67l4.97.37 1.3.86.78 1.05-.13.8-2 1.02-2.7-.64-6.3-1.5-2.16-.54h-.3v.18l1.8 1.76 3.3 2.98 4.13 3.84.21.95-.53.75-.56-.08-3.63-2.73-1.4-1.23-3.17-2.67h-.21v.28l.73 1.07 3.86 5.8.2 1.78-.28.58-1 .35-1.1-.2-2.26-3.17-2.33-3.57-1.88-3.2-.23.13-1.11 11.95-.52.61-1.2.46-1-.76-.53-1.23.53-2.43.64-3.17.52-2.52.47-3.13.28-1.04-.02-.07-.23.03-2.36 3.24-3.59 4.85-2.84 3.04-.68.27-1.18-.61.11-1.09.66-.97 3.93-5 2.37-3.1 1.53-1.79-.01-.26h-.09l-10.44 6.78-1.86.24-.8-.75.1-1.23.38-.4 3.14-2.16z" fill="#d97757"/></svg>
         <svg class="mw-logo" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Antigravity"><mask height="23" id="ag-mask-0" maskUnits="userSpaceOnUse" width="24" x="0" y="1"><path d="M21.751 22.607c1.34 1.005 3.35.335 1.508-1.508C17.73 15.74 18.904 1 12.037 1 5.17 1 6.342 15.74.815 21.1c-2.01 2.009.167 2.511 1.507 1.506 5.192-3.517 4.857-9.714 9.715-9.714 4.857 0 4.522 6.197 9.714 9.715z" fill="#fff"></path></mask><g mask="url(#ag-mask-0)"><g filter="url(#ag-f1)"><path d="M-1.018-3.992c-.408 3.591 2.686 6.89 6.91 7.37 4.225.48 7.98-2.043 8.387-5.633.408-3.59-2.686-6.89-6.91-7.37-4.225-.479-7.98 2.043-8.387 5.633z" fill="#FFE432"></path></g><g filter="url(#ag-f2)"><path d="M15.269 7.747c1.058 4.557 5.691 7.374 10.348 6.293 4.657-1.082 7.575-5.653 6.516-10.21-1.058-4.556-5.691-7.374-10.348-6.292-4.657 1.082-7.575 5.653-6.516 10.21z" fill="#FC413D"></path></g><g filter="url(#ag-f3)"><path d="M-12.443 10.804c1.338 4.703 7.36 7.11 13.453 5.378 6.092-1.733 9.947-6.95 8.61-11.652C8.282-.173 2.26-2.58-3.833-.848-9.925.884-13.78 6.1-12.443 10.804z" fill="#00B95C"></path></g><g filter="url(#ag-f5)"><path d="M-7.608 14.703c3.352 3.424 9.126 3.208 12.896-.483 3.77-3.69 4.108-9.459.756-12.883C2.69-2.087-3.083-1.871-6.853 1.82c-3.77 3.69-4.108 9.458-.755 12.883z" fill="#00B95C"></path></g><g filter="url(#ag-f6)"><path d="M9.932 27.617c1.04 4.482 5.384 7.303 9.7 6.3 4.316-1.002 6.971-5.448 5.93-9.93-1.04-4.483-5.384-7.304-9.7-6.301-4.316 1.002-6.971 5.448-5.93 9.93z" fill="#3186FF"></path></g><g filter="url(#ag-f7)"><path d="M2.572-8.185C.392-3.329 2.778 2.472 7.9 4.771c5.122 2.3 11.042.227 13.222-4.63 2.18-4.855-.205-10.656-5.327-12.955-5.122-2.3-11.042-.227-13.222 4.63z" fill="#FBBC04"></path></g><g filter="url(#ag-f8)"><path d="M-3.267 38.686c-5.277-2.072 3.742-19.117 5.984-24.83 2.243-5.712 8.34-8.664 13.616-6.592 5.278 2.071 11.533 13.482 9.29 19.195-2.242 5.713-23.613 14.298-28.89 12.227z" fill="#3186FF"></path></g><g filter="url(#ag-f9)"><path d="M28.71 17.471c-1.413 1.649-5.1.808-8.236-1.878-3.135-2.687-4.531-6.201-3.118-7.85 1.412-1.649 5.1-.808 8.235 1.878s4.532 6.2 3.119 7.85z" fill="#749BFF"></path></g><g filter="url(#ag-f10)"><path d="M18.163 9.077c5.81 3.93 12.502 4.19 14.946.577 2.443-3.612-.287-9.727-6.098-13.658-5.81-3.931-12.502-4.19-14.946-.577-2.443 3.612.287 9.727 6.098 13.658z" fill="#FC413D"></path></g><g filter="url(#ag-f11)"><path d="M-.915 2.684c-1.44 3.473-.97 6.967 1.05 7.804 2.02.837 4.824-1.3 6.264-4.772 1.44-3.473.97-6.967-1.05-7.804-2.02-.837-4.824 1.3-6.264 4.772z" fill="#FFEE48"></path></g></g><defs><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="17.587" id="ag-f1" width="19.838" x="-3.288" y="-11.917"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="1.117"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="38.565" id="ag-f2" width="38.9" x="4.251" y="-13.493"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="5.4"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.517" id="ag-f3" width="40.955" x="-21.889" y="-10.592"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="36.595" id="ag-f5" width="36.632" x="-19.099" y="-10.278"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="4.591"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="34.087" id="ag-f6" width="33.533" x=".981" y="8.758"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="4.363"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="35.276" id="ag-f7" width="35.978" x="-6.143" y="-21.659"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="3.954"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="46.523" id="ag-f8" width="45.114" x="-11.96" y="-.46"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="3.531"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="24.054" id="ag-f9" width="25.094" x="10.485" y=".58"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="3.159"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="30.007" id="ag-f10" width="33.508" x="5.833" y="-12.467"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="2.669"></feGaussianBlur></filter><filter color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse" height="26.151" id="ag-f11" width="22.194" x="-8.355" y="-8.876"><feFlood flood-opacity="0" result="BackgroundImageFix"></feFlood><feBlend in="SourceGraphic" in2="BackgroundImageFix" result="shape"></feBlend><feGaussianBlur result="b" stdDeviation="3.303"></feGaussianBlur></filter></defs></svg>
       </p>
+      </div>
     </div>
   </footer>
 

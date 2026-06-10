@@ -7,14 +7,18 @@ let state = {
   exchangeRate: 0.92,
   previousCloseUSD: 178.50,
   previousCloseEUR: 164.22,
+  // false until the user sets a real salary (slider, payslip upload, or restored state);
+  // until then the default 5.000 € is presented as a clearly-labeled example.
+  salaryProvided: false,
   activeTab: 'calculator',
   activeStrategy: 'path-c',
   chart: null,
   porscheChart: null,
   historicalPrices: null,
   usingHistoricalData: false,
-  // The user's savings goal for the tracker: { name, image, price, url }
-  goal: { name: 'Mein Sparziel', image: null, price: 50000, url: null }
+  // The user's savings goal for the tracker: { name, image, price, url }.
+  // price 0 = no goal set yet → the tracker shows an empty state until the user sets one.
+  goal: { name: '', image: null, price: 0, url: null }
 };
 
 // DOM Elements
@@ -38,6 +42,8 @@ const elements = {
   selectChurchTax: document.getElementById('selectChurchTax'),
   selectSoli: document.getElementById('selectSoli'),
   selectBroker: document.getElementById('selectBroker'),
+  selectCalcMode: document.getElementById('selectCalcMode'),
+  inputJoinDate: document.getElementById('inputJoinDate'),
   inputSellPrice: document.getElementById('inputSellPrice'),
   inputAccumulatedMonths: document.getElementById('inputAccumulatedMonths'),
   valAccumulatedMonths: document.getElementById('valAccumulatedMonths'),
@@ -47,7 +53,6 @@ const elements = {
   netProfitEuro: document.getElementById('netProfitEuro'),
   netProfitPercent: document.getElementById('netProfitPercent'),
   netInvestment: document.getElementById('netInvestment'),
-  netReturnOnCapital: document.getElementById('netReturnOnCapital'),
   rowGrossContribution: document.getElementById('rowGrossContribution'),
   rowNetContribution: document.getElementById('rowNetContribution'),
   rowDiscountBenefit: document.getElementById('rowDiscountBenefit'),
@@ -146,10 +151,23 @@ document.addEventListener('DOMContentLoaded', () => {
       e.target.closest('.transfer-details-card').classList.add('hidden-details');
     });
   });
+
+  // "Zum Rechner / Zur Analyse / ..." shortcuts in the Reiseführer feature cards
+  document.querySelectorAll('[data-goto-tab]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const target = btn.getAttribute('data-goto-tab');
+      const tab = [...elements.navTabs].find(t => t.getAttribute('data-tab') === target);
+      if (tab) {
+        tab.click();
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    });
+  });
 });
 
 // Light/Dark mode toggle. The saved theme is applied pre-paint by the inline
-// <head> script; here we just keep the button in sync and handle clicks.
+// <head> script; here we keep the button in sync, handle clicks, and rebuild
+// the Chart.js charts so their canvas colors match the new theme.
 // Persisted in localStorage['espp_theme'] so it sticks across every tab/reload.
 function initThemeToggle() {
   const btn = document.getElementById('themeToggle');
@@ -171,16 +189,38 @@ function initThemeToggle() {
     const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
     apply(next);
     try { localStorage.setItem('espp_theme', next); } catch (e) { /* ignore */ }
+
+    // Re-create the charts with the new theme's canvas colors.
+    if (state.chart) { state.chart.destroy(); state.chart = null; }
+    if (state.porscheChart) { state.porscheChart.destroy(); state.porscheChart = null; }
+    calculateESPP(); // re-renders donut + goal projection (via updateGoalTracker)
   });
 }
 
 // First-visit welcome overlay + the "what is this" capability shortcuts.
 function initWelcome() {
   const overlay = document.getElementById('welcomeOverlay');
-  const open = () => { if (overlay) { overlay.style.display = 'flex'; document.body.style.overflow = 'hidden'; } };
+  // Robust scroll lock: body{overflow:hidden} alone is ignored by iOS Safari and leaks
+  // through scroll chaining — fixing the body in place blocks every scroll path.
+  let lockedScrollY = 0;
+  const open = () => {
+    if (!overlay) return;
+    overlay.style.display = 'flex';
+    lockedScrollY = window.scrollY || 0;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${lockedScrollY}px`;
+    document.body.style.left = '0';
+    document.body.style.right = '0';
+    document.body.style.overflow = 'hidden';
+  };
   const close = () => {
     if (overlay) overlay.style.display = 'none';
+    document.body.style.position = '';
+    document.body.style.top = '';
+    document.body.style.left = '';
+    document.body.style.right = '';
     document.body.style.overflow = '';
+    window.scrollTo(0, lockedScrollY);
     try { localStorage.setItem('espp_seen_welcome', '1'); } catch (e) { /* private mode */ }
   };
 
@@ -307,7 +347,7 @@ const strategies = {
       </div>
       <div class="grid-2col" style="margin-top: 20px;">
         <div>
-          <h5 style="color:#fff; margin-bottom:10px;"><i class="fa-solid fa-circle-check text-success"></i> Deine Vorteile</h5>
+          <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-circle-check text-success"></i> Deine Vorteile</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
             <li><strong>Minimale Kosten:</strong> Verkauf + Devisentausch kosten insgesamt nur ca. 4€ statt über 50$ bei EquatePlus.</li>
             <li><strong>Klumpenrisiko vermeiden:</strong> Du investierst den Erlös in breit gestreute ETFs statt alles in IBM-Aktien zu halten.</li>
@@ -315,7 +355,7 @@ const strategies = {
           </ul>
         </div>
         <div>
-          <h5 style="color:#fff; margin-bottom:10px;"><i class="fa-solid fa-circle-exclamation text-warning"></i> Wichtig zu beachten</h5>
+          <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-circle-exclamation text-warning"></i> Wichtig zu beachten</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
             <li><strong>Zwei Transfers nötig:</strong> Du musst erst bei CapTrader/IBKR den Empfang ankündigen und dann bei EquatePlus senden.</li>
             <li><strong>Dividenden-Zwischenstopp:</strong> Auch wenn Du regelmäßig verkaufst, fallen bis dahin Dividenden bei EquatePlus an – entscheide, ob Du sie auszahlen lässt oder reinvestierst.</li>
@@ -335,14 +375,14 @@ const strategies = {
       </div>
       <div class="grid-2col" style="margin-top: 20px;">
         <div>
-          <h5 style="color:#fff; margin-bottom:10px;"><i class="fa-solid fa-circle-check text-success"></i> Deine Vorteile</h5>
+          <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-circle-check text-success"></i> Deine Vorteile</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
             <li><strong>Kein Zwangskauf:</strong> Du entscheidest selbst, wann Du Dividenden anlegst, und kaufst nicht ungefragt unrabattierte Aktien.</li>
             <li><strong>Keine 2&nbsp;%-Reinvest-Gebühr:</strong> Du sparst Dir die Gebühr, die EquatePlus auf jede automatisch reinvestierte Dividende einbehält.</li>
           </ul>
         </div>
         <div>
-          <h5 style="color:#fff; margin-bottom:10px;"><i class="fa-solid fa-triangle-exclamation text-danger"></i> Nachteile & Gebühren</h5>
+          <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-triangle-exclamation text-danger"></i> Nachteile & Gebühren</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
             <li><strong>Klumpenrisiko bleibt:</strong> Dein Vermögen hängt stark von der Entwicklung der IBM ab.</li>
             <li><strong>Späterer Verkauf teuer:</strong> Der Verkauf direkt über EquatePlus kostet über 50$ pro Trade plus zusätzliche Bankgebühren.</li>
@@ -361,14 +401,14 @@ const strategies = {
       </div>
       <div class="grid-2col" style="margin-top: 20px;">
         <div>
-          <h5 style="color:#fff; margin-bottom:10px;"><i class="fa-solid fa-circle-check text-success"></i> Deine Vorteile</h5>
+          <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-circle-check text-success"></i> Deine Vorteile</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
             <li><strong>Absolut Passiv:</strong> Du musst Dich nicht um Konten, Broker oder manuelle Übertragungen kümmern.</li>
             <li><strong>Zinseszinseffekt:</strong> Dividenden arbeiten sofort wieder in IBM-Aktien weiter.</li>
           </ul>
         </div>
         <div>
-          <h5 style="color:#fff; margin-bottom:10px;"><i class="fa-solid fa-circle-xmark text-danger"></i> Die Nachteile (Hohe Kosten)</h5>
+          <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-circle-xmark text-danger"></i> Die Nachteile (Hohe Kosten)</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
             <li><strong>Kein Rabatt auf Dividenden-Käufe:</strong> Über Dividenden gekaufte Aktien erhalten KEINE 15% Rabatt.</li>
             <li><strong>Zusatzgebühren:</strong> EquatePlus behält 2% Gebühr auf jede reinvestierte Dividende ein.</li>
@@ -417,9 +457,12 @@ function saveCalculatorState() {
     soli: elements.selectSoli.value,
     broker: elements.selectBroker.value,
     sellPrice: elements.inputSellPrice.value,
-    accumulatedMonths: elements.inputAccumulatedMonths.value
+    accumulatedMonths: elements.inputAccumulatedMonths.value,
+    salaryProvided: state.salaryProvided,
+    calcMode: elements.selectCalcMode ? elements.selectCalcMode.value : 'forecast',
+    joinDate: elements.inputJoinDate ? elements.inputJoinDate.dataset.value : ''
   };
-  
+
   localStorage.setItem('espp_calculator_state', JSON.stringify(serialized));
   
   if (btnClearCalculator) {
@@ -444,6 +487,10 @@ function loadCalculatorState() {
       elements.inputMonthlySalary.value = parsed.monthlySalary;
       elements.valMonthlySalary.textContent = `${parseInt(parsed.monthlySalary).toLocaleString('de-DE')} €`;
     }
+    // Restore the "real salary entered" flag; older saved states (without the flag) count as
+    // user-provided only if the stored salary differs from the 5.000 € example default.
+    state.salaryProvided = parsed.salaryProvided === true ||
+      (parsed.salaryProvided === undefined && parsed.monthlySalary !== undefined && String(parsed.monthlySalary) !== '5000');
     if (parsed.savingsRate !== undefined) {
       elements.inputSavingsRate.value = parsed.savingsRate;
       elements.valSavingsRate.textContent = `${parsed.savingsRate} %`;
@@ -486,6 +533,17 @@ function loadCalculatorState() {
       }
     }
 
+    if (parsed.calcMode && elements.selectCalcMode) {
+      elements.selectCalcMode.value = parsed.calcMode;
+    }
+    if (parsed.joinDate && elements.inputJoinDate) {
+      setJoinDateValue(parsed.joinDate);
+    }
+    applyCalcModeUI();
+    if (elements.selectCalcMode && elements.selectCalcMode.value === 'historical') {
+      ensureHistoricalData(); // async; re-runs calculateESPP when the series arrives
+    }
+
     // omit loading uploadStatusHTML as it should not persist across reloads
     
     if (btnClearCalculator) {
@@ -497,6 +555,199 @@ function loadCalculatorState() {
 }
 
 // Calculator Logic
+// ===== Historical mode (Rechner): real monthly IBM prices & FX since the join date =====
+// histState.months: [{ month: 'YYYY-MM', priceUSD, fx }] — monthly average close + avg USD->EUR rate.
+let histState = { key: null, months: null, loading: false, error: null };
+
+function setHistStatus(html, type) {
+  const el = document.getElementById('histStatus');
+  if (!el) return;
+  if (!html) { el.className = 'upload-status-message hidden-status'; el.innerHTML = ''; return; }
+  el.className = 'upload-status-message ' + (type || '');
+  el.innerHTML = type === 'loading' ? `<span class="loading-spinner"></span> ${html}` : html;
+}
+
+// Show/hide the mode-dependent inputs (join date vs. buy price + holding period).
+function applyCalcModeUI() {
+  const historical = elements.selectCalcMode && elements.selectCalcMode.value === 'historical';
+  const joinGroup = document.getElementById('joinDateGroup');
+  const buyGroup = document.getElementById('buyPriceGroup');
+  const holdGroup = document.getElementById('holdingGroup');
+  if (joinGroup) joinGroup.style.display = historical ? '' : 'none';
+  if (buyGroup) buyGroup.style.display = historical ? 'none' : '';
+  if (holdGroup) holdGroup.style.display = historical ? 'none' : '';
+}
+
+// Fetch (and cache) the monthly price + FX series from the join month until today.
+async function ensureHistoricalData() {
+  if (!elements.inputJoinDate) return;
+  const joinVal = getJoinDateValue(); // 'YYYY-MM'
+  const join = new Date(parseInt(joinVal.slice(0, 4)), parseInt(joinVal.slice(5, 7)) - 1, 1);
+  const now = new Date();
+  const monthsCount = (now.getFullYear() - join.getFullYear()) * 12 + (now.getMonth() - join.getMonth()) + 1;
+  if (monthsCount < 1) { setHistStatus('Der Beitritt liegt in der Zukunft.', 'error'); return; }
+  const key = `${joinVal}_${monthsCount}`;
+  if (histState.key === key && (histState.months || histState.loading)) return;
+
+  histState = { key, months: null, loading: true, error: null };
+  setHistStatus('Lade historische IBM-Kurse & Wechselkurse…', 'loading');
+  try {
+    const period1 = Math.floor(join.getTime() / 1000);
+    const period2 = Math.floor(Date.now() / 1000);
+    const [stockResp, fxResp] = await Promise.all([
+      fetch(`/api/stock/historical?months=${monthsCount}`).then(r => r.json()),
+      fetch(`/api/forex/historical-range?period1=${period1}&period2=${period2}`).then(r => r.json()).catch(() => null)
+    ]);
+    if (!stockResp || !stockResp.success || !Array.isArray(stockResp.months) || stockResp.months.length === 0) {
+      throw new Error('keine Kursdaten erhalten');
+    }
+    // Average the daily USD->EUR rates per month (purchase-month FX for the EUR cost basis).
+    const fxByMonth = {};
+    if (fxResp && fxResp.success && Array.isArray(fxResp.rates)) {
+      const groups = {};
+      fxResp.rates.forEach(r => {
+        const d = new Date(r.timestamp);
+        const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        (groups[k] = groups[k] || []).push(r.rate);
+      });
+      Object.keys(groups).forEach(k => { fxByMonth[k] = groups[k].reduce((a, b) => a + b, 0) / groups[k].length; });
+    }
+    // FX fallback for months before the USD/EUR history begins (Yahoo: 2003-12):
+    // use the chronologically nearest known rate instead of today's rate.
+    const fxKeys = Object.keys(fxByMonth).sort();
+    const nearestFx = (key) => {
+      if (fxByMonth[key]) return fxByMonth[key];
+      let prev = null;
+      for (const k of fxKeys) { if (k <= key) prev = k; else break; }
+      const pick = prev || fxKeys[0];
+      return pick ? fxByMonth[pick] : (stockResp.exchangeRate || state.exchangeRate);
+    };
+
+    const months = stockResp.months
+      .filter(m => m.month >= joinVal)
+      .map(m => ({
+        month: m.month,
+        priceUSD: m.averagePrice,
+        fx: nearestFx(m.month)
+      }));
+    if (months.length === 0) throw new Error('keine Kursdaten für den Zeitraum');
+    histState = { key, months, loading: false, error: null };
+
+    let note = '';
+    if (months[0].month > joinVal) {
+      note += ` · Kursdaten erst ab ${months[0].month} verfügbar`;
+    }
+    if (fxKeys.length > 0 && months[0].month < fxKeys[0]) {
+      note += ` · USD/EUR-Kurse erst ab ${fxKeys[0]} – frühere Käufe nutzen den ältesten Kurs`;
+    }
+    setHistStatus(`✓ ${months.length} Monatskäufe simuliert (${months[0].month} bis ${months[months.length - 1].month}, Quelle: Yahoo Finance)${note}`, 'success');
+  } catch (e) {
+    histState = { key, months: null, loading: false, error: e.message };
+    setHistStatus('Historische Kurse konnten nicht geladen werden: ' + e.message, 'error');
+  }
+  calculateESPP();
+}
+
+// The join-date field is a readonly TEXT input (a real type="month" would trigger the
+// native iOS wheel picker alongside our popover). The machine value ('YYYY-MM') lives in
+// data-value; the visible value is a localized label like "Januar 2022".
+const MONTH_NAMES_DE = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+  'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+
+function getJoinDateValue() {
+  return (elements.inputJoinDate && elements.inputJoinDate.dataset.value) || '2022-01';
+}
+
+function setJoinDateValue(val) {
+  if (!elements.inputJoinDate || !/^\d{4}-\d{2}$/.test(val)) return;
+  elements.inputJoinDate.dataset.value = val;
+  elements.inputJoinDate.value = `${MONTH_NAMES_DE[parseInt(val.slice(5, 7), 10) - 1]} ${val.slice(0, 4)}`;
+}
+
+// Custom month picker (the native popup is unstylable and iOS shows its own wheel).
+// Renders a small popover with year navigation + a 12-month grid, themed via CSS vars.
+function initMonthPicker(input) {
+  const wrap = input.closest('.month-field');
+  if (!wrap) return;
+
+  const pop = document.createElement('div');
+  pop.className = 'month-pop';
+  pop.style.display = 'none';
+  wrap.appendChild(pop);
+
+  const MONTHS = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
+  let viewYear = null;
+
+  const limits = () => {
+    const min = input.dataset.min || '1990-01';
+    const max = new Date().toISOString().slice(0, 7); // purchases can't start in the future
+    return {
+      minY: parseInt(min.slice(0, 4)), minM: parseInt(min.slice(5, 7)),
+      maxY: parseInt(max.slice(0, 4)), maxM: parseInt(max.slice(5, 7))
+    };
+  };
+
+  const render = () => {
+    const { minY, minM, maxY, maxM } = limits();
+    const sel = input.dataset.value || '';
+    const selY = sel ? parseInt(sel.slice(0, 4)) : null;
+    const selM = sel ? parseInt(sel.slice(5, 7)) : null;
+    if (viewYear === null) viewYear = selY || maxY;
+    viewYear = Math.min(Math.max(viewYear, minY), maxY);
+
+    let html = `
+      <div class="month-pop-head">
+        <span class="month-pop-navgroup">
+          <button type="button" class="month-pop-nav" data-nav="-10" ${viewYear <= minY ? 'disabled' : ''} aria-label="10 Jahre zurück"><i class="fa-solid fa-angles-left"></i></button>
+          <button type="button" class="month-pop-nav" data-nav="-1" ${viewYear <= minY ? 'disabled' : ''} aria-label="Vorheriges Jahr"><i class="fa-solid fa-chevron-left"></i></button>
+        </span>
+        <span class="month-pop-year">${viewYear}</span>
+        <span class="month-pop-navgroup">
+          <button type="button" class="month-pop-nav" data-nav="1" ${viewYear >= maxY ? 'disabled' : ''} aria-label="Nächstes Jahr"><i class="fa-solid fa-chevron-right"></i></button>
+          <button type="button" class="month-pop-nav" data-nav="10" ${viewYear >= maxY ? 'disabled' : ''} aria-label="10 Jahre vor"><i class="fa-solid fa-angles-right"></i></button>
+        </span>
+      </div>
+      <div class="month-pop-grid">`;
+    for (let m = 1; m <= 12; m++) {
+      const disabled = (viewYear === minY && m < minM) || (viewYear === maxY && m > maxM) || viewYear < minY || viewYear > maxY;
+      const selected = viewYear === selY && m === selM;
+      html += `<button type="button" class="month-pop-month${selected ? ' selected' : ''}" data-m="${m}" ${disabled ? 'disabled' : ''}>${MONTHS[m - 1]}</button>`;
+    }
+    html += '</div>';
+    pop.innerHTML = html;
+  };
+
+  const open = () => {
+    viewYear = null;
+    render();
+    pop.style.display = 'block';
+    input.blur(); // avoid the native month-segment highlight while the popover is open
+  };
+  const close = () => { pop.style.display = 'none'; };
+  const isOpen = () => pop.style.display !== 'none';
+
+  input.addEventListener('click', (e) => { e.preventDefault(); isOpen() ? close() : open(); });
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); isOpen() ? close() : open(); }
+    if (e.key === 'Escape') close();
+  });
+  pop.addEventListener('click', (e) => {
+    const nav = e.target.closest('.month-pop-nav');
+    if (nav && !nav.disabled) { viewYear += parseInt(nav.dataset.nav); render(); return; }
+    const mBtn = e.target.closest('.month-pop-month');
+    if (mBtn && !mBtn.disabled) {
+      setJoinDateValue(`${viewYear}-${String(mBtn.dataset.m).padStart(2, '0')}`);
+      close();
+      input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  });
+  // Outside-close on pointerdown: the click-handler above re-renders the popover's DOM,
+  // so by the time a click bubbles here its target may be detached (which would falsely
+  // read as "outside"). pointerdown fires before any re-render.
+  document.addEventListener('pointerdown', (e) => { if (isOpen() && !wrap.contains(e.target)) close(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
+}
+
 function initCalculator() {
   const btnClearCalculator = document.getElementById('btnClearCalculator');
   if (btnClearCalculator) {
@@ -505,6 +756,39 @@ function initCalculator() {
       window.location.reload();
     });
   }
+
+  // "Zur Eingabe in Schritt 1" shortcuts (results empty state + the data notice): scroll
+  // to step 1 and briefly highlight the upload zone instead of duplicating inputs elsewhere.
+  const gotoStep1 = () => {
+    const step1 = document.querySelector('#tab-calculator .group-stocks-savings');
+    const uploadZone = document.getElementById('uploadZone');
+    if (step1 && !step1.classList.contains('open')) {
+      step1.classList.add('open');
+      step1.querySelector('.input-group-header')?.setAttribute('aria-expanded', 'true');
+    }
+    step1?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (uploadZone) {
+      uploadZone.classList.remove('pulse-highlight');
+      void uploadZone.offsetWidth; // restart the animation on repeated clicks
+      uploadZone.classList.add('pulse-highlight');
+      setTimeout(() => uploadZone.classList.remove('pulse-highlight'), 2400);
+    }
+  };
+  document.querySelectorAll('.goto-step1').forEach(btn => btn.addEventListener('click', gotoStep1));
+
+  // Collapsible step cards: click (or Enter/Space on) a header to expand/collapse the step.
+  // The header keeps showing a live summary of the step's values while collapsed.
+  document.querySelectorAll('.collapsible-step .input-group-header').forEach(head => {
+    const toggle = () => {
+      const card = head.closest('.collapsible-step');
+      card.classList.toggle('open');
+      head.setAttribute('aria-expanded', card.classList.contains('open') ? 'true' : 'false');
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  });
 
   // Input Listeners
   elements.inputStockPrice.addEventListener('input', (e) => {
@@ -517,6 +801,7 @@ function initCalculator() {
   elements.btnFetchStock.addEventListener('click', fetchLiveStockPrice);
   
   elements.inputMonthlySalary.addEventListener('input', (e) => {
+    state.salaryProvided = true; // user set a real salary
     elements.valMonthlySalary.textContent = `${parseInt(e.target.value).toLocaleString('de-DE')} €`;
     calculateESPP();
   });
@@ -536,7 +821,25 @@ function initCalculator() {
   });
   
   elements.selectBroker.addEventListener('change', calculateESPP);
-  
+
+  if (elements.selectCalcMode) {
+    elements.selectCalcMode.addEventListener('change', () => {
+      applyCalcModeUI();
+      if (elements.selectCalcMode.value === 'historical') ensureHistoricalData();
+      calculateESPP();
+    });
+  }
+  if (elements.inputJoinDate) {
+    // Render the initial label from the data-value attribute
+    setJoinDateValue(elements.inputJoinDate.dataset.value || '2022-01');
+    elements.inputJoinDate.addEventListener('change', () => {
+      ensureHistoricalData();
+      calculateESPP();
+    });
+    // Custom month-picker popover (the native one can't be styled to match the app).
+    initMonthPicker(elements.inputJoinDate);
+  }
+
   elements.inputSellPrice.addEventListener('input', calculateESPP);
   
   elements.inputAccumulatedMonths.addEventListener('input', (e) => {
@@ -582,8 +885,18 @@ function calculateESPP() {
   
   const taxYear = elements.selectTaxYear.value;
   const broker = elements.selectBroker.value;
-  const accumulatedMonths = parseInt(elements.inputAccumulatedMonths.value) || 12;
   const exchangeRate = state.exchangeRate;
+
+  // Historical mode: simulate each monthly purchase at the REAL monthly average IBM price
+  // and the USD/EUR rate of that month (series loaded by ensureHistoricalData).
+  const calcMode = elements.selectCalcMode ? elements.selectCalcMode.value : 'forecast';
+  const histMonths = (calcMode === 'historical' && histState.months && histState.months.length > 0)
+    ? histState.months
+    : null;
+
+  let accumulatedMonths = histMonths
+    ? histMonths.length
+    : (parseInt(elements.inputAccumulatedMonths.value) || 12);
 
   // German employees purchase stock at 15% discount.
   // The monthly contribution is subtracted from Gross salary.
@@ -592,29 +905,61 @@ function calculateESPP() {
   // The discount benefit is (X / 0.85) - X = X * 0.15 / 0.85 = X * 17.65%.
   const monthlyMarketValueEUR = monthlyGrossContribution / 0.85;
   const monthlyDiscountBenefitEUR = monthlyMarketValueEUR - monthlyGrossContribution;
-  
-  // Total Accumulations
+
+  // Total Accumulations (the EUR sums are price-independent: each month buys exactly
+  // X/0.85 worth of stock, whatever the price happens to be)
   const totalGrossContribution = monthlyGrossContribution * accumulatedMonths;
   const totalMarketValueEUR = monthlyMarketValueEUR * accumulatedMonths;
   const totalDiscountBenefitEUR = monthlyDiscountBenefitEUR * accumulatedMonths;
-  
+
   // Lohnabrechnung-Effekt: The net salary reduction is only gross * (1 - effectiveTaxRate)
   const totalNetContribution = totalGrossContribution * (1 - effectiveTaxRate);
-  
+
   // Taxation on purchase (Geldwerter Vorteil):
   // Freibetrag § 3 Nr. 39 EStG: 2.000€ (ab 2024) or 1.440€ (bis 2023) per year.
-  // Let's calculate the total Freibetrag based on calendar years represented.
-  const yearsRepresented = Math.ceil(accumulatedMonths / 12);
-  const annualFreibetrag = (taxYear === '2026' || taxYear === '2024') ? 2000 : 1440;
-  const totalFreibetrag = annualFreibetrag * yearsRepresented;
-  
-  const taxableDiscountBenefit = Math.max(0, totalDiscountBenefitEUR - totalFreibetrag);
-  const purchaseTaxPaid = taxableDiscountBenefit * effectiveTaxRate;
-  
+  let purchaseTaxPaid;
+  if (histMonths) {
+    // Exact per-calendar-year check using the real purchase months.
+    const monthsPerYear = {};
+    histMonths.forEach(m => {
+      const y = parseInt(m.month.slice(0, 4));
+      monthsPerYear[y] = (monthsPerYear[y] || 0) + 1;
+    });
+    let taxableDiscount = 0;
+    Object.keys(monthsPerYear).forEach(y => {
+      const frei = (parseInt(y) <= 2023) ? 1440 : 2000;
+      taxableDiscount += Math.max(0, monthsPerYear[y] * monthlyDiscountBenefitEUR - frei);
+    });
+    purchaseTaxPaid = taxableDiscount * effectiveTaxRate;
+  } else {
+    const yearsRepresented = Math.ceil(accumulatedMonths / 12);
+    const annualFreibetrag = (taxYear === '2026' || taxYear === '2024') ? 2000 : 1440;
+    const totalFreibetrag = annualFreibetrag * yearsRepresented;
+    const taxableDiscountBenefit = Math.max(0, totalDiscountBenefitEUR - totalFreibetrag);
+    purchaseTaxPaid = taxableDiscountBenefit * effectiveTaxRate;
+  }
+
   // Number of shares acquired
-  const sharePriceUSD = stockPriceUSD;
-  const sharePriceEUR = sharePriceUSD * exchangeRate;
-  const totalShares = totalMarketValueEUR / sharePriceEUR;
+  let sharePriceUSD, sharePriceEUR, totalShares;
+  if (histMonths) {
+    // Each month buys X / (0.85 × price_EUR(m)) shares at that month's price and FX rate.
+    totalShares = 0;
+    let totalPurchaseValueUSD = 0;
+    histMonths.forEach(m => {
+      const priceEUR = m.priceUSD * m.fx;
+      if (!(priceEUR > 0)) return;
+      const shares = monthlyGrossContribution / (0.85 * priceEUR);
+      totalShares += shares;
+      totalPurchaseValueUSD += shares * m.priceUSD;
+    });
+    // Weighted average purchase price (display + per-share cost basis)
+    sharePriceUSD = totalShares > 0 ? totalPurchaseValueUSD / totalShares : stockPriceUSD;
+    sharePriceEUR = totalShares > 0 ? totalMarketValueEUR / totalShares : stockPriceUSD * exchangeRate;
+  } else {
+    sharePriceUSD = stockPriceUSD;
+    sharePriceEUR = sharePriceUSD * exchangeRate;
+    totalShares = totalMarketValueEUR / sharePriceEUR;
+  }
   
   // Sale calculations
   const sellPriceEUR = sellPriceUSD * exchangeRate;
@@ -640,11 +985,11 @@ function calculateESPP() {
   // Yes! The exact rates are:
   // - 26.375% (no church tax)
   // - 27.8186% (8% church tax)
-  // - 27.996% (9% church tax)
+  // - 27.9951% (9% church tax)
   // Let's implement this standard calculation exactly!
   let abgeltungRate = 0.26375;
   if (churchTaxRate === 0.08) abgeltungRate = 0.278186;
-  else if (churchTaxRate === 0.09) abgeltungRate = 0.27996;
+  else if (churchTaxRate === 0.09) abgeltungRate = 0.279951;
 
   let capGainsTaxRate = abgeltungRate;
   // Günstigerprüfung: If the personal effective marginal tax rate is lower than the flat-rate capital gains tax,
@@ -672,9 +1017,9 @@ function calculateESPP() {
     // CapTrader: approx 2€ trade fee + 2€ currency swap
     brokerFeesEUR = 4.00;
   } else if (broker === 'equateplus') {
-    // EquatePlus: $19.95 commission + $35.00 wire fee + 0.5% exchange rate spread + 13€ DB fee
+    // EquatePlus: $19.95 commission + $35.00 wire fee + ~0.5% currency exchange (e.g. Wise)
     const feesUSD = 19.95 + 35.00 + (grossSaleRevenueEUR / exchangeRate * 0.005);
-    brokerFeesEUR = (feesUSD * exchangeRate) + 13.00;
+    brokerFeesEUR = feesUSD * exchangeRate;
   } else if (broker === 'german') {
     // German Broker: ca 10€ commission
     brokerFeesEUR = 10.00;
@@ -699,23 +1044,17 @@ function calculateESPP() {
   elements.netProfitEuro.textContent = `${netProfitEUR.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   elements.netProfitPercent.textContent = `${netProfitEUR >= 0 ? '+' : ''}${netReturnOnNetCapital.toFixed(1)}%`;
   
+  // Color the banner figures: green return / default profit when positive, red when negative
   if (netProfitEUR >= 0) {
-    elements.netProfitPercent.className = "percentage-pill positive";
-    elements.netProfitPercent.style.background = "";
-    elements.netProfitPercent.style.color = "";
-    elements.netProfitPercent.style.border = "";
-    elements.netProfitEuro.style.color = "#fff";
+    elements.netProfitPercent.style.color = "var(--success)";
+    elements.netProfitEuro.style.color = "";
   } else {
-    elements.netProfitPercent.className = "percentage-pill";
-    elements.netProfitPercent.style.background = "rgba(239, 68, 68, 0.15)";
     elements.netProfitPercent.style.color = "#f87171";
-    elements.netProfitPercent.style.border = "1px solid rgba(239, 68, 68, 0.2)";
     elements.netProfitEuro.style.color = "#f87171";
   }
 
   elements.netInvestment.textContent = `${totalEmployeeCost.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  elements.netReturnOnCapital.textContent = `${netReturnOnNetCapital.toFixed(1)} %`;
-  
+
   elements.rowGrossContribution.textContent = `${totalGrossContribution.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   elements.rowNetContribution.textContent = `${totalNetContribution.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
   elements.rowDiscountBenefit.textContent = `${totalDiscountBenefitEUR.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -727,11 +1066,11 @@ function calculateESPP() {
   const fmtEUR = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtUSD = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const discountedPricePerShare = sharePriceEUR * 0.85;
-  const discountedPricePerShareUSD = stockPriceUSD * 0.85;
+  const discountedPricePerShareUSD = sharePriceUSD * 0.85; // avg purchase price in historical mode
   
   elements.rowShareCount.textContent = `${totalShares.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Stk.`;
   elements.rowBuyPriceEUR.textContent = `${fmtEUR(sharePriceEUR)} €`;
-  document.getElementById('rowBuyPriceUSD').textContent = `($${fmtUSD(stockPriceUSD)})`;
+  document.getElementById('rowBuyPriceUSD').textContent = `($${fmtUSD(sharePriceUSD)})`;
   elements.rowDiscountedPrice.textContent = `${fmtEUR(discountedPricePerShare)} €`;
   document.getElementById('rowDiscountedPriceUSD').textContent = `($${fmtUSD(discountedPricePerShareUSD)})`;
   elements.rowTotalMarketValue.textContent = `${fmtEUR(totalMarketValueEUR)} €`;
@@ -768,8 +1107,76 @@ function calculateESPP() {
   const instantGain = ((monthlyMarketValueEUR - monthlyNetDeduction) / monthlyNetDeduction) * 100;
   elements.lblInstantGain.textContent = `${instantGain.toFixed(0)}%`;
 
-  // Draw or update Chart.js visualization
-  updateChart(totalNetContribution, purchaseTaxPaid, capitalGainsTaxPaid + brokerFeesEUR, netProfitEUR);
+  // Mirror the headline figure into the donut center and fill the summary-banner extras
+  const chartCenterProfit = document.getElementById('chartCenterProfit');
+  if (chartCenterProfit) {
+    chartCenterProfit.textContent = elements.netProfitEuro.textContent;
+    chartCenterProfit.style.color = elements.netProfitEuro.style.color;
+  }
+  const bannerShares = document.getElementById('bannerShares');
+  if (bannerShares) {
+    bannerShares.textContent = `${totalShares.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Stk.`;
+  }
+  const bannerSharesSub = document.getElementById('bannerSharesSub');
+  if (bannerSharesSub) {
+    bannerSharesSub.textContent = `Marktwert: ${fmtEUR(totalMarketValueEUR)} €`;
+  }
+
+  // Placeholder mode: until a real salary is set, show no computed numbers at all.
+  // The banner shows dashes, the analysis panel shows an inviting empty state, and the
+  // user is prompted to set their salary or upload a payslip.
+  const isPlaceholder = !state.salaryProvided;
+  const exampleNote = document.getElementById('exampleDataNote');
+  if (exampleNote) {
+    exampleNote.style.display = isPlaceholder ? 'flex' : 'none';
+  }
+  const calcEmptyState = document.getElementById('calcEmptyState');
+  const calcResultsContent = document.getElementById('calcResultsContent');
+  if (calcEmptyState && calcResultsContent) {
+    calcEmptyState.style.display = isPlaceholder ? 'flex' : 'none';
+    calcResultsContent.style.display = isPlaceholder ? 'none' : 'block';
+  }
+  // The KPI banner carries no information in placeholder mode (four dashes) — hide it
+  // entirely so a fresh visitor goes straight from the notice to step 1.
+  const summaryBanner = document.querySelector('.calc-summary-banner');
+  if (summaryBanner) summaryBanner.style.display = isPlaceholder ? 'none' : '';
+  if (isPlaceholder) {
+    elements.valMonthlySalary.textContent = 'Bitte einstellen';
+    elements.netProfitEuro.textContent = '–';
+    elements.netProfitEuro.style.color = '';
+    elements.netProfitPercent.textContent = '–';
+    elements.netProfitPercent.style.color = '';
+    elements.netInvestment.textContent = '–';
+    if (bannerShares) bannerShares.textContent = '–';
+    if (bannerSharesSub) bannerSharesSub.textContent = 'Warte auf Deine Daten…';
+  }
+
+  // Live value summaries in the (collapsible) step headers
+  const summaryStep1 = document.getElementById('summaryStep1');
+  if (summaryStep1) {
+    summaryStep1.textContent = state.salaryProvided
+      ? `${monthlySalary.toLocaleString('de-DE')} € · ${savingsRate} % Sparquote`
+      : 'Bitte Dein Gehalt einstellen';
+  }
+  const summaryStep2 = document.getElementById('summaryStep2');
+  if (summaryStep2) {
+    const churchPct = parseFloat(elements.selectChurchTax.value) || 0;
+    summaryStep2.textContent = `${(baseTaxRate * 100).toFixed(0)} % ESt` +
+      (churchPct ? ` · ${churchPct} % KiSt` : '') +
+      (soliRate > 0 ? ' · Soli' : '');
+  }
+  const summaryStep3 = document.getElementById('summaryStep3');
+  if (summaryStep3) {
+    const brokerNames = { captrader: 'CapTrader/IBKR', equateplus: 'EquatePlus', german: 'Dt. Broker' };
+    const buyLabel = histMonths ? `Ø $${sharePriceUSD.toFixed(0)}` : `$${sharePriceUSD.toFixed(0)}`;
+    summaryStep3.textContent = `${buyLabel} → $${sellPriceUSD.toFixed(0)} · ${accumulatedMonths} Mon. · ${brokerNames[broker] || broker}`;
+  }
+
+  // Draw or update Chart.js visualization (skipped while the results are hidden behind the
+  // empty state — the chart is created on the first calculation with real data instead)
+  if (!isPlaceholder) {
+    updateChart(totalNetContribution, purchaseTaxPaid, capitalGainsTaxPaid + brokerFeesEUR, netProfitEUR);
+  }
 
   // Remember the Rechner economics (hypothetical future shares) for the goal tracker,
   // then update it. The goal tracker prefers REAL portfolio holdings when available.
@@ -789,6 +1196,19 @@ function calculateESPP() {
   
   // Save calculator state to localStorage
   saveCalculatorState();
+}
+
+// Theme-dependent canvas colors for Chart.js (canvas can't resolve CSS variables).
+// Charts are destroyed and re-created on theme toggle so these get re-read.
+function chartThemeColors() {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  return {
+    donutBorder: light ? '#ffffff' : '#10162e',
+    grid: light ? 'rgba(15, 23, 42, 0.09)' : 'rgba(255, 255, 255, 0.05)',
+    tick: light ? '#5b6573' : '#9ca3af',
+    accentLine: light ? '#0891b2' : '#00f2fe',
+    accentFill: light ? 'rgba(8, 145, 178, 0.06)' : 'rgba(0, 242, 254, 0.04)'
+  };
 }
 
 function updateChart(netInvest, payrollTax, sellCosts, netProfit) {
@@ -817,7 +1237,7 @@ function updateChart(netInvest, payrollTax, sellCosts, netProfit) {
             '#f87171', // Gebühren
             '#10b981'  // Netto-Gewinn
           ],
-          borderColor: '#10162e',
+          borderColor: chartThemeColors().donutBorder,
           borderWidth: 2
         }]
       },
@@ -897,7 +1317,7 @@ function initPdfUploader() {
         if (typeof pdfjsLib === 'undefined') {
           throw new Error('PDF.js Bibliothek konnte nicht geladen werden.');
         }
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
         
         const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
         const pdf = await loadingTask.promise;
@@ -930,8 +1350,12 @@ function initPdfUploader() {
   function parsePayslipText(text) {
     // 1. Gross Salary (Grundgehalt, code 1101)
     // Matches: "1101 Grundgehalt LSG 5.519,11"
-    const salaryRegex = /(?:1101\s+)?Grundgehalt\s+(?:[A-Z\s#$/]+\s+)?([\d\.,]+)/i;
-    const salaryMatch = text.match(salaryRegex);
+    // A payslip can contain MULTIPLE Grundgehalt lines (all code 1101), e.g. when a
+    // retroactive correction is split across several rows. We sum them all so the
+    // Grundgehalt — and therefore the derived Grenzsteuersatz — reflects the full base.
+    // A trailing "-" marks a negative (correction) amount and is subtracted.
+    const salaryRegex = /(?:1101\s+)?Grundgehalt\s+(?:[A-Z\s#$/]+\s+)?([\d\.,]+)(-?)/gi;
+    const salaryMatches = [...text.matchAll(salaryRegex)];
     
     // 2. AKP Gehaltsabzug (ESPP contribution, code 76Z2)
     // Matches: "76Z2 AKP Gehaltsabzug lauf L G 286,40-"
@@ -949,21 +1373,32 @@ function initPdfUploader() {
     const churchTaxMatch = text.match(churchTaxRegex);
 
     let extractedSalary = null;
+    let baseSalary = null; // regular current-month base (first 1101 line) — used for the Sparquote
     let extractedSavingsRate = null;
     let extractedChurchTax = 0;
     let extractedTaxClass = 1;
 
-    if (salaryMatch) {
-      const salaryStr = salaryMatch[1].replace(/\./g, '').replace(',', '.');
-      extractedSalary = parseFloat(salaryStr);
+    if (salaryMatches.length > 0) {
+      // Total Grundgehalt = sum of all 1101 lines (incl. retroactive corrections).
+      // Drives the displayed salary and the Grenzsteuersatz.
+      extractedSalary = salaryMatches.reduce((sum, m) => {
+        const value = parseFloat(m[1].replace(/\./g, '').replace(',', '.'));
+        if (isNaN(value)) return sum;
+        return sum + (m[2] === '-' ? -value : value);
+      }, 0);
+      // The ESPP deduction (76Z2) is a percent of the regular monthly base only, not of
+      // back-pay corrections. The first 1101 line is the current-month base, so the
+      // Sparquote must be computed against it — NOT the summed total.
+      const baseVal = parseFloat(salaryMatches[0][1].replace(/\./g, '').replace(',', '.'));
+      baseSalary = isNaN(baseVal) ? null : baseVal;
     }
 
-    if (akpMatch && extractedSalary) {
+    if (akpMatch && baseSalary) {
       const akpStr = akpMatch[1].replace(/\./g, '').replace(',', '.');
       const akpValue = parseFloat(akpStr);
-      // Sparquote = (AKP / Salary) * 100
+      // Sparquote = (AKP / regular monthly base) * 100
       // We subtract 0.3 before rounding to compensate for upward skew caused by variable/commission lag
-      extractedSavingsRate = Math.round(((akpValue / extractedSalary) * 100) - 0.3);
+      extractedSavingsRate = Math.round(((akpValue / baseSalary) * 100) - 0.3);
       // Bound between 1 and 10
       extractedSavingsRate = Math.max(1, Math.min(10, extractedSavingsRate));
     }
@@ -988,6 +1423,7 @@ function initPdfUploader() {
     }
 
     // Apply values to inputs
+    state.salaryProvided = true; // real salary from the uploaded payslip
     elements.inputMonthlySalary.value = extractedSalary;
     elements.valMonthlySalary.textContent = `${parseInt(extractedSalary).toLocaleString('de-DE')} €`;
 
@@ -1152,7 +1588,7 @@ function initPorscheTracker() {
     if (saved) {
       const g = JSON.parse(saved);
       if (g && typeof g.price !== 'undefined') {
-        state.goal = { name: g.name || 'Mein Sparziel', image: g.image || null, price: g.price, url: g.url || null };
+        state.goal = { name: g.name || '', image: g.image || null, price: g.price, url: g.url || null };
       }
     }
   } catch (e) { /* ignore */ }
@@ -1182,7 +1618,8 @@ function renderGoal() {
   if (elements.goalBadge) elements.goalBadge.textContent = goalBadgeText(g.name);
   if (elements.goalName && document.activeElement !== elements.goalName) elements.goalName.value = g.name || '';
   if (elements.goalPrice && document.activeElement !== elements.goalPrice) {
-    elements.goalPrice.value = (g.price != null) ? Number(g.price).toFixed(2) : '';
+    // Keep the field empty (showing its placeholder) until a real goal price is set.
+    elements.goalPrice.value = (g.price > 0) ? Number(g.price).toFixed(2) : '';
   }
   if (elements.goalImageWrap && elements.goalImage) {
     if (g.image) {
@@ -1286,6 +1723,17 @@ function updateGoalTracker() {
   if (!rechnerEconomics || !elements.inputStockGrowth) return;
   const e = rechnerEconomics;
   const targetPrice = getTargetPrice();
+
+  // No goal yet: show the inviting empty state instead of numbers based on a made-up target.
+  const goalEmptyState = document.getElementById('goalEmptyState');
+  const goalTrackerContent = document.getElementById('goalTrackerContent');
+  if (goalEmptyState && goalTrackerContent) {
+    const goalSet = targetPrice > 0;
+    goalEmptyState.style.display = goalSet ? 'none' : 'block';
+    goalTrackerContent.style.display = goalSet ? '' : 'none';
+    if (!goalSet) return;
+  }
+
   const growthRate = parseFloat(elements.inputStockGrowth.value) || 7;
   const r = (growthRate / 100) / 12;
 
@@ -1498,12 +1946,12 @@ function updatePorscheGrowthChart(monthsNeeded, currentShares, sharePriceEUR, se
           {
             label: 'Netto-Depotwert (Verkauf)',
             data: portfolioValueData,
-            borderColor: '#00f2fe',
-            backgroundColor: 'rgba(0, 242, 254, 0.04)',
+            borderColor: chartThemeColors().accentLine,
+            backgroundColor: chartThemeColors().accentFill,
             borderWidth: 3,
             fill: true,
             tension: 0.3,
-            pointBackgroundColor: '#00f2fe',
+            pointBackgroundColor: chartThemeColors().accentLine,
             pointHoverRadius: 7
           },
           {
@@ -1537,7 +1985,7 @@ function updatePorscheGrowthChart(monthsNeeded, currentShares, sharePriceEUR, se
           legend: {
             position: 'top',
             labels: {
-              color: '#9ca3af',
+              color: chartThemeColors().tick,
               font: { family: 'Outfit', size: 12 }
             }
           },
@@ -1551,13 +1999,13 @@ function updatePorscheGrowthChart(monthsNeeded, currentShares, sharePriceEUR, se
         },
         scales: {
           x: {
-            grid: { color: 'rgba(255, 255, 255, 0.05)' },
-            ticks: { color: '#9ca3af', font: { family: 'Inter' } }
+            grid: { color: chartThemeColors().grid },
+            ticks: { color: chartThemeColors().tick, font: { family: 'Inter' } }
           },
           y: {
-            grid: { color: 'rgba(255, 255, 255, 0.05)' },
+            grid: { color: chartThemeColors().grid },
             ticks: {
-              color: '#9ca3af',
+              color: chartThemeColors().tick,
               font: { family: 'Inter' },
               callback: function(value) {
                 return value.toLocaleString('de-DE') + ' €';
@@ -1628,8 +2076,6 @@ function savePortfolioState() {
       acc[year] = d ? (d instanceof Date ? d.getTime() : new Date(d).getTime()) : null;
       return acc;
     }, {}),
-    uploadStatusHTML: portfolioElements.csvUploadStatus ? portfolioElements.csvUploadStatus.innerHTML : '',
-    uploadStatusClass: portfolioElements.csvUploadStatus ? portfolioElements.csvUploadStatus.className : '',
     sellQuantity: portfolioElements.sellQuantity ? portfolioElements.sellQuantity.value : '',
     sellPrice: portfolioElements.sellPrice ? portfolioElements.sellPrice.value : '',
     sellBroker: portfolioElements.sellBroker ? portfolioElements.sellBroker.value : ''
@@ -1720,15 +2166,10 @@ function loadPortfolioState() {
         portfolioElements.sellBroker.value = parsed.sellBroker;
       }
 
-      // Restore upload status if any
-      if (parsed.uploadStatusHTML && portfolioElements.csvUploadStatus) {
-        portfolioElements.csvUploadStatus.innerHTML = parsed.uploadStatusHTML;
-        portfolioElements.csvUploadStatus.className = parsed.uploadStatusClass;
-        portfolioElements.csvUploadStatus.classList.remove('hidden-status');
-      }
-
-      // Re-run calculation/analysis
-      analyzePortfolio();
+      // Re-run the analysis silently: on reload this is background restoration, not an
+      // action the user just took — no "✓ Analyse abgeschlossen" toast (the Rechner
+      // behaves the same way with its upload status).
+      analyzePortfolio({ silent: true });
     }
     
     if (btnClearPortfolio) {
@@ -1857,8 +2298,8 @@ function initPortfolioModule() {
     }
   });
 
-  // Analyze button
-  portfolioElements.btnAnalyzePortfolio.addEventListener('click', analyzePortfolio);
+  // Analyze button (explicitly non-silent: the user asked for it)
+  portfolioElements.btnAnalyzePortfolio.addEventListener('click', () => analyzePortfolio());
 
   // Sortable tables: click any column header in the Portfolio-Analyse tab to sort by that column.
   // Delegated so it keeps working after the tables are re-rendered by analyzePortfolio.
@@ -1953,8 +2394,8 @@ async function fetchPortfolioPrice({ silent = false } = {}) {
         showPortfolioStatus(`Kurs aktualisiert: $${data.price.toFixed(2)}`, 'success');
       }
 
-      if (portfolioState.transactions && portfolioState.transactions.length > 0) {
-        analyzePortfolio();
+      if (hasAnyPortfolioData()) {
+        analyzePortfolio({ silent });
       }
     }
   } catch (error) {
@@ -2004,7 +2445,7 @@ async function parsePDF(arrayBuffer, fileName) {
   if (typeof pdfjsLib === 'undefined') {
     throw new Error('PDF.js Bibliothek konnte nicht geladen werden.');
   }
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js';
   
   const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
   const pdf = await loadingTask.promise;
@@ -2064,13 +2505,10 @@ async function parsePDF(arrayBuffer, fileName) {
     }
 
     showPortfolioStatus(`✓ CapTrader-/IBKR-Statement (${data.year}) geladen: ${data.sells.length} Verkäufe, ${data.transfers.length} Transfers`, 'success');
-    
-    if (portfolioState.transactions && portfolioState.transactions.length > 0) {
-      analyzePortfolio();
-    } else {
-      showPortfolioStatus(`✓ CapTrader/IBKR (${data.year}) geladen. Lade nun ein EquatePlus Statement hoch für die Gesamtübersicht.`, 'success');
-      savePortfolioState();
-    }
+
+    // A CapTrader-only analysis is allowed; analyzePortfolio flags the missing EquatePlus side.
+    portfolioElements.btnAnalyzePortfolio.disabled = false;
+    analyzePortfolio();
   } else if (cleanedText.toLowerCase().includes('plan holdings statement') || cleanedText.toLowerCase().includes('plan holdings')) {
     // The actual EquatePlus balance is reported directly on the holdings summary page (Page 2)
     // as a list of lots. Parse it from the FULL text (before filtering) and keep the most recent
@@ -2120,12 +2558,9 @@ async function parsePDF(arrayBuffer, fileName) {
     portfolioState.isPdfSource = true;
     portfolioElements.btnAnalyzePortfolio.disabled = false;
     showPortfolioStatus(`✓ Jahres-Statement parsed: ${tx.length} Transaktionen erkannt`, 'success');
-    
-    if (Object.keys(portfolioState.capTraderPositions).length > 0) {
-      analyzePortfolio();
-    } else {
-      savePortfolioState();
-    }
+
+    // Analyze right away; analyzePortfolio flags a missing CapTrader/IBKR side.
+    analyzePortfolio();
   } else if (cleanedText.includes('Employee Plan Statement') || (/Balance Forward/i.test(cleanedText) && /Computershare/i.test(cleanedText))) {
     // OLD Computershare statement format (pre-EquatePlus migration, e.g. 2024).
     const parsed = parseOldHoldingsStatement(pageTexts);
@@ -2162,11 +2597,8 @@ async function parsePDF(arrayBuffer, fileName) {
     const yr = parsed.statementDate ? parsed.statementDate.getFullYear() : '?';
     showPortfolioStatus(`✓ Altes Plan-Statement (${yr}) geladen: ${parsed.purchases.length} Käufe erkannt`, 'success');
 
-    if (Object.keys(portfolioState.capTraderPositions).length > 0) {
-      analyzePortfolio();
-    } else {
-      savePortfolioState();
-    }
+    // Analyze right away; analyzePortfolio flags a missing CapTrader/IBKR side.
+    analyzePortfolio();
   } else if (cleanedText.toLowerCase().includes('purchase activity statement') || cleanedText.toLowerCase().includes('purchase activity') || cleanedText.toLowerCase().includes('purchases 1 jan')) {
     showPortfolioStatus('Purchase Activity Statements werden nicht unterstützt. Bitte lade die Plan Holdings Statements für 2025 und 2026 hoch.', 'error');
     return;
@@ -2707,11 +3139,22 @@ function parseCapTraderStatement(text) {
 
 
 
-// Analyze Portfolio
-async function analyzePortfolio() {
-  if (portfolioState.transactions.length === 0) return;
-  
-  showPortfolioStatus('Lade historische Kurse & Wechselkurse...', 'loading');
+// True when at least one platform's data is loaded (EquatePlus or CapTrader/IBKR).
+// A partial analysis with only one platform is allowed — each statement is authoritative
+// for its own depot; the combined total is then explicitly flagged as incomplete.
+function hasAnyPortfolioData() {
+  return (portfolioState.transactions && portfolioState.transactions.length > 0) ||
+         (portfolioState.equatePlusHoldings && portfolioState.equatePlusHoldings.length > 0) ||
+         Object.keys(portfolioState.capTraderPositions).length > 0;
+}
+
+// Analyze Portfolio. options.silent suppresses the status toasts (used for automatic
+// re-analysis on page load / price refresh); errors are always shown.
+async function analyzePortfolio(options = {}) {
+  const silent = options.silent === true;
+  if (!hasAnyPortfolioData()) return;
+
+  if (!silent) showPortfolioStatus('Lade historische Kurse & Wechselkurse...', 'loading');
   portfolioElements.btnAnalyzePortfolio.disabled = true;
   
   try {
@@ -2804,7 +3247,18 @@ async function analyzePortfolio() {
     // Refresh the goal tracker so it uses these real holdings.
     updateGoalTracker();
 
-    showPortfolioStatus('✓ Analyse abgeschlossen', 'success');
+    // Completed-status: flag a partial analysis when only one platform's statement is loaded.
+    if (!silent) {
+      const hasEqData = (portfolioState.equatePlusHoldings || []).length > 0 || portfolioState.transactions.length > 0;
+      const hasCtData = Object.keys(portfolioState.capTraderPositions).length > 0;
+      if (hasEqData && !hasCtData) {
+        showPortfolioStatus('✓ Analyse abgeschlossen – nur EquatePlus. Lade zusätzlich ein <strong>CapTrader-/IBKR-Statement</strong> hoch, um auch Dein Verkaufs-Depot und den Gesamtbestand zu sehen.', 'warning');
+      } else if (!hasEqData && hasCtData) {
+        showPortfolioStatus('✓ Analyse abgeschlossen – nur CapTrader/IBKR. Lade zusätzlich ein <strong>EquatePlus Plan Holdings Statement</strong> hoch, um auch Dein Anspar-Depot und die Kaufhistorie zu sehen.', 'warning');
+      } else {
+        showPortfolioStatus('✓ Analyse abgeschlossen', 'success');
+      }
+    }
     savePortfolioState();
     
   } catch (error) {
@@ -2936,13 +3390,16 @@ function simulateSale(lots, qtyToSell, sellPriceUSD, broker) {
       taxCostEUR,
       revenueEUR,
       netProfitEUR: revenueEUR - cashCostEUR,
-      taxableGainEUR: Math.max(0, revenueEUR - taxCostEUR)
+      // Per-lot gain/loss vs. the tax basis. May be negative: within one sale, losses on
+      // expensive lots offset gains on cheap lots (Aktien-Verlustverrechnung, § 20 Abs. 6 EStG).
+      taxableGainEUR: revenueEUR - taxCostEUR
     });
   }
 
   const totalProceedsEUR = soldLots.reduce((s, l) => s + l.revenueEUR, 0);
   const totalCashCostEUR = soldLots.reduce((s, l) => s + l.cashCostEUR, 0);
-  const totalTaxableGainEUR = soldLots.reduce((s, l) => s + l.taxableGainEUR, 0);
+  // Only a positive NET gain across all sold lots is taxed.
+  const totalTaxableGainEUR = Math.max(0, soldLots.reduce((s, l) => s + l.taxableGainEUR, 0));
 
   // Abgeltungsteuer 26,375 % (+ Kirchensteuer-Varianten). Sparer-Pauschbetrag nicht automatisch.
   let taxRate = 0.26375;
@@ -2957,8 +3414,9 @@ function simulateSale(lots, qtyToSell, sellPriceUSD, broker) {
     if (broker === 'broker-c') {
       totalFeesEUR = 4.00; // CapTrader/IBKR: ~2€ Trade + ~2€ Devisentausch
     } else {
+      // EquatePlus/CS: $19.95 Provision + $35.00 Wire + ~0,5% Devisentausch (z.B. bei Wise)
       const feesUSD = 19.95 + 35.00 + (totalProceedsEUR / sellRate) * 0.005;
-      totalFeesEUR = (feesUSD * sellRate) + 13.00; // EquatePlus/CS: Provision + Wire + FX + DB
+      totalFeesEUR = feesUSD * sellRate;
     }
   }
 
@@ -3144,6 +3602,8 @@ function displayPortfolioResults(transactions) {
   let holdingsNote = '';
   if (hasEquatePlus && !hasCapTrader) {
     holdingsNote = `<i class="fa-solid fa-circle-info"></i> Nur EquatePlus-Bestand. Lade ein <strong>CapTrader-/IBKR-Statement</strong> hoch, um Deine dorthin übertragenen Aktien zu sehen.`;
+  } else if (hasCapTrader && !hasEquatePlus) {
+    holdingsNote = `<i class="fa-solid fa-circle-info"></i> Nur CapTrader-/IBKR-Bestand. Lade ein <strong>EquatePlus Plan Holdings Statement</strong> hoch, um auch Dein Anspar-Depot und die ESPP-Kaufhistorie zu sehen.`;
   } else if (inTransitNow > 0.5) {
     holdingsNote = `<i class="fa-solid fa-clock-rotate-left"></i> Zusätzlich <strong>${inTransitNow.toFixed(0)} Aktien im Übertrag</strong> (noch nicht im CapTrader-/IBKR-Bestand enthalten) – siehe Depot-Konsolidierung.`;
   }
@@ -3351,7 +3811,7 @@ function displayPortfolioResults(transactions) {
     
     portfolioElements.consolidationCtShares.textContent = `${ctShares.toFixed(2)} Aktien`;
     portfolioElements.consolidationCtValue.textContent = formatEuro(ctValueEUR);
-    portfolioElements.consolidationCtRealized.textContent = `+${formatEuro(totalRealizedGainEUR)}`;
+    portfolioElements.consolidationCtRealized.textContent = `${totalRealizedGainEUR >= 0 ? '+' : ''}${formatEuro(totalRealizedGainEUR)}`;
     portfolioElements.consolidationCtStats.textContent = `${portfolioState.capTraderSells.length} Verkäufe / ${portfolioState.capTraderTransfers.length} Transfers`;
 
     // "As of" dates: each balance is only valid as of its own statement date. Show them and

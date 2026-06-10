@@ -68,8 +68,11 @@ app.get('/api/stock/historical', async (req, res) => {
     
     const period1 = Math.floor(startDate.getTime() / 1000);
     const period2 = Math.floor(endDate.getTime() / 1000);
-    
-    const url = `https://query2.finance.yahoo.com/v8/finance/chart/IBM?period1=${period1}&period2=${period2}&interval=1d`;
+
+    // For long ranges use Yahoo's native monthly bars: daily data over decades is huge and
+    // Yahoo silently coarsens the granularity anyway. IBM data reaches back to 1962-01.
+    const interval = months > 119 ? '1mo' : '1d';
+    const url = `https://query2.finance.yahoo.com/v8/finance/chart/IBM?period1=${period1}&period2=${period2}&interval=${interval}`;
     const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     const cmd = `curl -s -L -H "User-Agent: ${userAgent}" -H "Accept: application/json" -H "Accept-Language: en-US,en;q=0.9" "${url}"`;
     
@@ -244,7 +247,8 @@ app.get('/api/forex/historical-range', async (req, res) => {
   }
   
   try {
-    const url = `https://query2.finance.yahoo.com/v8/finance/chart/USDEUR=X?period1=${period1}&period2=${period2}&interval=1d`;
+    const fxInterval = (period2 - period1) > 10 * 365.25 * 86400 ? '1mo' : '1d';
+    const url = `https://query2.finance.yahoo.com/v8/finance/chart/USDEUR=X?period1=${period1}&period2=${period2}&interval=${fxInterval}`;
     const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
     const cmd = `curl -s -L -H "User-Agent: ${userAgent}" -H "Accept: application/json" -H "Accept-Language: en-US,en;q=0.9" "${url}"`;
     

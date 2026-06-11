@@ -7,9 +7,21 @@ let state = {
   exchangeRate: 0.92,
   previousCloseUSD: 178.50,
   previousCloseEUR: 164.22,
+  // Last price actually delivered by /api/stock (null until known). Used to tell
+  // "the sell input is just tracking the live price" apart from a deliberate
+  // user assumption, which must survive both reloads and live-price updates.
+  lastLiveUSD: null,
   // false until the user sets a real salary (slider, payslip upload, or restored state);
   // until then the default 5.000 € is presented as a clearly-labeled example.
   salaryProvided: false,
+  // Per-tab figures for the shared condensed sticky strip (null = show dashes).
+  stickyKpisCalculator: null,
+  stickyKpisPortfolio: null,
+  portfolioChart: null,
+  firstCalculationRevealDone: false,
+  revealAnimationPlaying: false,
+  portfolioKpisAnimated: false,
+  initAnimationsDone: false,
   activeTab: 'calculator',
   activeStrategy: 'path-c',
   chart: null,
@@ -119,6 +131,10 @@ const elements = {
 
 // Initialize App
 document.addEventListener('DOMContentLoaded', () => {
+  if (window.ScrollTrigger) gsap.registerPlugin(ScrollTrigger);
+  syncHeaderHeightVar();
+  window.addEventListener('resize', syncHeaderHeightVar);
+
   initTabs();
   initStrategySelector();
   initCalculator();
@@ -128,6 +144,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initPortfolioModule();
   initWelcome();
   initThemeToggle();
+  initSaleProcessCollapsible();
+
+  // Trigger GSAP entrance timelines
+  initGsapAnimations();
+
+  // Condensed sticky KPI strip + scroll-in reveals for the Rechner tab
+  initStickySummary();
+  if (state.activeTab === 'calculator') setupCalcScrollReveals();
 
   // Details Toggle in Aktientransfer
   document.querySelectorAll('.btn-show-details').forEach(btn => {
@@ -193,6 +217,11 @@ function initThemeToggle() {
     // Re-create the charts with the new theme's canvas colors.
     if (state.chart) { state.chart.destroy(); state.chart = null; }
     if (state.porscheChart) { state.porscheChart.destroy(); state.porscheChart = null; }
+    if (state.portfolioChart) {
+      state.portfolioChart.destroy();
+      state.portfolioChart = null;
+      renderPortfolioChart();
+    }
     calculateESPP(); // re-renders donut + goal projection (via updateGoalTracker)
   });
 }
@@ -205,28 +234,148 @@ function initWelcome() {
   let lockedScrollY = 0;
   const open = () => {
     if (!overlay) return;
-    overlay.style.display = 'flex';
+    
     lockedScrollY = window.scrollY || 0;
     document.body.style.position = 'fixed';
     document.body.style.top = `-${lockedScrollY}px`;
     document.body.style.left = '0';
     document.body.style.right = '0';
     document.body.style.overflow = 'hidden';
+
+    // Prepare styles for GSAP
+    overlay.style.display = 'flex';
+    const startBtn = document.getElementById('welcomeStart');
+    if (prefersReducedMotion()) {
+      gsap.set(overlay, { opacity: 1 });
+      startBtn?.focus({ preventScroll: true });
+      return;
+    }
+    gsap.set(overlay, { opacity: 0, backdropFilter: 'blur(0px)', webkitBackdropFilter: 'blur(0px)' });
+
+    const modal = overlay.querySelector('.welcome-modal');
+    if (modal) {
+      gsap.set(modal, { scale: 0.92, y: 30, opacity: 0 });
+
+      // Feature rows stagger individually (not the list as one block); their
+      // icons pop in a beat later for a layered feel.
+      const children = [
+        modal.querySelector('.welcome-close'),
+        modal.querySelector('.welcome-logo'),
+        modal.querySelector('.welcome-eyebrow'),
+        modal.querySelector('#welcomeTitle'),
+        modal.querySelector('.welcome-lead'),
+        ...modal.querySelectorAll('.welcome-feature'),
+        modal.querySelector('.welcome-privacy-card'),
+        modal.querySelector('#welcomeStart'),
+        modal.querySelector('.welcome-reopen-hint')
+      ].filter(Boolean);
+      const logo = modal.querySelector('.welcome-logo');
+      const featureIcons = modal.querySelectorAll('.welcome-feature > i:first-child');
+
+      gsap.set(children, { opacity: 0, y: 15 });
+      if (logo) gsap.set(logo, { rotation: -8 });
+      gsap.set(featureIcons, { opacity: 0, scale: 0.5 });
+
+      // Play open sequence in a single cohesive timeline: the page "defocuses"
+      // behind the modal, the logo drops in with a tilt, rows cascade, icons pop,
+      // then a glow pulse on the logo and (after a pause) one nudge on the CTA.
+      const tl = gsap.timeline({ onComplete: () => startBtn?.focus({ preventScroll: true }) });
+      tl.to(overlay, {
+        opacity: 1,
+        backdropFilter: 'blur(6px)',
+        webkitBackdropFilter: 'blur(6px)',
+        duration: 0.35,
+        ease: "power2.out"
+      });
+      tl.to(modal, {
+        scale: 1,
+        y: 0,
+        opacity: 1,
+        duration: 0.6,
+        ease: "back.out(1.5)"
+      }, "-=0.2");
+      tl.to(children, {
+        opacity: 1,
+        y: 0,
+        duration: 0.45,
+        stagger: 0.06,
+        ease: "power2.out"
+      }, "-=0.35");
+      if (logo) tl.to(logo, { rotation: 0, duration: 0.6, ease: "back.out(2)" }, "<");
+      tl.to(featureIcons, {
+        opacity: 1,
+        scale: 1,
+        duration: 0.4,
+        stagger: 0.1,
+        ease: "back.out(2.5)"
+      }, "-=0.55");
+      if (logo) {
+        tl.to(logo, {
+          boxShadow: '0 10px 42px rgba(0, 242, 254, 0.5)',
+          duration: 0.45,
+          yoyo: true,
+          repeat: 1,
+          ease: "sine.inOut",
+          onComplete: () => gsap.set(logo, { clearProps: 'boxShadow' })
+        }, "+=0.15");
+      }
+      if (startBtn) {
+        tl.to(startBtn, {
+          scale: 1.03,
+          duration: 0.35,
+          yoyo: true,
+          repeat: 1,
+          ease: "sine.inOut",
+          onComplete: () => gsap.set(startBtn, { clearProps: 'scale' })
+        }, "+=1.4");
+      }
+    } else {
+      gsap.to(overlay, { opacity: 1, duration: 0.35, ease: "power2.out" });
+    }
   };
+
   const close = () => {
-    if (overlay) overlay.style.display = 'none';
-    document.body.style.position = '';
-    document.body.style.top = '';
-    document.body.style.left = '';
-    document.body.style.right = '';
-    document.body.style.overflow = '';
-    window.scrollTo(0, lockedScrollY);
-    try { localStorage.setItem('espp_seen_welcome', '1'); } catch (e) { /* private mode */ }
+    if (!overlay) return;
+
+    const modal = overlay.querySelector('.welcome-modal');
+
+    // Dialog etiquette: if focus is still inside the overlay, hand it back to
+    // the "?" button that (re-)opens it, so keyboard users aren't stranded.
+    const focusWasInside = overlay.contains(document.activeElement);
+
+    const cleanup = () => {
+      overlay.style.display = 'none';
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.left = '';
+      document.body.style.right = '';
+      document.body.style.overflow = '';
+      window.scrollTo(0, lockedScrollY);
+      if (focusWasInside) document.getElementById('helpBtn')?.focus({ preventScroll: true });
+      try { localStorage.setItem('espp_seen_welcome', '1'); } catch (e) { /* private mode */ }
+    };
+
+    if (prefersReducedMotion()) {
+      cleanup();
+      return;
+    }
+
+    const tl = gsap.timeline({ onComplete: cleanup });
+
+    if (modal) {
+      tl.to(modal, { scale: 0.92, y: 20, opacity: 0, duration: 0.22, ease: "power2.in" }, 0);
+    }
+    tl.to(overlay, { opacity: 0, duration: 0.22, ease: "power2.in" }, 0.04);
   };
 
   document.getElementById('welcomeClose')?.addEventListener('click', close);
   document.getElementById('welcomeStart')?.addEventListener('click', close);
   document.getElementById('helpBtn')?.addEventListener('click', open);   // re-openable anytime
+  // Feature rows are shortcuts: the global [data-goto-tab] handler switches the
+  // tab; here we just close the overlay and land at the top of that tab.
+  overlay?.querySelectorAll('.welcome-feature[data-goto-tab]').forEach(btn => {
+    btn.addEventListener('click', () => { lockedScrollY = 0; close(); });
+  });
   // Dismiss by clicking the backdrop or pressing Escape.
   overlay?.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay && overlay.style.display === 'flex') close(); });
@@ -269,25 +418,62 @@ function initTabs() {
   elements.navTabs.forEach(tab => {
     tab.addEventListener('click', () => {
       const tabId = tab.getAttribute('data-tab');
+      if (state.activeTab === tabId) return;
+
+      const currentTabId = state.activeTab;
       state.activeTab = tabId;
       localStorage.setItem('espp_active_tab', tabId);
       
       elements.navTabs.forEach(t => t.classList.remove('active'));
-      elements.tabContents.forEach(c => c.classList.remove('active'));
-      
       tab.classList.add('active');
-      document.getElementById(`tab-${tabId}`).classList.add('active');
+      
+      const currentContent = document.getElementById(`tab-${currentTabId}`);
+      const nextContent = document.getElementById(`tab-${tabId}`);
+      
+      if (currentContent && nextContent) {
+        // Instant tab-content display swap, followed by a very fast, snappy fade-in
+        currentContent.classList.remove('active');
+        nextContent.classList.add('active');
+        
+        // Fast, hardware-accelerated fade-in (takes 0.15s, feels instant but smooth)
+        gsap.fromTo(nextContent, 
+          { opacity: 0 },
+          { 
+            opacity: 1, 
+            duration: 0.15, 
+            ease: "power1.out",
+            onComplete: () => {
+              // Re-render chart if switching tabs
+              if (tabId === 'calculator' && state.chart) {
+                state.chart.resize();
+              }
+              if (tabId === 'porsche' && state.porscheChart) {
+                state.porscheChart.resize();
+              }
+            }
+          }
+        );
+      } else {
+        elements.tabContents.forEach(c => c.classList.remove('active'));
+        if (nextContent) nextContent.classList.add('active');
+        if (tabId === 'calculator' && state.chart) state.chart.resize();
+        if (tabId === 'porsche' && state.porscheChart) state.porscheChart.resize();
+      }
+
+      if (tabId === 'portfolio') {
+        triggerPortfolioKpisAnimation(0.1);
+      }
+      if (tabId === 'calculator') {
+        setupCalcScrollReveals();
+      }
+
+      // Sticky KPI strip + scroll-trigger positions depend on which tab is laid out.
+      applyStickyKpis(tabId);
+      updateStickySummaryVisibility();
+      if (window.ScrollTrigger) ScrollTrigger.refresh();
 
       // Keep the active tab visible in the horizontally-scrollable mobile nav bar.
       tab.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-
-      // Re-render chart if switching tabs
-      if (tabId === 'calculator' && state.chart) {
-        state.chart.resize();
-      }
-      if (tabId === 'porsche' && state.porscheChart) {
-        state.porscheChart.resize();
-      }
     });
   });
 }
@@ -301,15 +487,26 @@ async function fetchLiveStockPrice() {
     const data = await response.json();
     
     if (data.success || data.fallback) {
+      // Decide BEFORE updating state whether the sell input was merely tracking
+      // the live price (or still coupled to the buy price). Only then move it
+      // along — a deliberately chosen Verkaufskurs must not be overwritten.
+      const sellValBefore = parseFloat(elements.inputSellPrice.value);
+      const buyValBefore = parseFloat(elements.inputStockPrice.value);
+      const sellTracksLive = state.lastLiveUSD === null ||
+        !isFinite(sellValBefore) ||
+        Math.abs(sellValBefore - state.lastLiveUSD) < 0.01 ||
+        Math.abs(sellValBefore - buyValBefore) < 0.01;
+
       state.usdPrice = data.usdPrice;
       state.eurPrice = data.eurPrice;
       state.exchangeRate = data.exchangeRate;
       state.previousCloseUSD = data.previousCloseUSD || data.usdPrice;
       state.previousCloseEUR = data.previousCloseEUR || data.eurPrice;
-      
+      state.lastLiveUSD = data.usdPrice;
+
       // Update UI Inputs
       elements.inputStockPrice.value = state.usdPrice.toFixed(2);
-      elements.inputSellPrice.value = state.usdPrice.toFixed(2);
+      if (sellTracksLive) elements.inputSellPrice.value = state.usdPrice.toFixed(2);
       elements.valStockPriceEUR.textContent = `${state.eurPrice.toFixed(2)} €`;
       elements.valExchangeRate.textContent = state.exchangeRate.toFixed(4);
       
@@ -357,7 +554,7 @@ const strategies = {
         <div>
           <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-circle-exclamation text-warning"></i> Wichtig zu beachten</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
-            <li><strong>Zwei Transfers nötig:</strong> Du musst erst bei CapTrader/IBKR den Empfang ankündigen und dann bei EquatePlus senden.</li>
+            <li><strong>Transfer läuft über EquatePlus:</strong> Du löst den Übertrag dort mit Broker-Code (0534) und Deiner IBKR-Kontonummer aus. Eine vorherige Empfangsanweisung bei CapTrader/IBKR ist <strong>optional</strong> – nach Nutzer-Erfahrung nicht notwendig.</li>
             <li><strong>Dividenden-Zwischenstopp:</strong> Auch wenn Du regelmäßig verkaufst, fallen bis dahin Dividenden bei EquatePlus an – entscheide, ob Du sie auszahlen lässt oder reinvestierst.</li>
             <li><strong>Steuererklärung:</strong> Du musst die Gewinne selbst in der Anlage KAP angeben, da US-Broker keine deutsche Steuer automatisch abführen.</li>
           </ul>
@@ -457,6 +654,12 @@ function saveCalculatorState() {
     soli: elements.selectSoli.value,
     broker: elements.selectBroker.value,
     sellPrice: elements.inputSellPrice.value,
+    // Market snapshot: without it, a reload falls back to the hardcoded 180 $ /
+    // 0.92 defaults until /api/stock answers — which made the one spread-dependent
+    // row (Kapitalertragsteuer beim Verkauf) visibly lag behind the others.
+    stockPrice: elements.inputStockPrice.value,
+    marketFX: state.exchangeRate,
+    lastLiveUSD: state.lastLiveUSD,
     accumulatedMonths: elements.inputAccumulatedMonths.value,
     salaryProvided: state.salaryProvided,
     calcMode: elements.selectCalcMode ? elements.selectCalcMode.value : 'forecast',
@@ -485,7 +688,7 @@ function loadCalculatorState() {
 
     if (parsed.monthlySalary !== undefined) {
       elements.inputMonthlySalary.value = parsed.monthlySalary;
-      elements.valMonthlySalary.textContent = `${parseInt(parsed.monthlySalary).toLocaleString('de-DE')} €`;
+      elements.valMonthlySalary.value = `${parseInt(parsed.monthlySalary).toLocaleString('de-DE')} €`;
     }
     // Restore the "real salary entered" flag; older saved states (without the flag) count as
     // user-provided only if the stored salary differs from the 5.000 € example default.
@@ -493,14 +696,14 @@ function loadCalculatorState() {
       (parsed.salaryProvided === undefined && parsed.monthlySalary !== undefined && String(parsed.monthlySalary) !== '5000');
     if (parsed.savingsRate !== undefined) {
       elements.inputSavingsRate.value = parsed.savingsRate;
-      elements.valSavingsRate.textContent = `${parsed.savingsRate} %`;
+      elements.valSavingsRate.value = `${parsed.savingsRate} %`;
     }
     if (parsed.taxYear !== undefined) {
       elements.selectTaxYear.value = parsed.taxYear;
     }
     if (parsed.taxRate !== undefined) {
       elements.inputTaxRate.value = parsed.taxRate;
-      elements.valTaxRate.textContent = `${parsed.taxRate} %`;
+      elements.valTaxRate.value = `${parsed.taxRate} %`;
     }
     if (parsed.churchTax !== undefined) {
       elements.selectChurchTax.value = parsed.churchTax;
@@ -514,23 +717,26 @@ function loadCalculatorState() {
     if (parsed.sellPrice !== undefined) {
       elements.inputSellPrice.value = parsed.sellPrice;
     }
+    // Restore the market snapshot so the very first (synchronous) calculation
+    // already uses last session's real prices instead of the 180 $ defaults.
+    // The live fetch then only nudges values by the actual intraday move.
+    if (parsed.stockPrice !== undefined) {
+      const savedBuy = parseFloat(parsed.stockPrice);
+      const savedFX = parseFloat(parsed.marketFX);
+      if (isFinite(savedBuy) && savedBuy > 0) {
+        elements.inputStockPrice.value = parsed.stockPrice;
+        state.usdPrice = savedBuy;
+        if (isFinite(savedFX) && savedFX > 0) state.exchangeRate = savedFX;
+        state.eurPrice = state.usdPrice * state.exchangeRate;
+        const savedLive = parseFloat(parsed.lastLiveUSD);
+        state.lastLiveUSD = isFinite(savedLive) ? savedLive : null;
+        elements.valStockPriceEUR.textContent = `${state.eurPrice.toFixed(2)} €`;
+        elements.valExchangeRate.textContent = state.exchangeRate.toFixed(4);
+      }
+    }
     if (parsed.accumulatedMonths !== undefined) {
       elements.inputAccumulatedMonths.value = parsed.accumulatedMonths;
-      
-      const months = parseInt(parsed.accumulatedMonths);
-      if (months >= 12) {
-        const years = Math.floor(months / 12);
-        const remMonths = months % 12;
-        let label = `${months} Monate`;
-        if (remMonths === 0) {
-          label += ` (${years} ${years === 1 ? 'Jahr' : 'Jahre'})`;
-        } else {
-          label += ` (${years}J ${remMonths}M)`;
-        }
-        elements.valAccumulatedMonths.textContent = label;
-      } else {
-        elements.valAccumulatedMonths.textContent = `${months} Monate`;
-      }
+      elements.valAccumulatedMonths.value = formatMonthsLabel(parseInt(parsed.accumulatedMonths));
     }
 
     if (parsed.calcMode && elements.selectCalcMode) {
@@ -576,6 +782,27 @@ function applyCalcModeUI() {
   if (joinGroup) joinGroup.style.display = historical ? '' : 'none';
   if (buyGroup) buyGroup.style.display = historical ? 'none' : '';
   if (holdGroup) holdGroup.style.display = historical ? 'none' : '';
+
+  // Keep the segmented toggle in the output panel in sync with the select
+  // (covers both user changes and the restored state on page load).
+  document.querySelectorAll('#calcModeToggle .mode-btn').forEach(btn => {
+    btn.classList.toggle('active', (btn.dataset.mode === 'historical') === historical);
+  });
+}
+
+// Persisted copy of the last fetched series. Monthly averages barely change
+// (only the current month drifts), so a reload can paint the real numbers
+// synchronously from this cache instead of waiting seconds on Yahoo.
+const HIST_CACHE_LS_KEY = 'espp_hist_cache';
+
+function readHistCache(key) {
+  try {
+    const cached = JSON.parse(localStorage.getItem(HIST_CACHE_LS_KEY) || 'null');
+    if (cached && cached.key === key && Array.isArray(cached.months) && cached.months.length > 0) {
+      return cached.months;
+    }
+  } catch (e) { /* corrupt cache — ignore */ }
+  return null;
 }
 
 // Fetch (and cache) the monthly price + FX series from the join month until today.
@@ -589,8 +816,16 @@ async function ensureHistoricalData() {
   const key = `${joinVal}_${monthsCount}`;
   if (histState.key === key && (histState.months || histState.loading)) return;
 
-  histState = { key, months: null, loading: true, error: null };
-  setHistStatus('Lade historische IBM-Kurse & Wechselkurse…', 'loading');
+  // Hydrate synchronously from the cache (the key embeds the month count, so a
+  // new calendar month automatically invalidates it). The fresh fetch below then
+  // only nudges the numbers instead of making the whole list jump.
+  const cachedMonths = readHistCache(key);
+  histState = { key, months: cachedMonths, loading: true, error: null };
+  if (cachedMonths) {
+    setHistStatus(`✓ ${cachedMonths.length} Monatskäufe simuliert (zwischengespeichert) – aktualisiere im Hintergrund…`, 'success');
+  } else {
+    setHistStatus('Lade historische IBM-Kurse & Wechselkurse…', 'loading');
+  }
   try {
     const period1 = Math.floor(join.getTime() / 1000);
     const period2 = Math.floor(Date.now() / 1000);
@@ -632,6 +867,9 @@ async function ensureHistoricalData() {
       }));
     if (months.length === 0) throw new Error('keine Kursdaten für den Zeitraum');
     histState = { key, months, loading: false, error: null };
+    try {
+      localStorage.setItem(HIST_CACHE_LS_KEY, JSON.stringify({ key, months }));
+    } catch (e) { /* storage full / private mode — cache is best-effort */ }
 
     let note = '';
     if (months[0].month > joinVal) {
@@ -642,8 +880,13 @@ async function ensureHistoricalData() {
     }
     setHistStatus(`✓ ${months.length} Monatskäufe simuliert (${months[0].month} bis ${months[months.length - 1].month}, Quelle: Yahoo Finance)${note}`, 'success');
   } catch (e) {
-    histState = { key, months: null, loading: false, error: e.message };
-    setHistStatus('Historische Kurse konnten nicht geladen werden: ' + e.message, 'error');
+    // Keep the cached series usable when the refresh fails — stale beats empty.
+    histState = { key, months: cachedMonths, loading: false, error: e.message };
+    if (cachedMonths) {
+      setHistStatus(`✓ ${cachedMonths.length} Monatskäufe simuliert (zwischengespeicherte Kurse – Aktualisierung fehlgeschlagen)`, 'warning');
+    } else {
+      setHistStatus('Historische Kurse konnten nicht geladen werden: ' + e.message, 'error');
+    }
   }
   calculateESPP();
 }
@@ -748,6 +991,48 @@ function initMonthPicker(input) {
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape') close(); });
 }
 
+// Collapsible step cards, shared by the Rechner and Portfolio input panels.
+// Open/closed states persist per tab in localStorage; `defaultOpen` overrides the
+// DOM defaults when nothing is saved yet (e.g. collapse the import steps once
+// portfolio data has been restored — returning users start at the results).
+function initCollapsibleSteps(containerSelector, storageKey, defaultOpen = null) {
+  const stepCards = document.querySelectorAll(`${containerSelector} .collapsible-step`);
+  if (!stepCards.length) return;
+
+  const applyOpen = (card, open) => {
+    card.classList.toggle('open', open);
+    const head = card.querySelector('.input-group-header');
+    if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+  };
+  const save = () => {
+    try {
+      localStorage.setItem(storageKey,
+        JSON.stringify([...stepCards].map(card => card.classList.contains('open'))));
+    } catch (e) { /* private mode */ }
+  };
+
+  let saved = null;
+  try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (e) { /* corrupt entry */ }
+  if (Array.isArray(saved)) {
+    stepCards.forEach((card, i) => { if (typeof saved[i] === 'boolean') applyOpen(card, saved[i]); });
+  } else if (Array.isArray(defaultOpen)) {
+    stepCards.forEach((card, i) => { if (typeof defaultOpen[i] === 'boolean') applyOpen(card, defaultOpen[i]); });
+  }
+
+  stepCards.forEach(card => {
+    const head = card.querySelector('.input-group-header');
+    if (!head) return;
+    const toggle = () => {
+      applyOpen(card, !card.classList.contains('open'));
+      save();
+    };
+    head.addEventListener('click', toggle);
+    head.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
+    });
+  });
+}
+
 function initCalculator() {
   const btnClearCalculator = document.getElementById('btnClearCalculator');
   if (btnClearCalculator) {
@@ -763,8 +1048,12 @@ function initCalculator() {
     const step1 = document.querySelector('#tab-calculator .group-stocks-savings');
     const uploadZone = document.getElementById('uploadZone');
     if (step1 && !step1.classList.contains('open')) {
-      step1.classList.add('open');
-      step1.querySelector('.input-group-header')?.setAttribute('aria-expanded', 'true');
+      const header = step1.querySelector('.input-group-header');
+      if (header) {
+        header.click();
+      } else {
+        step1.classList.add('open');
+      }
     }
     step1?.scrollIntoView({ behavior: 'smooth', block: 'center' });
     if (uploadZone) {
@@ -778,17 +1067,8 @@ function initCalculator() {
 
   // Collapsible step cards: click (or Enter/Space on) a header to expand/collapse the step.
   // The header keeps showing a live summary of the step's values while collapsed.
-  document.querySelectorAll('.collapsible-step .input-group-header').forEach(head => {
-    const toggle = () => {
-      const card = head.closest('.collapsible-step');
-      card.classList.toggle('open');
-      head.setAttribute('aria-expanded', card.classList.contains('open') ? 'true' : 'false');
-    };
-    head.addEventListener('click', toggle);
-    head.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggle(); }
-    });
-  });
+  // Which steps are expanded is persisted, so a reload restores the same layout.
+  initCollapsibleSteps('#tab-calculator', 'espp_open_steps');
 
   // Input Listeners
   elements.inputStockPrice.addEventListener('input', (e) => {
@@ -802,12 +1082,33 @@ function initCalculator() {
   
   elements.inputMonthlySalary.addEventListener('input', (e) => {
     state.salaryProvided = true; // user set a real salary
-    elements.valMonthlySalary.textContent = `${parseInt(e.target.value).toLocaleString('de-DE')} €`;
+    elements.valMonthlySalary.value = `${parseInt(e.target.value).toLocaleString('de-DE')} €`;
     calculateESPP();
   });
 
+  // Editable value chips: every slider value can also be typed directly.
+  initEditableSliderChip(elements.valMonthlySalary, elements.inputMonthlySalary, {
+    display: () => state.salaryProvided
+      ? `${parseInt(elements.inputMonthlySalary.value).toLocaleString('de-DE')} €`
+      : '', // empty → placeholder "eintippen" shows
+    rawForEdit: () => state.salaryProvided ? String(parseInt(elements.inputMonthlySalary.value)) : '',
+    onApply: () => { state.salaryProvided = true; }
+  });
+  initEditableSliderChip(elements.valSavingsRate, elements.inputSavingsRate, {
+    display: () => `${parseInt(elements.inputSavingsRate.value)} %`
+  });
+  initEditableSliderChip(elements.valTaxRate, elements.inputTaxRate, {
+    display: () => `${parseInt(elements.inputTaxRate.value)} %`
+  });
+  initEditableSliderChip(elements.valAccumulatedMonths, elements.inputAccumulatedMonths, {
+    display: () => formatMonthsLabel(parseInt(elements.inputAccumulatedMonths.value))
+  });
+  fitAllSliderChips();
+  // Re-measure once the webfont (Outfit) is in — fallback-font metrics differ slightly.
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAllSliderChips);
+
   elements.inputSavingsRate.addEventListener('input', (e) => {
-    elements.valSavingsRate.textContent = `${e.target.value} %`;
+    elements.valSavingsRate.value = `${e.target.value} %`;
     calculateESPP();
   });
   
@@ -816,7 +1117,7 @@ function initCalculator() {
   elements.selectSoli.addEventListener('change', calculateESPP);
   
   elements.inputTaxRate.addEventListener('input', (e) => {
-    elements.valTaxRate.textContent = `${e.target.value} %`;
+    elements.valTaxRate.value = `${e.target.value} %`;
     calculateESPP();
   });
   
@@ -827,6 +1128,56 @@ function initCalculator() {
       applyCalcModeUI();
       if (elements.selectCalcMode.value === 'historical') ensureHistoricalData();
       calculateESPP();
+    });
+  }
+
+  // Mode controls in the output panel (segmented toggle + scenario-strip switch link):
+  // both just drive the Berechnungsmodus select so all existing wiring applies.
+  const setCalcMode = (mode) => {
+    if (!elements.selectCalcMode || elements.selectCalcMode.value === mode) return;
+    elements.selectCalcMode.value = mode;
+    elements.selectCalcMode.dispatchEvent(new Event('change'));
+  };
+  document.querySelectorAll('#calcModeToggle .mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => setCalcMode(btn.dataset.mode));
+  });
+  const scenarioSwitch = document.getElementById('scenarioSwitch');
+  if (scenarioSwitch && elements.selectCalcMode) {
+    scenarioSwitch.addEventListener('click', () => {
+      setCalcMode(elements.selectCalcMode.value === 'historical' ? 'forecast' : 'historical');
+    });
+  }
+
+  // Scenario chips jump to the control in step 3 that defines the clicked assumption.
+  const scenarioChips = document.getElementById('scenarioChips');
+  if (scenarioChips) {
+    scenarioChips.addEventListener('click', (e) => {
+      const chip = e.target.closest('.scenario-chip');
+      if (!chip || !chip.dataset.target) return;
+      const step3 = document.querySelector('#tab-calculator .group-selling');
+      if (step3 && !step3.classList.contains('open')) {
+        const header = step3.querySelector('.input-group-header');
+        if (header) header.click(); else step3.classList.add('open');
+      }
+      const target = document.getElementById(chip.dataset.target);
+      const flashEl = target ? (target.closest('.form-group') || target) : step3;
+      flashEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      if (flashEl) {
+        flashEl.classList.remove('pulse-highlight');
+        void flashEl.offsetWidth; // restart the animation on repeated clicks
+        flashEl.classList.add('pulse-highlight');
+        setTimeout(() => flashEl.classList.remove('pulse-highlight'), 2400);
+      }
+    });
+  }
+
+  // First-time simulation explainer: "Verstanden" hides it for good.
+  const simExplainerClose = document.getElementById('simExplainerClose');
+  if (simExplainerClose) {
+    simExplainerClose.addEventListener('click', () => {
+      const note = document.getElementById('simExplainer');
+      if (note) note.style.display = 'none';
+      try { localStorage.setItem('espp_sim_note_dismissed', '1'); } catch (e) { /* private mode */ }
     });
   }
   if (elements.inputJoinDate) {
@@ -843,20 +1194,7 @@ function initCalculator() {
   elements.inputSellPrice.addEventListener('input', calculateESPP);
   
   elements.inputAccumulatedMonths.addEventListener('input', (e) => {
-    const months = parseInt(e.target.value);
-    if (months >= 12) {
-      const years = Math.floor(months / 12);
-      const remMonths = months % 12;
-      let label = `${months} Monate`;
-      if (remMonths === 0) {
-        label += ` (${years} ${years === 1 ? 'Jahr' : 'Jahre'})`;
-      } else {
-        label += ` (${years}J ${remMonths}M)`;
-      }
-      elements.valAccumulatedMonths.textContent = label;
-    } else {
-      elements.valAccumulatedMonths.textContent = `${months} Monate`;
-    }
+    elements.valAccumulatedMonths.value = formatMonthsLabel(parseInt(e.target.value));
     calculateESPP();
   });
   
@@ -867,6 +1205,72 @@ function initCalculator() {
   calculateESPP();
 }
 
+
+// Auto-size an editable slider chip to its text (measured in px), so it hugs
+// its content exactly like a static value chip would.
+function fitSliderChip(el) {
+  if (!el || el.tagName !== 'INPUT') return;
+  const text = el.value || el.placeholder || '';
+  const cs = getComputedStyle(el);
+  const ctx = fitSliderChip._ctx || (fitSliderChip._ctx = document.createElement('canvas').getContext('2d'));
+  ctx.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
+  const chrome = parseFloat(cs.paddingLeft) + parseFloat(cs.paddingRight) +
+                 parseFloat(cs.borderLeftWidth) + parseFloat(cs.borderRightWidth);
+  // Quantize to 6px steps: while the slider is dragged, tiny per-value width
+  // differences would otherwise make the chip (and the row layout) jitter.
+  el.style.width = `${Math.ceil((ctx.measureText(text).width + chrome + 2) / 6) * 6}px`;
+}
+
+function fitAllSliderChips() {
+  ['valMonthlySalary', 'valSavingsRate', 'valTaxRate', 'valAccumulatedMonths', 'valStockGrowth']
+    .forEach(id => fitSliderChip(document.getElementById(id)));
+}
+
+// "8 Monate" / "24 Monate (2 Jahre)" / "14 Monate (1J 2M)" — shared by the
+// Haltedauer slider handler, the chip display and the state restore.
+function formatMonthsLabel(months) {
+  if (months >= 12) {
+    const years = Math.floor(months / 12);
+    const remMonths = months % 12;
+    return remMonths === 0
+      ? `${months} Monate (${years} ${years === 1 ? 'Jahr' : 'Jahre'})`
+      : `${months} Monate (${years}J ${remMonths}M)`;
+  }
+  return `${months} Monate`;
+}
+
+// Editable slider chips: each value chip is a text input — click and type, or drag
+// the slider; both stay in sync. While focused the chip shows the bare number;
+// Enter or blur restores the formatted label from the slider (the source of truth),
+// which also discards incomplete entries and clamps out-of-range input.
+function initEditableSliderChip(chipEl, sliderEl, { display, rawForEdit, onApply } = {}) {
+  if (!chipEl || chipEl.tagName !== 'INPUT' || !sliderEl) return;
+  const min = parseInt(sliderEl.min, 10) || 0;
+  const max = parseInt(sliderEl.max, 10) || Infinity;
+
+  chipEl.addEventListener('focus', () => {
+    chipEl.value = rawForEdit ? rawForEdit() : String(parseInt(sliderEl.value, 10));
+    fitSliderChip(chipEl);
+    chipEl.select();
+  });
+  chipEl.addEventListener('input', () => {
+    fitSliderChip(chipEl);
+    const raw = parseInt(chipEl.value.replace(/[^\d]/g, ''), 10);
+    // Apply only once the typed number reaches the slider minimum — clamping
+    // mid-keystroke (the "3" of "35") would jump the results around.
+    if (!isFinite(raw) || raw < min) return;
+    sliderEl.value = Math.min(max, raw);
+    if (onApply) onApply();
+    calculateESPP();
+  });
+  chipEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); chipEl.blur(); }
+  });
+  chipEl.addEventListener('blur', () => {
+    chipEl.value = display ? display() : String(parseInt(sliderEl.value, 10));
+    fitSliderChip(chipEl);
+  });
+}
 
 function calculateESPP() {
   const stockPriceUSD = state.usdPrice;
@@ -1041,9 +1445,13 @@ function calculateESPP() {
   }
 
   // Update Outputs in UI
-  elements.netProfitEuro.textContent = `${netProfitEUR.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  elements.netProfitPercent.textContent = `${netProfitEUR >= 0 ? '+' : ''}${netReturnOnNetCapital.toFixed(1)}%`;
-  
+  const isPlaceholder = !state.salaryProvided;
+
+  // Slider drags fire many recalcs per second — counters shorten so they track the thumb.
+  const nowTs = performance.now();
+  state.rapidRecalc = nowTs - (state.lastCalcTs || 0) < 250;
+  state.lastCalcTs = nowTs;
+
   // Color the banner figures: green return / default profit when positive, red when negative
   if (netProfitEUR >= 0) {
     elements.netProfitPercent.style.color = "var(--success)";
@@ -1053,43 +1461,70 @@ function calculateESPP() {
     elements.netProfitEuro.style.color = "#f87171";
   }
 
-  elements.netInvestment.textContent = `${totalEmployeeCost.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  // Update Outputs in UI (animated if not placeholder)
+  if (!isPlaceholder) {
+    const fmtEUR = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    const fmtPercent = (val) => `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
 
-  elements.rowGrossContribution.textContent = `${totalGrossContribution.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  elements.rowNetContribution.textContent = `${totalNetContribution.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  elements.rowDiscountBenefit.textContent = `${totalDiscountBenefitEUR.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  elements.rowDiscountTax.textContent = `${purchaseTaxPaid.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  elements.rowCapitalGainsTax.textContent = `${capitalGainsTaxPaid.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  elements.rowFees.textContent = `${brokerFeesEUR.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  
-  // Update Sale Process Detail section
+    animateNumberValue('netProfitEuro', netProfitEUR, fmtEUR);
+    animateNumberValue('netInvestment', totalEmployeeCost, fmtEUR);
+    animateNumberValue('netProfitPercent', netReturnOnNetCapital, fmtPercent);
+
+    // Mirror the headline figures into the condensed sticky strip
+    state.stickyKpisCalculator = {
+      netProfitEUR,
+      returnPct: netReturnOnNetCapital,
+      investEUR: totalEmployeeCost,
+      shares: totalShares,
+      investLabel: 'Einsatz'
+    };
+    if (state.activeTab === 'calculator') applyStickyKpis('calculator');
+  } else {
+    elements.netProfitEuro.textContent = '–';
+    elements.netProfitPercent.textContent = '–';
+    elements.netInvestment.textContent = '–';
+  }
+
+  // Breakdown + sale-process rows: counter-animated, with a soft highlight pulse
+  // on every row whose value actually changed (so slider input is traceable).
   const fmtEUR = (v) => v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtUSD = (v) => v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtRowEuro = (v) => `${fmtEUR(v)} €`;
+  const setRow = (id, value, formatFn) => setBreakdownValue(id, value, formatFn, isPlaceholder);
+
+  setRow('rowGrossContribution', totalGrossContribution, fmtRowEuro);
+  setRow('rowNetContribution', totalNetContribution, fmtRowEuro);
+  setRow('rowDiscountBenefit', totalDiscountBenefitEUR, fmtRowEuro);
+  setRow('rowDiscountTax', purchaseTaxPaid, fmtRowEuro);
+  setRow('rowCapitalGainsTax', capitalGainsTaxPaid, fmtRowEuro);
+  setRow('rowFees', brokerFeesEUR, fmtRowEuro);
+
+  // Update Sale Process Detail section
   const discountedPricePerShare = sharePriceEUR * 0.85;
   const discountedPricePerShareUSD = sharePriceUSD * 0.85; // avg purchase price in historical mode
-  
-  elements.rowShareCount.textContent = `${totalShares.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Stk.`;
-  elements.rowBuyPriceEUR.textContent = `${fmtEUR(sharePriceEUR)} €`;
-  document.getElementById('rowBuyPriceUSD').textContent = `($${fmtUSD(sharePriceUSD)})`;
-  elements.rowDiscountedPrice.textContent = `${fmtEUR(discountedPricePerShare)} €`;
-  document.getElementById('rowDiscountedPriceUSD').textContent = `($${fmtUSD(discountedPricePerShareUSD)})`;
-  elements.rowTotalMarketValue.textContent = `${fmtEUR(totalMarketValueEUR)} €`;
-  elements.rowSellPriceEUR.textContent = `${fmtEUR(sellPriceEUR)} €`;
-  document.getElementById('rowSellPriceUSD').textContent = `($${fmtUSD(sellPriceUSD)})`;
-  elements.rowGrossSaleRevenue.textContent = `${fmtEUR(grossSaleRevenueEUR)} €`;
-  
+
+  setRow('rowShareCount', totalShares, (v) => `${fmtEUR(v)} Stk.`);
+  setRow('rowBuyPriceEUR', sharePriceEUR, fmtRowEuro);
+  setRow('rowBuyPriceUSD', sharePriceUSD, (v) => `($${fmtUSD(v)})`);
+  setRow('rowDiscountedPrice', discountedPricePerShare, fmtRowEuro);
+  setRow('rowDiscountedPriceUSD', discountedPricePerShareUSD, (v) => `($${fmtUSD(v)})`);
+  setRow('rowTotalMarketValue', totalMarketValueEUR, fmtRowEuro);
+  setRow('rowSellPriceEUR', sellPriceEUR, fmtRowEuro);
+  setRow('rowSellPriceUSD', sellPriceUSD, (v) => `($${fmtUSD(v)})`);
+  setRow('rowGrossSaleRevenue', grossSaleRevenueEUR, fmtRowEuro);
+
   // Color the capital gains based on positive/negative
-  elements.rowCapitalGainsAmount.textContent = `${capitalGainsEUR > 0 ? '+' : ''}${fmtEUR(capitalGainsEUR)} €`;
-  
-  elements.rowCapGainsTaxSale.textContent = `${capitalGainsTaxPaid > 0 ? '− ' : ''}${fmtEUR(capitalGainsTaxPaid)} €`;
-  elements.rowDiscountTaxSale.textContent = `${purchaseTaxPaid > 0 ? '− ' : ''}${fmtEUR(purchaseTaxPaid)} €`;
-  elements.rowBrokerFeesSale.textContent = `${brokerFeesEUR > 0 ? '− ' : ''}${fmtEUR(brokerFeesEUR)} €`;
-  
-  elements.rowNetSaleProceeds.textContent = `${fmtEUR(netCashReceived)} €`;
-  elements.rowNetCostsSale.textContent = `− ${fmtEUR(totalNetContribution)} €`;
-  elements.rowDiscountTaxSale2.textContent = `− ${fmtEUR(purchaseTaxPaid)} €`;
-  
-  elements.rowFinalNetProfit.textContent = `${fmtEUR(netProfitEUR)} €`;
+  setRow('rowCapitalGainsAmount', capitalGainsEUR, (v) => `${v > 0 ? '+' : ''}${fmtEUR(v)} €`);
+
+  setRow('rowCapGainsTaxSale', capitalGainsTaxPaid, (v) => `${v > 0 ? '− ' : ''}${fmtEUR(v)} €`);
+  setRow('rowDiscountTaxSale', purchaseTaxPaid, (v) => `${v > 0 ? '− ' : ''}${fmtEUR(v)} €`);
+  setRow('rowBrokerFeesSale', brokerFeesEUR, (v) => `${v > 0 ? '− ' : ''}${fmtEUR(v)} €`);
+
+  setRow('rowNetSaleProceeds', netCashReceived, fmtRowEuro);
+  setRow('rowNetCostsSale', totalNetContribution, (v) => `− ${fmtEUR(v)} €`);
+  setRow('rowDiscountTaxSale2', purchaseTaxPaid, (v) => `− ${fmtEUR(v)} €`);
+
+  setRow('rowFinalNetProfit', netProfitEUR, fmtRowEuro);
   
   // Update dynamic months labels in breakdown
   document.querySelectorAll('.months-count').forEach(el => {
@@ -1110,22 +1545,39 @@ function calculateESPP() {
   // Mirror the headline figure into the donut center and fill the summary-banner extras
   const chartCenterProfit = document.getElementById('chartCenterProfit');
   if (chartCenterProfit) {
-    chartCenterProfit.textContent = elements.netProfitEuro.textContent;
-    chartCenterProfit.style.color = elements.netProfitEuro.style.color;
+    if (elements.netProfitEuro.style.color) {
+      chartCenterProfit.style.color = elements.netProfitEuro.style.color;
+    } else {
+      chartCenterProfit.style.color = "";
+    }
   }
+
   const bannerShares = document.getElementById('bannerShares');
-  if (bannerShares) {
-    bannerShares.textContent = `${totalShares.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Stk.`;
-  }
   const bannerSharesSub = document.getElementById('bannerSharesSub');
-  if (bannerSharesSub) {
-    bannerSharesSub.textContent = `Marktwert: ${fmtEUR(totalMarketValueEUR)} €`;
+
+  if (!isPlaceholder) {
+    const fmtEUR = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    const fmtShares = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Stk.`;
+    const fmtMarketVal = (val) => `Marktwert: ${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+
+    if (chartCenterProfit) {
+      animateNumberValue('chartCenterProfit', netProfitEUR, fmtEUR);
+    }
+    if (bannerShares) {
+      animateNumberValue('bannerShares', totalShares, fmtShares);
+    }
+    if (bannerSharesSub) {
+      animateNumberValue('bannerSharesSub', totalMarketValueEUR, fmtMarketVal);
+    }
+  } else {
+    if (chartCenterProfit) chartCenterProfit.textContent = '–';
+    if (bannerShares) bannerShares.textContent = '–';
+    if (bannerSharesSub) bannerSharesSub.textContent = 'Warte auf Deine Daten…';
   }
 
   // Placeholder mode: until a real salary is set, show no computed numbers at all.
   // The banner shows dashes, the analysis panel shows an inviting empty state, and the
   // user is prompted to set their salary or upload a payslip.
-  const isPlaceholder = !state.salaryProvided;
   const exampleNote = document.getElementById('exampleDataNote');
   if (exampleNote) {
     exampleNote.style.display = isPlaceholder ? 'flex' : 'none';
@@ -1133,15 +1585,77 @@ function calculateESPP() {
   const calcEmptyState = document.getElementById('calcEmptyState');
   const calcResultsContent = document.getElementById('calcResultsContent');
   if (calcEmptyState && calcResultsContent) {
-    calcEmptyState.style.display = isPlaceholder ? 'flex' : 'none';
-    calcResultsContent.style.display = isPlaceholder ? 'none' : 'block';
+    const showResults = !isPlaceholder;
+    if (showResults !== state.resultsShown) {
+      state.resultsShown = showResults;
+      if (showResults) {
+        // The "it worked" moment: choreographed reveal instead of an abrupt swap
+        revealCalcResults(calcEmptyState, calcResultsContent, netProfitEUR);
+      } else {
+        calcResultsContent.style.display = 'none';
+        calcEmptyState.style.display = 'flex';
+        if (!prefersReducedMotion()) {
+          gsap.fromTo(calcEmptyState, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power1.out', clearProps: 'opacity' });
+        }
+      }
+    } else {
+      calcEmptyState.style.display = showResults ? 'none' : 'flex';
+      calcResultsContent.style.display = showResults ? 'block' : 'none';
+    }
   }
   // The KPI banner carries no information in placeholder mode (four dashes) — hide it
   // entirely so a fresh visitor goes straight from the notice to step 1.
   const summaryBanner = document.querySelector('.calc-summary-banner');
-  if (summaryBanner) summaryBanner.style.display = isPlaceholder ? 'none' : '';
+  if (summaryBanner) {
+    const wasHidden = summaryBanner.style.display === 'none';
+    if (isPlaceholder) {
+      summaryBanner.style.display = 'none';
+      state.firstCalculationRevealDone = false;
+      state.revealAnimationPlaying = false;
+    } else {
+      summaryBanner.style.display = '';
+      const kpis = summaryBanner.querySelectorAll('.calc-kpi');
+      if (kpis.length >= 4) {
+        if (wasHidden || !state.firstCalculationRevealDone) {
+          if (!state.revealAnimationPlaying && !prefersReducedMotion()) {
+            state.revealAnimationPlaying = true;
+            state.firstCalculationRevealDone = true;
+
+            // Force clean initial state before launching GSAP staggered entrance
+            gsap.killTweensOf(kpis);
+            gsap.set(kpis, { opacity: 0, scale: 0.8, y: 30 });
+
+            gsap.to(kpis, {
+              opacity: 1,
+              scale: 1,
+              y: 0,
+              duration: 0.65,
+              stagger: 0.08,
+              ease: "back.out(1.5)",
+              clearProps: "all",
+              onComplete: () => {
+                state.revealAnimationPlaying = false;
+              }
+            });
+          } else if (prefersReducedMotion()) {
+            state.firstCalculationRevealDone = true;
+          }
+        }
+      }
+    }
+    // The strip mirrors the banner: re-evaluate whenever the banner is toggled.
+    updateStickySummaryVisibility();
+  }
   if (isPlaceholder) {
-    elements.valMonthlySalary.textContent = 'Bitte einstellen';
+    // Kill running counters to prevent conflicts
+    gsap.killTweensOf(counterAnimations.get('netProfitEuro') || {});
+    gsap.killTweensOf(counterAnimations.get('chartCenterProfit') || {});
+    gsap.killTweensOf(counterAnimations.get('netInvestment') || {});
+    gsap.killTweensOf(counterAnimations.get('netProfitPercent') || {});
+    gsap.killTweensOf(counterAnimations.get('bannerShares') || {});
+    gsap.killTweensOf(counterAnimations.get('bannerSharesSub') || {});
+
+    elements.valMonthlySalary.value = ''; // placeholder "eintippen" shows instead
     elements.netProfitEuro.textContent = '–';
     elements.netProfitEuro.style.color = '';
     elements.netProfitPercent.textContent = '–';
@@ -1149,6 +1663,9 @@ function calculateESPP() {
     elements.netInvestment.textContent = '–';
     if (bannerShares) bannerShares.textContent = '–';
     if (bannerSharesSub) bannerSharesSub.textContent = 'Warte auf Deine Daten…';
+
+    state.stickyKpisCalculator = null;
+    if (state.activeTab === 'calculator') applyStickyKpis('calculator');
   }
 
   // Live value summaries in the (collapsible) step headers
@@ -1172,6 +1689,16 @@ function calculateESPP() {
     summaryStep3.textContent = `${buyLabel} → $${sellPriceUSD.toFixed(0)} · ${accumulatedMonths} Mon. · ${brokerNames[broker] || broker}`;
   }
 
+  // Scenario context around the results: strip, KPI subtitle, sticky tag, explainer.
+  updateScenarioUI({
+    historical: calcMode === 'historical',
+    histMonths,
+    accumulatedMonths,
+    sharePriceUSD,
+    sellPriceUSD,
+    isPlaceholder
+  });
+
   // Draw or update Chart.js visualization (skipped while the results are hidden behind the
   // empty state — the chart is created on the first calculation with real data instead)
   if (!isPlaceholder) {
@@ -1193,9 +1720,77 @@ function calculateESPP() {
     accumulatedMonths
   };
   updateGoalTracker();
-  
+
+  fitAllSliderChips();
+
   // Save calculator state to localStorage
   saveCalculatorState();
+}
+
+// Scenario-context UI in the output panel: names the assumptions that produce the
+// numbers shown (Prognose simulation vs. real historical prices), so the headline
+// "Netto-Gewinn" can't be mistaken for real data. Re-rendered on every recalc.
+function updateScenarioUI({ historical, histMonths, accumulatedMonths, sharePriceUSD, sellPriceUSD, isPlaceholder }) {
+  const strip = document.getElementById('scenarioStrip');
+  if (!strip) return;
+
+  const joinVal = getJoinDateValue(); // 'YYYY-MM'
+  const joinLabel = `${joinVal.slice(5, 7)}/${joinVal.slice(0, 4)}`;
+  const sellLabel = `$${sellPriceUSD.toFixed(0)}`;
+
+  const chip = (icon, text, target) =>
+    `<button type="button" class="scenario-chip"${target ? ` data-target="${target}"` : ' disabled'} ` +
+    `title="In Schritt 3 anpassen"><i class="fa-solid ${icon}"></i>${text}</button>`;
+
+  strip.classList.toggle('historical', historical);
+  const label = document.getElementById('scenarioLabel');
+  const chipsEl = document.getElementById('scenarioChips');
+  const switchBtn = document.getElementById('scenarioSwitch');
+
+  if (historical) {
+    if (label) label.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> Historische Berechnung – echte IBM-Kurse:';
+    if (chipsEl) {
+      chipsEl.innerHTML = histMonths
+        ? chip('fa-calendar-check', `dabei seit ${joinLabel}`, 'inputJoinDate') +
+          chip('fa-cart-shopping', `${accumulatedMonths} Monatskäufe · Ø $${sharePriceUSD.toFixed(0)}`, 'inputJoinDate') +
+          chip('fa-money-bill-trend-up', `Verkauf zu ${sellLabel}`, 'inputSellPrice')
+        : chip('fa-calendar-check', `dabei seit ${joinLabel}`, 'inputJoinDate') +
+          chip('fa-hourglass-half', 'echte Kurse werden geladen…', null);
+    }
+    if (switchBtn) switchBtn.innerHTML = 'Eigene Annahmen? <i class="fa-solid fa-arrow-right"></i> Prognose-Modus';
+  } else {
+    if (label) label.innerHTML = '<i class="fa-solid fa-flask"></i> Prognose-Szenario – angenommene Werte:';
+    if (chipsEl) {
+      chipsEl.innerHTML =
+        chip('fa-clock', `${accumulatedMonths} Monate sparen`, 'inputAccumulatedMonths') +
+        chip('fa-cart-shopping', `Kauf zu $${sharePriceUSD.toFixed(0)}`, 'inputStockPrice') +
+        chip('fa-money-bill-trend-up', `Verkauf zu ${sellLabel}`, 'inputSellPrice');
+    }
+    if (switchBtn) switchBtn.innerHTML = 'Echte Kurse? <i class="fa-solid fa-arrow-right"></i> Historisch-Modus';
+  }
+
+  // The headline KPI carries the same context in words.
+  const netProfitSub = document.getElementById('netProfitSub');
+  if (netProfitSub) {
+    netProfitSub.textContent = historical
+      ? `nach Steuern & Gebühren – echte Kaufkurse seit ${joinLabel}, Verkauf zu ${sellLabel}`
+      : `nach Steuern & Gebühren – angenommener Verkauf zu ${sellLabel} nach ${accumulatedMonths} Monaten Sparen`;
+  }
+
+  // Tiny mode tag in the condensed sticky KPI strip.
+  const stickyTag = document.getElementById('stickyModeTag');
+  if (stickyTag) {
+    stickyTag.textContent = historical ? 'Historisch' : 'Prognose';
+    stickyTag.classList.toggle('historical', historical);
+  }
+
+  // First-time explainer: only while in forecast mode, with results visible, until dismissed.
+  const simExplainer = document.getElementById('simExplainer');
+  if (simExplainer) {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem('espp_sim_note_dismissed') === '1'; } catch (e) { /* private mode */ }
+    simExplainer.style.display = (!historical && !isPlaceholder && !dismissed) ? '' : 'none';
+  }
 }
 
 // Theme-dependent canvas colors for Chart.js (canvas can't resolve CSS variables).
@@ -1211,16 +1806,36 @@ function chartThemeColors() {
   };
 }
 
+// Donut/legend/composition palette from the CSS design system, so the canvas
+// follows the active theme (charts are re-created on theme toggle).
+function chartPalette() {
+  const styles = getComputedStyle(document.documentElement);
+  return ['--chart-savings', '--chart-tax', '--chart-fees', '--chart-profit']
+    .map(name => styles.getPropertyValue(name).trim());
+}
+
+// Stacked horizontal bar above the breakdown — same data & order as the donut.
+function updateCompositionBar(dataValues) {
+  const segmentIds = ['compSavings', 'compTax', 'compFees', 'compProfit'];
+  const total = dataValues.reduce((sum, v) => sum + v, 0);
+  segmentIds.forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.style.width = total > 0 ? `${(dataValues[i] / total) * 100}%` : '0%';
+  });
+}
+
 function updateChart(netInvest, payrollTax, sellCosts, netProfit) {
   const ctx = document.getElementById('profitChart').getContext('2d');
-  
+
   const dataValues = [
     parseFloat(netInvest.toFixed(2)),
     parseFloat(payrollTax.toFixed(2)),
     parseFloat(sellCosts.toFixed(2)),
     parseFloat(Math.max(0, netProfit).toFixed(2))
   ];
-  
+
+  updateCompositionBar(dataValues);
+
   if (state.chart) {
     state.chart.data.datasets[0].data = dataValues;
     state.chart.update();
@@ -1231,12 +1846,7 @@ function updateChart(netInvest, payrollTax, sellCosts, netProfit) {
         labels: ['Netto-Sparrate', 'Lohnsteuer (AKP GwV)', 'Gebühren & KSt.', 'Netto-Gewinn'],
         datasets: [{
           data: dataValues,
-          backgroundColor: [
-            '#3b82f6', // Netto-Invest
-            '#fbbf24', // Lohnsteuer
-            '#f87171', // Gebühren
-            '#10b981'  // Netto-Gewinn
-          ],
+          backgroundColor: chartPalette(),
           borderColor: chartThemeColors().donutBorder,
           borderWidth: 2
         }]
@@ -1425,14 +2035,14 @@ function initPdfUploader() {
     // Apply values to inputs
     state.salaryProvided = true; // real salary from the uploaded payslip
     elements.inputMonthlySalary.value = extractedSalary;
-    elements.valMonthlySalary.textContent = `${parseInt(extractedSalary).toLocaleString('de-DE')} €`;
+    elements.valMonthlySalary.value = `${parseInt(extractedSalary).toLocaleString('de-DE')} €`;
 
     if (extractedSavingsRate !== null) {
       elements.inputSavingsRate.value = extractedSavingsRate;
-      elements.valSavingsRate.textContent = `${extractedSavingsRate} %`;
+      elements.valSavingsRate.value = `${extractedSavingsRate} %`;
     } else {
       elements.inputSavingsRate.value = 10;
-      elements.valSavingsRate.textContent = '10 %';
+      elements.valSavingsRate.value = '10 %';
     }
 
     elements.selectChurchTax.value = extractedChurchTax.toString();
@@ -1473,7 +2083,7 @@ function initPdfUploader() {
     // Estimate marginal tax rate based on German linear tax progression formula
     const estimatedMarginalRate = estimateGrenzsteuersatz(extractedSalary, extractedTaxClass);
     elements.inputTaxRate.value = estimatedMarginalRate;
-    elements.valTaxRate.textContent = `${estimatedMarginalRate} %`;
+    elements.valTaxRate.value = `${estimatedMarginalRate} %`;
 
     // Recalculate everything
     calculateESPP();
@@ -1549,8 +2159,11 @@ function initPdfUploader() {
 function initPorscheTracker() {
   if (elements.inputStockGrowth) {
     elements.inputStockGrowth.addEventListener('input', (e) => {
-      elements.valStockGrowth.textContent = `${e.target.value} %`;
+      elements.valStockGrowth.value = `${e.target.value} %`;
       calculateESPP();
+    });
+    initEditableSliderChip(elements.valStockGrowth, elements.inputStockGrowth, {
+      display: () => `${parseInt(elements.inputStockGrowth.value)} %`
     });
   }
 
@@ -1570,15 +2183,38 @@ function initPorscheTracker() {
   if (elements.goalName) {
     elements.goalName.addEventListener('input', () => {
       state.goal.name = elements.goalName.value;
-      if (elements.goalBadge) elements.goalBadge.textContent = goalBadgeText(state.goal.name);
       saveGoal();
+      renderGoal();
+      updateGoalTracker();
     });
   }
   if (elements.goalPrice) {
+    elements.goalPrice.addEventListener('focus', () => {
+      const g = state.goal || {};
+      if (g.price > 0) {
+        elements.goalPrice.value = g.price.toString();
+      }
+    });
+    elements.goalPrice.addEventListener('blur', () => {
+      renderGoal();
+    });
     elements.goalPrice.addEventListener('input', () => {
-      state.goal.price = parseFloat(elements.goalPrice.value) || 0;
+      state.goal.price = parseGermanNumber(elements.goalPrice.value) || 0;
       saveGoal();
+      const btnClearGoal = document.getElementById('btnClearGoal');
+      if (btnClearGoal) {
+        const hasGoal = state.goal.price > 0 || (state.goal.name && state.goal.name.trim() !== '');
+        btnClearGoal.style.display = hasGoal ? 'block' : 'none';
+      }
       calculateESPP();
+    });
+  }
+
+  const btnClearGoal = document.getElementById('btnClearGoal');
+  if (btnClearGoal) {
+    btnClearGoal.addEventListener('click', () => {
+      localStorage.removeItem(GOAL_LS_KEY);
+      window.location.reload();
     });
   }
 
@@ -1593,6 +2229,7 @@ function initPorscheTracker() {
     }
   } catch (e) { /* ignore */ }
   renderGoal();
+  updateGoalTracker();
 }
 
 const GOAL_LS_KEY = 'espp_goal_v1';
@@ -1618,8 +2255,8 @@ function renderGoal() {
   if (elements.goalBadge) elements.goalBadge.textContent = goalBadgeText(g.name);
   if (elements.goalName && document.activeElement !== elements.goalName) elements.goalName.value = g.name || '';
   if (elements.goalPrice && document.activeElement !== elements.goalPrice) {
-    // Keep the field empty (showing its placeholder) until a real goal price is set.
-    elements.goalPrice.value = (g.price > 0) ? Number(g.price).toFixed(2) : '';
+    // Format the price nicely in German format (e.g. 50.000) when not editing.
+    elements.goalPrice.value = (g.price > 0) ? Number(g.price).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '';
   }
   if (elements.goalImageWrap && elements.goalImage) {
     if (g.image) {
@@ -1635,6 +2272,12 @@ function renderGoal() {
   if (elements.goalLink) {
     if (g.url) { elements.goalLink.href = g.url; elements.goalLink.style.display = ''; }
     else { elements.goalLink.style.display = 'none'; }
+  }
+
+  const btnClearGoal = document.getElementById('btnClearGoal');
+  if (btnClearGoal) {
+    const hasGoal = g.price > 0 || (g.name && g.name.trim() !== '');
+    btnClearGoal.style.display = hasGoal ? 'block' : 'none';
   }
 }
 
@@ -1696,9 +2339,32 @@ async function loadGoalFromUrl() {
   }
 }
 
+function parseGermanNumber(str) {
+  if (!str) return 0;
+  let clean = String(str).replace(/\s+/g, '');
+  if (clean.includes('.') && clean.includes(',')) {
+    const lastDot = clean.lastIndexOf('.');
+    const lastComma = clean.lastIndexOf(',');
+    if (lastComma > lastDot) {
+      clean = clean.replace(/\./g, '').replace(/,/g, '.');
+    } else {
+      clean = clean.replace(/,/g, '');
+    }
+  } else if (clean.includes(',')) {
+    clean = clean.replace(/,/g, '.');
+  } else if (clean.includes('.')) {
+    const parts = clean.split('.');
+    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
+      clean = clean.replace(/\./g, '');
+    }
+  }
+  const val = parseFloat(clean);
+  return isNaN(val) ? 0 : val;
+}
+
 // The tracker's target amount = the user's goal price.
 function getTargetPrice() {
-  return parseFloat(elements.goalPrice && elements.goalPrice.value) || (state.goal && state.goal.price) || 0;
+  return parseGermanNumber(elements.goalPrice && elements.goalPrice.value) || (state.goal && state.goal.price) || 0;
 }
 
 // Rechner economics for the goal tracker's future projection (set by calculateESPP).
@@ -1724,11 +2390,11 @@ function updateGoalTracker() {
   const e = rechnerEconomics;
   const targetPrice = getTargetPrice();
 
-  // No goal yet: show the inviting empty state instead of numbers based on a made-up target.
+  // Show the tracker if a price is set OR if a goal name is manually entered.
   const goalEmptyState = document.getElementById('goalEmptyState');
   const goalTrackerContent = document.getElementById('goalTrackerContent');
   if (goalEmptyState && goalTrackerContent) {
-    const goalSet = targetPrice > 0;
+    const goalSet = targetPrice > 0 || (state.goal && state.goal.name && state.goal.name.trim() !== '');
     goalEmptyState.style.display = goalSet ? 'none' : 'block';
     goalTrackerContent.style.display = goalSet ? '' : 'none';
     if (!goalSet) return;
@@ -1765,9 +2431,7 @@ function updateGoalTracker() {
       sharesSubtitle = 'Aktien aus Deinem Bestand verkaufen';
     } else {
       // Goal exceeds what your current holdings would net. Show how many MORE shares are
-      // needed at today's price (newly bought ESPP shares ~= bought at FMV, so each one sold
-      // immediately nets ≈ its current price). The "how long to save" answer is the
-      // accumulation projection below (porscheTimeNeeded / porscheTargetDate).
+      // needed at today's price.
       const deficitEUR = Math.max(0, targetPrice - currentValueNet);
       const moreShares = currentPriceEUR > 0 ? deficitEUR / currentPriceEUR : 0;
       sharesLabel = 'Zusätzlich nötige Aktien';
@@ -1789,8 +2453,39 @@ function updateGoalTracker() {
     sharesSubtitle = 'hypothetisch – lade Statements für echte Zahlen';
   }
 
+  // Guard for name-only goals (price not set yet)
+  if (targetPrice <= 0) {
+    if (elements.porscheProgressBadge) elements.porscheProgressBadge.textContent = 'Warte auf Zielbetrag';
+    if (elements.porscheRadialPercent) elements.porscheRadialPercent.textContent = '0%';
+    if (elements.porscheRadialFill) {
+      const circ = 2 * Math.PI * 42;
+      elements.porscheRadialFill.style.strokeDashoffset = circ;
+    }
+    if (elements.porscheCurrentSavedLabel) elements.porscheCurrentSavedLabel.textContent = usePortfolio ? 'Netto-Verkaufswert Deiner Aktien' : 'Erwarteter Netto-Gewinn';
+    if (elements.porscheCurrentSaved) elements.porscheCurrentSaved.textContent = `${currentValueNet.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    if (elements.porscheRemainingAmount) elements.porscheRemainingAmount.textContent = '–';
+
+    if (elements.porscheTimeNeeded) elements.porscheTimeNeeded.textContent = 'Bitte Zielbetrag eingeben';
+    if (elements.porscheTargetDate) elements.porscheTargetDate.textContent = 'Berechnung ausstehend';
+
+    if (elements.porscheSharesLabel) elements.porscheSharesLabel.textContent = 'Zu verkaufende IBM Aktien';
+    if (elements.porscheSharesNeeded) elements.porscheSharesNeeded.textContent = '–';
+    if (elements.porscheSharesSubtitle) elements.porscheSharesSubtitle.textContent = 'Bitte Zielbetrag eingeben';
+
+    if (elements.porscheOutPocket) elements.porscheOutPocket.textContent = '–';
+    if (elements.porscheLeverageAmount) elements.porscheLeverageAmount.textContent = '–';
+    if (elements.porscheLeveragePercent) elements.porscheLeveragePercent.textContent = '–';
+
+    updatePorscheGrowthChart(
+      0, currentShares, costBasisPerShareEUR, currentPriceEUR,
+      e.monthlyGrossContribution, e.effectiveTaxRate, capRate, brokerFee,
+      growthRate, 0, outOfPocketNow, e.accumulatedMonths
+    );
+    return;
+  }
+
   // ---- Progress ----
-  const progressPercent = targetPrice > 0 ? Math.max(0, Math.min(100, (currentValueNet / targetPrice) * 100)) : 0;
+  const progressPercent = Math.max(0, Math.min(100, (currentValueNet / targetPrice) * 100));
   if (elements.porscheProgressBadge) elements.porscheProgressBadge.textContent = `${progressPercent.toFixed(1)}% Erreicht`;
   if (elements.porscheRadialPercent) {
     elements.porscheRadialPercent.textContent = ((progressPercent > 0 && progressPercent < 10) ? progressPercent.toFixed(1) : Math.round(progressPercent)) + '%';
@@ -1805,8 +2500,8 @@ function updateGoalTracker() {
 
   // ---- Time-to-goal: accumulate ESPP shares until the net sellable value covers the goal ----
   let monthsNeeded = 0;
-  let achieved = targetPrice > 0 && currentValueNet >= targetPrice;
-  if (!achieved && targetPrice > 0) {
+  let achieved = currentValueNet >= targetPrice;
+  if (!achieved) {
     for (let t = 1; t <= 1200; t++) {
       const shares = currentShares + t * sharesPerMonth;
       const grossEUR = shares * currentPriceEUR * Math.pow(1 + r, t);
@@ -1823,8 +2518,6 @@ function updateGoalTracker() {
       let str = '';
       if (years > 0) str += `${years} ${years === 1 ? 'Jahr' : 'Jahre'}`;
       if (rem > 0) { if (str) str += ' und '; str += `${rem} ${rem === 1 ? 'Monat' : 'Monate'}`; }
-      // Only append the total-months hint when the main text is in years (else it's redundant,
-      // e.g. "6 Monate (6 Monate)").
       elements.porscheTimeNeeded.textContent = years > 0 ? `${str} (${monthsNeeded} Monate)` : str;
     } else elements.porscheTimeNeeded.textContent = 'Nicht erreichbar';
   }
@@ -1844,7 +2537,7 @@ function updateGoalTracker() {
   const monthlyOut = e.accumulatedMonths > 0 ? (outOfPocketNow / e.accumulatedMonths) : 0;
   const totalOutPocket = outOfPocketNow + ((achieved && monthsNeeded > 0) ? monthsNeeded * monthlyOut : 0);
   const leverageAmount = Math.max(0, targetPrice - totalOutPocket);
-  const leveragePercent = targetPrice > 0 ? (leverageAmount / targetPrice) * 100 : 0;
+  const leveragePercent = (leverageAmount / targetPrice) * 100;
   if (elements.porscheOutPocket) elements.porscheOutPocket.textContent = `${totalOutPocket.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
   if (elements.porscheLeverageAmount) elements.porscheLeverageAmount.textContent = `${leverageAmount.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
   if (elements.porscheLeveragePercent) elements.porscheLeveragePercent.textContent = `${leveragePercent.toFixed(0)}%`;
@@ -1914,13 +2607,15 @@ function updatePorscheGrowthChart(monthsNeeded, currentShares, sharePriceEUR, se
     let netCash = grossSaleRevenue - capitalGainsTax - brokerFees;
     
     portfolioValueData.push(parseFloat(Math.max(0, netCash).toFixed(0)));
-    targetLineData.push(targetPrice);
+    targetLineData.push(targetPrice > 0 ? targetPrice : null);
     
     if (t === monthsProj) break;
   }
   
   if (elements.porscheChartYearBadge) {
-    if (monthsNeeded > 0) {
+    if (targetPrice <= 0) {
+      elements.porscheChartYearBadge.textContent = "Zielbetrag fehlt";
+    } else if (monthsNeeded > 0) {
       const yrs = (monthsNeeded / 12).toFixed(1);
       elements.porscheChartYearBadge.textContent = `${yrs} Jahre Projektion`;
     } else {
@@ -1928,7 +2623,7 @@ function updatePorscheGrowthChart(monthsNeeded, currentShares, sharePriceEUR, se
     }
   }
   
-  const targetLabel = 'Zielbetrag';
+  const targetLabel = targetPrice > 0 ? 'Zielbetrag' : 'Kein Zielbetrag';
 
   if (state.porscheChart) {
     state.porscheChart.data.labels = labels;
@@ -2211,6 +2906,9 @@ function initPortfolioModule() {
     btnFetchPortfolioPrice: document.getElementById('btnFetchPortfolioPrice'),
     portfolioResults: document.getElementById('portfolioResults'),
     portfolioTransactionsCard: document.getElementById('portfolioTransactionsCard'),
+    portfolioTaxReportCard: document.getElementById('portfolioTaxReportCard'),
+    taxReportContent: document.getElementById('taxReportContent'),
+    taxReportBadge: document.getElementById('taxReportBadge'),
     equateplusBuyBody: document.getElementById('equateplusBuyBody'),
     equateplusBuyFoot: document.getElementById('equateplusBuyFoot'),
     equateplusBuyNote: document.getElementById('equateplusBuyNote'),
@@ -2310,6 +3008,10 @@ function initPortfolioModule() {
       if (!th) return;
       const table = th.closest('table.portfolio-table');
       if (!table || !table.tBodies[0]) return;
+      // Sorting the collapsed buy table would shuffle hidden rows — expand first.
+      if (table.id === 'equateplusBuyTable' && !buyTableExpanded && buyTableSetCollapsed) {
+        buyTableSetCollapsed(false, false);
+      }
       sortPortfolioTable(table, Array.from(th.parentNode.children).indexOf(th), th);
     });
   }
@@ -2343,14 +3045,42 @@ function initPortfolioModule() {
     });
   });
 
-  // Toggle CapTrader details collapsible
+  // Toggle CapTrader details collapsible (GSAP height expand instead of a hard flip)
   if (portfolioElements.btnToggleCapTraderDetails) {
     portfolioElements.btnToggleCapTraderDetails.addEventListener('click', () => {
-      const isHidden = portfolioElements.capTraderActivityDetails.style.display === 'none';
-      portfolioElements.capTraderActivityDetails.style.display = isHidden ? 'block' : 'none';
+      const details = portfolioElements.capTraderActivityDetails;
+      const isHidden = details.style.display === 'none';
+      const dur = prefersReducedMotion() ? 0 : 0.28;
       portfolioElements.btnToggleCapTraderDetails.innerHTML = isHidden ?
         `<i class="fa-solid fa-folder-closed"></i> CapTrader-/IBKR-Transaktionsdetails ausblenden` :
         `<i class="fa-solid fa-folder-open"></i> CapTrader-/IBKR-Transaktionsdetails anzeigen`;
+
+      gsap.killTweensOf(details);
+      if (isHidden) {
+        details.style.display = 'block';
+        details.style.overflow = 'hidden';
+        gsap.fromTo(details,
+          { height: 0, opacity: 0 },
+          {
+            height: details.scrollHeight, opacity: 1, duration: dur, ease: 'power1.out',
+            onComplete: () => { details.style.height = 'auto'; details.style.overflow = ''; }
+          }
+        );
+      } else {
+        details.style.overflow = 'hidden';
+        gsap.fromTo(details,
+          { height: details.scrollHeight },
+          {
+            height: 0, opacity: 0, duration: dur, ease: 'power1.out',
+            onComplete: () => {
+              details.style.display = 'none';
+              details.style.height = 'auto';
+              details.style.overflow = '';
+              gsap.set(details, { clearProps: 'opacity' });
+            }
+          }
+        );
+      }
     });
   }
 
@@ -2371,6 +3101,14 @@ function initPortfolioModule() {
   // Load saved portfolio state if any
   loadPortfolioState();
 
+  // Collapsible import steps with their own persisted layout. When saved data was
+  // restored (returning user), default all steps to collapsed — the results are
+  // what matters then; first-time visitors keep every step open.
+  const hasPortfolioData = (portfolioState.transactions || []).length > 0 ||
+    Object.keys(portfolioState.capTraderPositions || {}).length > 0;
+  initCollapsibleSteps('#tab-portfolio', 'espp_portfolio_open_steps',
+    hasPortfolioData ? [false, false, false] : null);
+
   // ...then immediately replace it with the live IBM price on load.
   fetchPortfolioPrice({ silent: true });
 }
@@ -2390,6 +3128,7 @@ async function fetchPortfolioPrice({ silent = false } = {}) {
       }
       portfolioState.currentPrice = data.price;
       portfolioState.exchangeRate = data.exchangeRate;
+      updatePortfolioStepSummaries();
       if (!silent) {
         showPortfolioStatus(`Kurs aktualisiert: $${data.price.toFixed(2)}`, 'success');
       }
@@ -2420,6 +3159,10 @@ async function handleMultipleUploadedFiles(files) {
     } catch (err) {
       errors.push(`${file.name}: ${err.message}`);
     }
+  }
+  
+  if (successes > 0) {
+    await analyzePortfolio();
   }
   
   if (errors.length > 0) {
@@ -2508,7 +3251,6 @@ async function parsePDF(arrayBuffer, fileName) {
 
     // A CapTrader-only analysis is allowed; analyzePortfolio flags the missing EquatePlus side.
     portfolioElements.btnAnalyzePortfolio.disabled = false;
-    analyzePortfolio();
   } else if (cleanedText.toLowerCase().includes('plan holdings statement') || cleanedText.toLowerCase().includes('plan holdings')) {
     // The actual EquatePlus balance is reported directly on the holdings summary page (Page 2)
     // as a list of lots. Parse it from the FULL text (before filtering) and keep the most recent
@@ -2558,9 +3300,6 @@ async function parsePDF(arrayBuffer, fileName) {
     portfolioState.isPdfSource = true;
     portfolioElements.btnAnalyzePortfolio.disabled = false;
     showPortfolioStatus(`✓ Jahres-Statement parsed: ${tx.length} Transaktionen erkannt`, 'success');
-
-    // Analyze right away; analyzePortfolio flags a missing CapTrader/IBKR side.
-    analyzePortfolio();
   } else if (cleanedText.includes('Employee Plan Statement') || (/Balance Forward/i.test(cleanedText) && /Computershare/i.test(cleanedText))) {
     // OLD Computershare statement format (pre-EquatePlus migration, e.g. 2024).
     const parsed = parseOldHoldingsStatement(pageTexts);
@@ -2596,9 +3335,6 @@ async function parsePDF(arrayBuffer, fileName) {
     portfolioElements.btnAnalyzePortfolio.disabled = false;
     const yr = parsed.statementDate ? parsed.statementDate.getFullYear() : '?';
     showPortfolioStatus(`✓ Altes Plan-Statement (${yr}) geladen: ${parsed.purchases.length} Käufe erkannt`, 'success');
-
-    // Analyze right away; analyzePortfolio flags a missing CapTrader/IBKR side.
-    analyzePortfolio();
   } else if (cleanedText.toLowerCase().includes('purchase activity statement') || cleanedText.toLowerCase().includes('purchase activity') || cleanedText.toLowerCase().includes('purchases 1 jan')) {
     showPortfolioStatus('Purchase Activity Statements werden nicht unterstützt. Bitte lade die Plan Holdings Statements für 2025 und 2026 hoch.', 'error');
     return;
@@ -3241,11 +3977,19 @@ async function analyzePortfolio(options = {}) {
     portfolioElements.sellPrice.value = currentPrice.toFixed(2);
 
     // Display card and run simulation once at 0 to clear
-    portfolioElements.portfolioSellSimulatorCard.style.display = 'block';
+    showPortfolioCard(portfolioElements.portfolioSellSimulatorCard, 0.1);
     updateSellSimulation();
 
     // Refresh the goal tracker so it uses these real holdings.
     updateGoalTracker();
+
+    // Steuerreport (Anlage KAP): replay the real sells against the purchase history.
+    // Failures here must never break the analysis itself.
+    try {
+      await buildTaxReport();
+    } catch (e) {
+      console.error('Steuerreport konnte nicht erstellt werden:', e);
+    }
 
     // Completed-status: flag a partial analysis when only one platform's statement is loaded.
     if (!silent) {
@@ -3457,15 +4201,20 @@ function updateSellSimulation() {
 
   const r = simulateSale(lots, sellQty, sellP, broker);
 
-  // Render metrics
-  portfolioElements.simValProceeds.textContent = formatEuro(r.totalProceedsEUR);
-  portfolioElements.simValCashCost.textContent = formatEuro(r.totalCashCostEUR);
-  portfolioElements.simValTaxableGain.textContent = formatEuro(r.totalTaxableGainEUR);
-  portfolioElements.simValTax.textContent = formatEuro(r.totalTaxEUR);
-  portfolioElements.simValFees.textContent = formatEuro(r.totalFeesEUR);
-  portfolioElements.simValNetProfit.textContent = (r.netProfitEUR >= 0 ? '+' : '') + formatEuro(r.netProfitEUR);
+  // Render metrics with animated counters; slider drags fire many updates per
+  // second, so flag rapid recalcs the same way the Rechner does (shorter tween).
+  const nowTs = performance.now();
+  state.rapidRecalc = nowTs - (state.lastCalcTs || 0) < 250;
+  state.lastCalcTs = nowTs;
+
+  animateNumberValue('simValProceeds', r.totalProceedsEUR, formatEuro);
+  animateNumberValue('simValCashCost', r.totalCashCostEUR, formatEuro);
+  animateNumberValue('simValTaxableGain', r.totalTaxableGainEUR, formatEuro);
+  animateNumberValue('simValTax', r.totalTaxEUR, formatEuro);
+  animateNumberValue('simValFees', r.totalFeesEUR, formatEuro);
+  animateNumberValue('simValNetProfit', r.netProfitEUR, (v) => (v >= 0 ? '+' : '') + formatEuro(v));
   portfolioElements.simValNetProfit.className = r.netProfitEUR >= 0 ? 'value-positive' : 'value-negative';
-  portfolioElements.simValCashout.textContent = formatEuro(r.cashoutEUR);
+  animateNumberValue('simValCashout', r.cashoutEUR, formatEuro);
 
   // Render FIFO Lot breakdown
   if (r.soldLots.length === 0) {
@@ -3549,6 +4298,441 @@ function sortPortfolioTable(table, idx, th) {
 }
 
 // Display Portfolio Results
+// ===== Steuerreport (Anlage KAP) =====================================================
+// Replays the REAL sells from the CapTrader statements chronologically against the
+// EquatePlus purchase history (FIFO). Each matched slice converts its two legs at the
+// respective day's USD→EUR rate: acquisition cost (tax basis = FMV at purchase, since
+// the 15% discount was payroll-taxed) at the purchase-day rate, proceeds and fees at
+// the sale-day rate. Grouped per tax year — the figures users need for the Anlage KAP.
+
+function fmtTaxDate(d) {
+  return d instanceof Date && !isNaN(d)
+    ? d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' })
+    : '–';
+}
+
+async function buildTaxReport() {
+  const card = portfolioElements.portfolioTaxReportCard;
+  const content = portfolioElements.taxReportContent;
+  const badge = portfolioElements.taxReportBadge;
+  if (!card || !content) return;
+
+  const sells = (portfolioState.capTraderSells || [])
+    .map(s => ({ ...s, date: new Date(s.dateStr) }))
+    .filter(s => s.date instanceof Date && !isNaN(s.date) && s.quantity > 0)
+    .sort((a, b) => a.date - b.date);
+
+  showPortfolioCard(card, 0.25);
+
+  if (!sells.length) {
+    if (badge) badge.textContent = 'Keine Verkäufe';
+    content.innerHTML = `
+      <div class="detail-note" style="margin-top: 14px;">
+        <i class="fa-solid fa-circle-info"></i> Sobald Deine CapTrader-/IBKR-Statements
+        <strong>Verkäufe</strong> enthalten, erscheint hier automatisch eine Aufstellung der
+        steuerpflichtigen Gewinne pro Steuerjahr (FIFO, EUR-Umrechnung zum jeweiligen
+        Tageskurs) – als Vorlage für die Anlage KAP, inklusive CSV-Export.
+      </div>`;
+    return;
+  }
+  if (badge) badge.textContent = `${sells.length} Verkäufe`;
+
+  const lots = (portfolioState.transactions || [])
+    .filter(t => t.quantity > 0.00001 && t.date instanceof Date && !isNaN(t.date))
+    .sort((a, b) => a.date - b.date)
+    .map(t => ({ ...t, left: t.quantity }));
+
+  if (!lots.length) {
+    content.innerHTML = `
+      <div class="detail-note" style="margin-top: 14px; color: var(--warning);">
+        <i class="fa-solid fa-triangle-exclamation"></i> Es wurden <strong>${sells.length} Verkäufe</strong>
+        gefunden, aber keine EquatePlus-Kaufhistorie. Lade Deine <strong>Plan Holdings Statements</strong>
+        hoch, damit die Anschaffungskosten der verkauften Aktien (FIFO) ermittelt werden können.
+      </div>`;
+    return;
+  }
+
+  // Day-accurate USD→EUR rates for every buy AND sell date, fetched in one request.
+  const allDates = [...lots.map(l => l.date), ...sells.map(s => s.date)];
+  const min = new Date(Math.min(...allDates.map(d => d.getTime())));
+  const max = new Date(Math.max(...allDates.map(d => d.getTime())));
+  min.setDate(min.getDate() - 7);
+  max.setDate(max.getDate() + 7);
+  const rates = await fetchHistoricalFxRange(min, max);
+  const currentRate = portfolioState.exchangeRate;
+  const fxFor = (d) => pickRateForDate(rates, d) || currentRate;
+
+  // FIFO replay: each sale consumes the oldest lots existing at its date. The gain of
+  // ONE sale is netted across its consumed lots (one Veräußerungsgeschäft); per year,
+  // gains and losses of separate sales are summed separately (Anlage KAP lines differ).
+  const saleResults = [];
+  let unmatchedShares = 0;
+  sells.forEach(sell => {
+    let remaining = sell.quantity;
+    const fxSell = fxFor(sell.date);
+    const feeTotalEUR = Math.abs(sell.commissionUSD || 0) * fxSell;
+    const slices = [];
+    for (const lot of lots) {
+      if (remaining <= 1e-9) break;
+      if (lot.date > sell.date) break; // lots are sorted; nothing later can be sold here
+      if (lot.left <= 1e-9) continue;
+      const qty = Math.min(remaining, lot.left);
+      lot.left -= qty;
+      remaining -= qty;
+      const fxBuy = fxFor(lot.date);
+      const taxBasisUSD = Number.isFinite(lot.fmvUSD) ? lot.fmvUSD : lot.purchasePriceUSD;
+      const basisEUR = qty * taxBasisUSD * fxBuy;
+      const proceedsEUR = qty * sell.priceUSD * fxSell;
+      const feeEUR = feeTotalEUR * (qty / sell.quantity);
+      slices.push({
+        buyDate: lot.date,
+        type: lot.type,
+        qty,
+        taxBasisUSD,
+        basisEUR,
+        proceedsEUR,
+        feeEUR,
+        gainEUR: proceedsEUR - feeEUR - basisEUR
+      });
+    }
+    if (remaining > 1e-6) unmatchedShares += remaining;
+    if (slices.length) {
+      saleResults.push({
+        date: sell.date,
+        year: sell.date.getFullYear(),
+        priceUSD: sell.priceUSD,
+        realizedGainUSD: sell.realizedGainUSD,
+        slices,
+        gainEUR: slices.reduce((s, x) => s + x.gainEUR, 0)
+      });
+    }
+  });
+
+  // ---- Render: one section per tax year, newest first ----
+  const years = [...new Set(saleResults.map(r => r.year))].sort((a, b) => b - a);
+  let html = '';
+
+  if (unmatchedShares > 1e-6) {
+    html += `
+      <div class="detail-note" style="margin-top: 14px; color: var(--warning);">
+        <i class="fa-solid fa-triangle-exclamation"></i> <strong>${unmatchedShares.toFixed(2)} verkaufte
+        Aktien</strong> konnten keinem Kauf zugeordnet werden – vermutlich ist die EquatePlus-Kaufhistorie
+        unvollständig. Diese Aktien fehlen in den Summen. Bitte lade alle Plan Holdings Statements seit
+        Deinem Beitritt hoch.
+      </div>`;
+  }
+  if (!rates) {
+    html += `
+      <div class="detail-note" style="margin-top: 14px; color: var(--warning);">
+        <i class="fa-solid fa-triangle-exclamation"></i> Historische Wechselkurse waren nicht abrufbar –
+        alle EUR-Beträge wurden ersatzweise zum <strong>aktuellen</strong> Kurs umgerechnet und sind für die
+        Steuererklärung so nicht verwendbar. Bitte später erneut analysieren.
+      </div>`;
+  }
+
+  years.forEach(year => {
+    const yearSales = saleResults.filter(r => r.year === year);
+    const gains = yearSales.filter(r => r.gainEUR > 0).reduce((s, r) => s + r.gainEUR, 0);
+    const losses = yearSales.filter(r => r.gainEUR < 0).reduce((s, r) => s + Math.abs(r.gainEUR), 0);
+    const ibkrUSD = yearSales.reduce((s, r) => s + (Number.isFinite(r.realizedGainUSD) ? r.realizedGainUSD : 0), 0);
+
+    let rowsHtml = '';
+    yearSales.forEach(sale => {
+      sale.slices.forEach((sl, i) => {
+        rowsHtml += `
+          <tr>
+            <td>${i === 0 ? fmtTaxDate(sale.date) : ''}</td>
+            <td>${fmtTaxDate(sl.buyDate)}<br><span class="tax-lot-type">${sl.type === 'Dividend Shares' ? 'Dividende' : 'ESPP Kauf'}</span></td>
+            <td>${sl.qty.toFixed(5)}</td>
+            <td>${formatEuro(sl.basisEUR)}</td>
+            <td>${formatEuro(sl.proceedsEUR)}</td>
+            <td>${sl.feeEUR > 0.004 ? formatEuro(sl.feeEUR) : '–'}</td>
+            <td class="${sl.gainEUR >= 0 ? 'value-positive' : 'value-negative'}">${sl.gainEUR >= 0 ? '+' : ''}${formatEuro(sl.gainEUR)}</td>
+          </tr>`;
+      });
+      if (sale.slices.length > 1) {
+        rowsHtml += `
+          <tr class="tax-sale-subtotal">
+            <td colspan="6">Veräußerungsgeschäft vom ${fmtTaxDate(sale.date)} (gesamt)</td>
+            <td class="${sale.gainEUR >= 0 ? 'value-positive' : 'value-negative'}"><strong>${sale.gainEUR >= 0 ? '+' : ''}${formatEuro(sale.gainEUR)}</strong></td>
+          </tr>`;
+      }
+    });
+
+    html += `
+      <div class="tax-year-section">
+        <div class="tax-year-head">
+          <h4><i class="fa-solid fa-calendar-check"></i> Steuerjahr ${year}</h4>
+          <button class="btn btn-outline btn-sm btn-tax-csv" data-year="${year}">
+            <i class="fa-solid fa-file-csv"></i> CSV exportieren
+          </button>
+        </div>
+        <div class="table-responsive">
+          <table class="portfolio-table tax-report-table">
+            <thead>
+              <tr>
+                <th>Verkauf</th>
+                <th>Kauf (FIFO)</th>
+                <th>Stück</th>
+                <th>Steuerl. Einstand (EUR)<br><span class="th-sub">Kauftags-Kurs</span></th>
+                <th>Erlös (EUR)<br><span class="th-sub">Verkaufstags-Kurs</span></th>
+                <th>Gebühren (EUR)</th>
+                <th>Gewinn / Verlust (EUR)</th>
+              </tr>
+            </thead>
+            <tbody>${rowsHtml}</tbody>
+          </table>
+        </div>
+        <div class="tax-kap-summary">
+          <div class="tax-kap-line">
+            <span>Summe <strong>Gewinne</strong> aus Aktienveräußerungen ${year}</span>
+            <strong class="value-positive">${formatEuro(gains)}</strong>
+          </div>
+          <div class="tax-kap-line">
+            <span>Summe <strong>Verluste</strong> aus Aktienveräußerungen ${year}</span>
+            <strong class="${losses > 0 ? 'value-negative' : ''}">${losses > 0 ? '−' + formatEuro(losses).replace('-', '') : formatEuro(0)}</strong>
+          </div>
+          <div class="tax-kap-hint">
+            Gewinne und Verluste aus Aktien gehören in der Anlage KAP in <strong>getrennte Zeilen</strong>
+            (ausländische Kapitalerträge ohne inländischen Steuerabzug; Formular 2024: Zeile 18 –
+            darin Aktiengewinne Zeile 20, Aktienverluste Zeile 23 – die Zeilennummern können je nach
+            Formularjahr abweichen).
+            ${Number.isFinite(ibkrUSD) && ibkrUSD !== 0 ? `Zum Abgleich: IBKR weist für ${year} <strong>$${ibkrUSD.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong> aus (USD, eigene Kostenbasis – für die deutsche Steuer nicht maßgeblich).` : ''}
+          </div>
+        </div>
+      </div>`;
+  });
+
+  html += `
+    <div class="detail-note" style="margin-top: 16px;">
+      <i class="fa-solid fa-scale-balanced"></i> <strong>Hinweise:</strong> FIFO wird hier
+      depotübergreifend vereinfacht angewendet (streng gilt FIFO je Depot). Steuerlicher Einstand =
+      Marktwert (FMV) am Kauftag, da der 15%-Rabatt bereits über die Gehaltsabrechnung versteuert wurde.
+      Wechselkurse: Yahoo-Tageskurse (statt amtlicher EZB-Referenzkurse) – geringfügige Abweichungen
+      möglich. Dividenden­erträge sind hier nicht enthalten. Keine Steuerberatung; bitte vor Abgabe prüfen.
+    </div>`;
+
+  content.innerHTML = html;
+
+  // Keep the per-year rows for the CSV export and wire the buttons.
+  portfolioState.taxReportByYear = {};
+  years.forEach(y => { portfolioState.taxReportByYear[y] = saleResults.filter(r => r.year === y); });
+  content.querySelectorAll('.btn-tax-csv').forEach(btn => {
+    btn.addEventListener('click', () => downloadTaxReportCsv(parseInt(btn.dataset.year)));
+  });
+}
+
+// Build and download a German-Excel-friendly CSV (semicolon-separated, decimal comma, BOM).
+function downloadTaxReportCsv(year) {
+  const sales = (portfolioState.taxReportByYear || {})[year];
+  if (!sales || !sales.length) return;
+
+  const num = (v) => v.toFixed(2).replace('.', ',');
+  const lines = [
+    `Steuerreport ${year} – Aktienveräußerungen (FIFO, EUR zum jeweiligen Tageskurs)`,
+    'Verkaufsdatum;Kaufdatum;Typ;Stück;Steuerlicher Einstand (EUR);Veräußerungserlös (EUR);Gebühren (EUR);Gewinn/Verlust (EUR)'
+  ];
+  let gains = 0, losses = 0;
+  sales.forEach(sale => {
+    sale.slices.forEach(sl => {
+      lines.push([
+        fmtTaxDate(sale.date),
+        fmtTaxDate(sl.buyDate),
+        sl.type === 'Dividend Shares' ? 'Dividende' : 'ESPP Kauf',
+        sl.qty.toFixed(5).replace('.', ','),
+        num(sl.basisEUR),
+        num(sl.proceedsEUR),
+        num(sl.feeEUR),
+        num(sl.gainEUR)
+      ].join(';'));
+    });
+    if (sale.gainEUR > 0) gains += sale.gainEUR; else losses += Math.abs(sale.gainEUR);
+  });
+  lines.push('');
+  lines.push(`Summe Gewinne aus Aktienveräußerungen;;;;;;;${num(gains)}`);
+  lines.push(`Summe Verluste aus Aktienveräußerungen;;;;;;;${num(losses)}`);
+  lines.push('Hinweis: FIFO depotübergreifend vereinfacht; Einstand = FMV am Kauftag; Yahoo-Tageskurse; keine Steuerberatung.');
+
+  const blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `steuerreport_${year}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(a.href);
+}
+
+// Cumulative invested vs. market value over the ESPP purchase history, ending at
+// today's price. Built entirely from the imported statements (each lot's
+// purchase-month FMV and FX where known) — no extra network fetches.
+function renderPortfolioChart() {
+  const canvas = document.getElementById('portfolioChart');
+  const wrap = document.getElementById('pfChartWrap');
+  if (!canvas || !wrap) return;
+
+  const buys = (portfolioState.transactions || [])
+    .filter(t => t.quantity > 0.00001 && t.date)
+    .sort((a, b) => a.date - b.date);
+  if (buys.length < 2) {
+    // CapTrader-only imports have no purchase history to plot.
+    wrap.style.display = 'none';
+    return;
+  }
+  wrap.style.display = '';
+
+  const rate = portfolioState.exchangeRate;
+  const labels = [];
+  const invested = [];
+  const value = [];
+  let cumShares = 0;
+  let cumInvested = 0;
+  buys.forEach(t => {
+    const fx = Number.isFinite(t.purchaseRate) ? t.purchaseRate : rate;
+    // Dividend shares are bought at market; ESPP lots carry the 15% discount.
+    const marketUSD = t.fmvUSD || (t.type === 'Dividend Shares' ? t.purchasePriceUSD : t.purchasePriceUSD / 0.85);
+    cumShares += t.quantity;
+    cumInvested += t.quantity * t.purchasePriceUSD * fx;
+    labels.push(t.date.toLocaleDateString('de-DE', { month: 'short', year: '2-digit' }));
+    invested.push(cumInvested);
+    value.push(cumShares * marketUSD * fx);
+  });
+  labels.push('Heute');
+  invested.push(cumInvested);
+  value.push(cumShares * portfolioState.currentPrice * rate);
+
+  const palette = chartPalette(); // [savings, tax, fees, profit]
+  const theme = chartThemeColors();
+  const data = {
+    labels,
+    datasets: [
+      {
+        label: 'Marktwert',
+        data: value,
+        borderColor: palette[3],
+        backgroundColor: 'rgba(16, 185, 129, 0.10)',
+        fill: true, tension: 0.3, pointRadius: 0, borderWidth: 2
+      },
+      {
+        label: 'Investiert (kumuliert)',
+        data: invested,
+        borderColor: palette[0],
+        backgroundColor: 'transparent',
+        fill: false, tension: 0.3, pointRadius: 0, borderWidth: 2, borderDash: [5, 4]
+      }
+    ]
+  };
+
+  if (state.portfolioChart) {
+    state.portfolioChart.data = data;
+    state.portfolioChart.update();
+    return;
+  }
+  state.portfolioChart = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data,
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: prefersReducedMotion() ? false : undefined,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: true, labels: { color: theme.tick, boxWidth: 18, font: { size: 11 } } },
+        tooltip: { callbacks: { label: (c) => ` ${c.dataset.label}: ${formatEuro(c.raw)}` } }
+      },
+      scales: {
+        x: { grid: { color: theme.grid }, ticks: { color: theme.tick, maxTicksLimit: 8, font: { size: 10 } } },
+        y: {
+          grid: { color: theme.grid },
+          ticks: {
+            color: theme.tick, font: { size: 10 },
+            callback: (v) => v >= 1000
+              ? `${(v / 1000).toLocaleString('de-DE', { maximumFractionDigits: 1 })}k €`
+              : `${v} €`
+          }
+        }
+      }
+    }
+  });
+}
+
+// Live summaries in the (collapsed) import-step headers, mirroring the Rechner.
+function updatePortfolioStepSummaries() {
+  const s1 = document.getElementById('pfSummaryStep1');
+  if (s1) {
+    const buys = (portfolioState.transactions || []).length;
+    const hasCt = Object.keys(portfolioState.capTraderPositions || {}).length > 0;
+    s1.textContent = (buys || hasCt)
+      ? `${buys} Käufe${hasCt ? ' · CapTrader ✓' : ''}`
+      : '';
+  }
+  const s2 = document.getElementById('pfSummaryStep2');
+  if (s2 && Number.isFinite(portfolioState.currentPrice)) {
+    s2.textContent = `$${portfolioState.currentPrice.toFixed(2)} · FX ${(+portfolioState.exchangeRate).toFixed(4)}`;
+  }
+  const s3 = document.getElementById('pfSummaryStep3');
+  if (s3) {
+    s3.textContent = portfolioState.totalCombinedShares !== undefined
+      ? `${portfolioState.totalCombinedShares.toFixed(2)} Aktien analysiert`
+      : '';
+  }
+}
+
+// "Meine IBM Aktien": ~50 expanded monthly buy rows made the page enormous.
+// Show only the newest rows by default with an expander button underneath.
+// `buyTableSetCollapsed` is exposed so the column sorter can auto-expand first
+// (sorting a half-hidden table would shuffle invisible rows around).
+const BUY_TABLE_PREVIEW_ROWS = 10;
+let buyTableSetCollapsed = null;
+let buyTableExpanded = false; // survives re-analysis within the session
+
+function setupBuyTableCollapse() {
+  const body = portfolioElements.equateplusBuyBody;
+  const btn = document.getElementById('btnToggleAllBuys');
+  if (!body || !btn) return;
+
+  const rows = [...body.rows];
+  const extra = rows.slice(BUY_TABLE_PREVIEW_ROWS);
+  const buyCount = rows.filter(r => !r.classList.contains('dividend-separator')).length;
+
+  // Not worth an expander for one or two surplus rows.
+  if (extra.length <= 2) {
+    btn.style.display = 'none';
+    buyTableSetCollapsed = null;
+    return;
+  }
+
+  const setCollapsed = (collapsed, animate) => {
+    buyTableExpanded = !collapsed;
+    extra.forEach(r => { r.style.display = collapsed ? 'none' : ''; });
+    btn.innerHTML = collapsed
+      ? `<i class="fa-solid fa-chevron-down"></i> Alle ${buyCount} Käufe anzeigen`
+      : `<i class="fa-solid fa-chevron-up"></i> Nur die letzten ${BUY_TABLE_PREVIEW_ROWS} Käufe zeigen`;
+    if (!collapsed && animate && !prefersReducedMotion()) {
+      gsap.fromTo(extra,
+        { opacity: 0 },
+        { opacity: 1, duration: 0.35, stagger: 0.012, ease: 'power1.out', clearProps: 'opacity' });
+    }
+  };
+
+  btn.style.display = '';
+  btn.onclick = () => setCollapsed(buyTableExpanded, true);
+  buyTableSetCollapsed = setCollapsed;
+  setCollapsed(!buyTableExpanded, false);
+}
+
+// Reveal a result card that was display:none — a soft slide-in instead of a pop.
+// Already-visible cards are left untouched (recalcs must not re-animate them).
+function showPortfolioCard(el, delay = 0) {
+  if (!el || el.style.display !== 'none') return;
+  el.style.display = 'block';
+  if (prefersReducedMotion()) return;
+  gsap.fromTo(el,
+    { opacity: 0, y: 24 },
+    { opacity: 1, y: 0, duration: 0.5, delay, ease: 'power2.out', clearProps: 'opacity,transform' }
+  );
+}
+
 function displayPortfolioResults(transactions) {
   const rate = portfolioState.exchangeRate;
   const price = portfolioState.currentPrice;
@@ -3609,35 +4793,94 @@ function displayPortfolioResults(transactions) {
   }
 
   // ---- Summary (top "Portfolio-Übersicht" panel): focus on holdings + net-if-sold-now ----
-  portfolioElements.portfolioResults.innerHTML = `
-    <div class="portfolio-summary">
-      <div class="portfolio-stat-box">
-        <span class="portfolio-stat-label">Aktuell im Besitz</span>
-        <div class="portfolio-stat-value">${totalHeldShares.toFixed(2)}</div>
-        <div class="portfolio-stat-subtitle">${besitzSubtitle}</div>
+  // Build the skeleton once (chart + four stat boxes), then always update the
+  // values in place via animated counters — first render counts up from 0.
+  const existingSummary = portfolioElements.portfolioResults.querySelector('.portfolio-summary');
+  const existingBoxes = existingSummary ? existingSummary.querySelectorAll('.portfolio-stat-box') : [];
+
+  if (!(existingSummary && existingBoxes.length === 4)) {
+    // The old canvas (if any) is discarded with the innerHTML — drop its chart too.
+    if (state.portfolioChart) { state.portfolioChart.destroy(); state.portfolioChart = null; }
+    portfolioElements.portfolioResults.innerHTML = `
+      <div class="pf-chart-wrap" id="pfChartWrap" style="display: none;">
+        <canvas id="portfolioChart"></canvas>
+        <div class="pf-chart-caption">Kaufhistorie aller ESPP-Käufe – spätere Verkäufe/Überträge nicht abgezogen</div>
       </div>
-      <div class="portfolio-stat-box">
-        <span class="portfolio-stat-label">Einstand (gezahlt)</span>
-        <div class="portfolio-stat-value">${formatEuro(totalEinstandEUR)}</div>
-        <div class="portfolio-stat-subtitle">Ø $${totalHeldShares > 0 ? (totalEinstandUSD / totalHeldShares).toFixed(2) : '0.00'} / Aktie${portfolioState.fxAtPurchaseUsed ? ' · EUR zum Kauftags-Kurs' : ''}</div>
-      </div>
-      <div class="portfolio-stat-box">
-        <span class="portfolio-stat-label">Aktueller Wert</span>
-        <div class="portfolio-stat-value">${formatEuro(totalCurrentValueEUR)}</div>
-        <div class="portfolio-stat-subtitle">
-          <span class="performance-badge ${totalUnrealizedEUR >= 0 ? 'positive' : 'negative'}">
-            ${totalUnrealizedEUR >= 0 ? '+' : ''}${formatEuro(totalUnrealizedEUR)} (${unrealizedPct >= 0 ? '+' : ''}${unrealizedPct.toFixed(1)}%)
-          </span>
+      <div class="portfolio-summary">
+        <div class="portfolio-stat-box">
+          <span class="portfolio-stat-label">Aktuell im Besitz</span>
+          <div class="portfolio-stat-value" id="pfStatShares">0.00</div>
+          <div class="portfolio-stat-subtitle" id="pfStatSharesSub"></div>
+        </div>
+        <div class="portfolio-stat-box">
+          <span class="portfolio-stat-label">Einstand (gezahlt)</span>
+          <div class="portfolio-stat-value" id="pfStatCost">0,00 €</div>
+          <div class="portfolio-stat-subtitle" id="pfStatCostSub"></div>
+        </div>
+        <div class="portfolio-stat-box">
+          <span class="portfolio-stat-label">Aktueller Wert</span>
+          <div class="portfolio-stat-value" id="pfStatValue">0,00 €</div>
+          <div class="portfolio-stat-subtitle" id="pfStatValueSub"></div>
+        </div>
+        <div class="portfolio-stat-box" style="border: 1px solid rgba(0,242,254,0.25);">
+          <span class="portfolio-stat-label">Netto-Gewinn bei Verkauf jetzt</span>
+          <div class="portfolio-stat-value" id="pfStatNet">0,00 €</div>
+          <div class="portfolio-stat-subtitle" id="pfStatNetSub"></div>
         </div>
       </div>
-      <div class="portfolio-stat-box" style="border: 1px solid rgba(0,242,254,0.25);">
-        <span class="portfolio-stat-label">Netto-Gewinn bei Verkauf jetzt</span>
-        <div class="portfolio-stat-value ${saleNow.netProfitEUR >= 0 ? 'positive' : 'negative'}">${saleNow.netProfitEUR >= 0 ? '+' : ''}${formatEuro(saleNow.netProfitEUR)}</div>
-        <div class="portfolio-stat-subtitle">bei $${price.toFixed(2)}, nach Steuer (${formatEuro(saleNow.totalTaxEUR)}) &amp; Gebühren</div>
-      </div>
-    </div>
-    ${holdingsNote ? `<div class="detail-note" style="margin-top: 14px;">${holdingsNote}</div>` : ''}
+    `;
+  }
+
+  animateNumberValue('pfStatShares', totalHeldShares, (v) => v.toFixed(2));
+  document.getElementById('pfStatSharesSub').textContent = besitzSubtitle;
+
+  animateNumberValue('pfStatCost', totalEinstandEUR, formatEuro);
+  document.getElementById('pfStatCostSub').textContent =
+    `Ø $${totalHeldShares > 0 ? (totalEinstandUSD / totalHeldShares).toFixed(2) : '0.00'} / Aktie${portfolioState.fxAtPurchaseUsed ? ' · EUR zum Kauftags-Kurs' : ''}`;
+
+  animateNumberValue('pfStatValue', totalCurrentValueEUR, formatEuro);
+  document.getElementById('pfStatValueSub').innerHTML = `
+    <span class="performance-badge ${totalUnrealizedEUR >= 0 ? 'positive' : 'negative'}">
+      ${totalUnrealizedEUR >= 0 ? '+' : ''}${formatEuro(totalUnrealizedEUR)} (${unrealizedPct >= 0 ? '+' : ''}${unrealizedPct.toFixed(1)}%)
+    </span>
   `;
+
+  const netProfitVal = document.getElementById('pfStatNet');
+  netProfitVal.className = `portfolio-stat-value ${saleNow.netProfitEUR >= 0 ? 'positive' : 'negative'}`;
+  animateNumberValue('pfStatNet', saleNow.netProfitEUR, (v) => `${v >= 0 ? '+' : ''}${formatEuro(v)}`);
+  document.getElementById('pfStatNetSub').innerHTML = `bei $${price.toFixed(2)}, nach Steuer (${formatEuro(saleNow.totalTaxEUR)}) &amp; Gebühren`;
+
+  let noteEl = portfolioElements.portfolioResults.querySelector('.detail-note');
+  if (holdingsNote) {
+    if (noteEl) {
+      noteEl.innerHTML = holdingsNote;
+      noteEl.style.display = 'block';
+    } else {
+      const div = document.createElement('div');
+      div.className = 'detail-note';
+      div.style.marginTop = '14px';
+      div.innerHTML = holdingsNote;
+      portfolioElements.portfolioResults.appendChild(div);
+    }
+  } else if (noteEl) {
+    noteEl.style.display = 'none';
+  }
+
+  renderPortfolioChart();
+  updatePortfolioStepSummaries();
+
+  // Feed the condensed sticky strip (shared with the Rechner) with this tab's figures.
+  state.stickyKpisPortfolio = {
+    netProfitEUR: saleNow.netProfitEUR,
+    returnPct: unrealizedPct,
+    investEUR: totalEinstandEUR,
+    shares: totalHeldShares,
+    investLabel: 'Einstand'
+  };
+  if (state.activeTab === 'portfolio') {
+    applyStickyKpis('portfolio');
+    updateStickySummaryVisibility();
+  }
 
   // ============ EquatePlus BUY table: the real per-month ESPP purchase prices ============
   const buys = (portfolioState.transactions || [])
@@ -3672,6 +4915,7 @@ function displayPortfolioResults(transactions) {
   }
   if (buyHTML === '') buyHTML = '<tr><td colspan="6" class="text-muted" style="text-align:center;">Keine EquatePlus-Käufe erfasst</td></tr>';
   portfolioElements.equateplusBuyBody.innerHTML = buyHTML;
+  setupBuyTableCollapse();
 
   const totalBought = buys.reduce((s, t) => s + t.qty, 0);
   const totalInvestedBuy = buys.reduce((s, t) => s + t.investedEUR, 0);
@@ -3769,7 +5013,7 @@ function displayPortfolioResults(transactions) {
   }
 
   portfolioElements.transactionCount.textContent = `${totalHeldShares.toFixed(2)} gehalten / ${soldQty} verkauft`;
-  portfolioElements.portfolioTransactionsCard.style.display = 'block';
+  showPortfolioCard(portfolioElements.portfolioTransactionsCard, 0.2);
 
   // Depot-Konsolidierung Rendering
   const capTraderYears = Object.keys(portfolioState.capTraderPositions).map(Number);
@@ -3798,20 +5042,21 @@ function displayPortfolioResults(transactions) {
     
     const totalTransfersShares = portfolioState.capTraderTransfers.reduce((sum, t) => sum + t.quantity, 0);
 
-    // Update UI elements
-    portfolioElements.consolidationEqPercent.textContent = `${eqPercent.toFixed(1)}%`;
-    portfolioElements.consolidationCtPercent.textContent = `${ctPercent.toFixed(1)}%`;
-    
+    // Update UI elements: percent labels and EUR values count alongside the
+    // CSS-transitioned allocation bar instead of jumping.
+    animateNumberValue('consolidationEqPercent', eqPercent, (v) => `${v.toFixed(1)}%`);
+    animateNumberValue('consolidationCtPercent', ctPercent, (v) => `${v.toFixed(1)}%`);
+
     portfolioElements.consolidationEqBar.style.width = `${eqPercent}%`;
     portfolioElements.consolidationCtBar.style.width = `${ctPercent}%`;
-    
+
     portfolioElements.consolidationEqShares.textContent = `${eqShares.toFixed(5)} Aktien`;
-    portfolioElements.consolidationEqValue.textContent = formatEuro(eqValueEUR);
+    animateNumberValue('consolidationEqValue', eqValueEUR, formatEuro);
     portfolioElements.consolidationEqItems.textContent = `${portfolioState.equatePlusHoldings.length} Posten`;
-    
+
     portfolioElements.consolidationCtShares.textContent = `${ctShares.toFixed(2)} Aktien`;
-    portfolioElements.consolidationCtValue.textContent = formatEuro(ctValueEUR);
-    portfolioElements.consolidationCtRealized.textContent = `${totalRealizedGainEUR >= 0 ? '+' : ''}${formatEuro(totalRealizedGainEUR)}`;
+    animateNumberValue('consolidationCtValue', ctValueEUR, formatEuro);
+    animateNumberValue('consolidationCtRealized', totalRealizedGainEUR, (v) => `${v >= 0 ? '+' : ''}${formatEuro(v)}`);
     portfolioElements.consolidationCtStats.textContent = `${portfolioState.capTraderSells.length} Verkäufe / ${portfolioState.capTraderTransfers.length} Transfers`;
 
     // "As of" dates: each balance is only valid as of its own statement date. Show them and
@@ -3895,7 +5140,40 @@ function displayPortfolioResults(transactions) {
     portfolioElements.equatePlusTransfersBody.innerHTML = eqTransfersHTML;
 
     // Show card
-    portfolioElements.portfolioConsolidationCard.style.display = 'block';
+    showPortfolioCard(portfolioElements.portfolioConsolidationCard, 0);
+  }
+
+  // Trigger GSAP staggered reveal entrance for portfolio stat boxes if tab is active
+  if (state.activeTab === 'portfolio') {
+    const delay = state.initAnimationsDone ? 0 : 0.65;
+    triggerPortfolioKpisAnimation(delay);
+  }
+}
+
+// Trigger GSAP staggered reveal entrance for portfolio stat boxes
+function triggerPortfolioKpisAnimation(delaySeconds = 0) {
+  const statBoxes = portfolioElements.portfolioResults ? portfolioElements.portfolioResults.querySelectorAll('.portfolio-stat-box') : [];
+  if (statBoxes.length > 0 && !state.portfolioKpisAnimated) {
+    state.portfolioKpisAnimated = true;
+    if (prefersReducedMotion()) return;
+
+    // Disable CSS transitions temporarily so they don't fight with GSAP, and set opacity to 0
+    gsap.set(statBoxes, { transition: 'none', opacity: 0 });
+    gsap.killTweensOf(statBoxes);
+
+    gsap.fromTo(statBoxes, 
+      { opacity: 0, scale: 0.92, y: 20 },
+      { 
+        opacity: 1, 
+        scale: 1, 
+        y: 0, 
+        delay: delaySeconds,
+        duration: 0.55, 
+        stagger: 0.08, 
+        ease: "back.out(1.4)",
+        clearProps: "all"
+      }
+    );
   }
 }
 
@@ -3928,6 +5206,526 @@ function formatEuro(value) {
     currency: 'EUR'
   }).format(value);
 }
+
+// --- Antigravity Modern UI Helpers ---
+
+const REDUCED_MOTION_QUERY = window.matchMedia('(prefers-reduced-motion: reduce)');
+function prefersReducedMotion() {
+  return REDUCED_MOTION_QUERY.matches;
+}
+
+const counterAnimations = new Map();
+
+function animateNumberValue(elementId, targetVal, formatFn, opts = {}) {
+  const element = document.getElementById(elementId) || (elements && elements[elementId]);
+  if (!element) return;
+
+  // Retrieve or initialize the current state
+  let animState = counterAnimations.get(elementId);
+  if (!animState) {
+    animState = { val: 0, target: null };
+    counterAnimations.set(elementId, animState);
+  }
+
+  const isFirstSet = animState.target === null;
+  const changed = !isFirstSet && Math.abs(animState.target - targetVal) > 0.004;
+  animState.target = targetVal;
+
+  // Cancel any active tween for this element
+  gsap.killTweensOf(animState);
+
+  if (prefersReducedMotion()) {
+    animState.val = targetVal;
+    element.textContent = formatFn(targetVal);
+    return;
+  }
+
+  // Animate the virtual value. During rapid slider drags the counter shortens
+  // so the displayed number never lags noticeably behind the thumb.
+  gsap.to(animState, {
+    val: targetVal,
+    duration: state.rapidRecalc ? 0.18 : 0.45,
+    ease: "power2.out",
+    onUpdate: () => {
+      element.textContent = formatFn(animState.val);
+    }
+  });
+
+  if (opts.flashRow && changed) flashDetailRow(element);
+}
+
+// Soft highlight pulse on a breakdown row whose value just changed — makes it
+// visible *which* figures a slider movement affected.
+function flashDetailRow(element) {
+  if (prefersReducedMotion()) return;
+  const row = element.closest('.detail-row');
+  if (!row) return;
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  gsap.fromTo(row,
+    { backgroundColor: light ? 'rgba(8, 145, 178, 0.10)' : 'rgba(0, 242, 254, 0.08)' },
+    { backgroundColor: 'rgba(0, 242, 254, 0)', duration: 0.7, ease: 'power1.out', overwrite: true, clearProps: 'backgroundColor' }
+  );
+}
+
+// Breakdown rows: animated counter + change flash; plain text while the results
+// are hidden behind the empty state (no point in tweening invisible numbers).
+function setBreakdownValue(elementId, value, formatFn, isPlaceholder) {
+  if (isPlaceholder) {
+    const el = document.getElementById(elementId) || (elements && elements[elementId]);
+    if (el) el.textContent = formatFn(value);
+    // Keep the counter state in sync so the first real reveal doesn't flash every row
+    const animState = counterAnimations.get(elementId);
+    if (animState) {
+      gsap.killTweensOf(animState);
+      animState.val = value;
+      animState.target = value;
+    }
+    return;
+  }
+  animateNumberValue(elementId, value, formatFn, { flashRow: true });
+}
+
+
+
+function initGsapAnimations() {
+  // Reduced motion: leave everything at its final CSS state — no choreography.
+  if (prefersReducedMotion()) {
+    state.initAnimationsDone = true;
+    if ((state.activeTab || 'calculator') === 'portfolio') {
+      triggerPortfolioKpisAnimation(0);
+    }
+    return;
+  }
+
+  // Returning visitors get a snappier entrance — they came to use the tool,
+  // not to watch the intro again.
+  let returning = false;
+  try { returning = !!localStorage.getItem('espp_seen_welcome'); } catch (e) { /* private mode */ }
+  const speed = returning ? 0.55 : 1;
+
+  // Fade and slide header in
+  gsap.from("header", {
+    y: -40,
+    opacity: 0,
+    duration: 0.7 * speed,
+    ease: "power2.out"
+  });
+
+  gsap.from(".logo", {
+    x: -30,
+    opacity: 0,
+    duration: 0.7 * speed,
+    delay: 0.15 * speed,
+    ease: "power2.out"
+  });
+
+  gsap.from(".nav-tab", {
+    y: 15,
+    opacity: 0,
+    duration: 0.5 * speed,
+    stagger: 0.06 * speed,
+    delay: 0.25 * speed,
+    ease: "power2.out"
+  });
+
+  // Stagger inputs and outputs panels fade-in for the active tab
+  const activeTabId = state.activeTab || 'calculator';
+  let cards;
+  if (activeTabId === 'guide') {
+    cards = document.querySelectorAll(
+      '#tab-guide .guide-toc, ' +
+      '#guide-about .guide-section-head, ' +
+      '#guide-about .guide-lead, ' +
+      '#guide-about .guide-feature-grid .guide-feature-card, ' +
+      '#guide-about .guide-fact-strip, ' +
+      '#tab-guide #guide-strategy, ' +
+      '#tab-guide #guide-transfer, ' +
+      '#tab-guide #guide-pitfalls'
+    );
+  } else if (activeTabId === 'taxes') {
+    cards = document.querySelectorAll('#tab-taxes .guide-toc, #tab-taxes .tax-glance-grid .guide-feature-card, #tab-taxes .guide-section');
+  } else {
+    cards = document.querySelectorAll(`#tab-${activeTabId} .glass-card`);
+  }
+  
+  if (cards.length === 0) {
+    state.initAnimationsDone = true;
+    if (activeTabId === 'portfolio') {
+      triggerPortfolioKpisAnimation(0);
+    }
+    return;
+  }
+  
+  // Disable CSS transitions temporarily so they don't drag/lag behind GSAP updates
+  gsap.set(cards, { transition: 'none' });
+
+  gsap.from(cards, {
+    y: 30,
+    opacity: 0,
+    duration: 0.8 * speed,
+    stagger: 0.15 * speed,
+    delay: 0.4 * speed,
+    ease: "power3.out",
+    onComplete: () => {
+      // Clear only animated properties to restore default CSS hover/transitions without wiping out JS-controlled display styles
+      gsap.set(cards, { clearProps: "transform,opacity" });
+      state.initAnimationsDone = true;
+    }
+  });
+}
+
+function initSaleProcessCollapsible() {
+  const collapsibles = document.querySelectorAll('.sale-process-collapsible');
+  collapsibles.forEach(collapsible => {
+    const summary = collapsible.querySelector('.sale-process-summary');
+    const body = collapsible.querySelector('.sale-process-body');
+    const chevron = collapsible.querySelector('.chevron');
+    if (!summary || !body) return;
+
+    // Initial layout configuration
+    body.style.overflow = 'hidden';
+    body.style.willChange = 'height, opacity';
+    
+    if (collapsible.hasAttribute('open')) {
+      body.style.height = 'auto';
+      body.style.opacity = '1';
+      if (chevron) gsap.set(chevron, { rotation: 180 });
+    } else {
+      body.style.height = '0px';
+      body.style.opacity = '0';
+      if (chevron) gsap.set(chevron, { rotation: 0 });
+    }
+
+    summary.addEventListener('click', (e) => {
+      e.preventDefault();
+
+      const isOpen = collapsible.hasAttribute('open');
+      const reduced = prefersReducedMotion();
+
+      if (isOpen) {
+        // Collapse: Animate height to 0 and opacity to 0
+        body.style.height = `${body.scrollHeight}px`;
+
+        gsap.to(body, {
+          height: 0,
+          opacity: 0,
+          duration: reduced ? 0 : 0.24,
+          ease: "power1.out",
+          onComplete: () => {
+            collapsible.removeAttribute('open');
+          }
+        });
+
+        if (chevron) {
+          gsap.to(chevron, {
+            rotation: 0,
+            duration: reduced ? 0 : 0.18,
+            ease: "power1.out"
+          });
+        }
+      } else {
+        // Expand: Set open attribute, start height from 0, and animate to scrollHeight
+        collapsible.setAttribute('open', '');
+        body.style.height = '0px';
+        body.style.opacity = '0';
+
+        const targetHeight = body.scrollHeight;
+
+        gsap.to(body, {
+          height: targetHeight,
+          opacity: 1,
+          duration: reduced ? 0 : 0.28,
+          ease: "power1.out",
+          onComplete: () => {
+            body.style.height = 'auto';
+          }
+        });
+
+        if (chevron) {
+          gsap.to(chevron, {
+            rotation: 180,
+            duration: reduced ? 0 : 0.18,
+            ease: "power1.out"
+          });
+        }
+
+        // Stagger animation for child elements (cards and separators together) to maintain alignment
+        const stepItems = body.querySelectorAll('.sale-step, .workflow-step-box, .workflow-arrow-separator');
+        if (stepItems.length > 0 && !reduced) {
+          gsap.killTweensOf(stepItems);
+          gsap.set(stepItems, { opacity: 0, y: 15 });
+          gsap.to(stepItems, {
+            opacity: 1,
+            y: 0,
+            duration: 0.45,
+            stagger: 0.05,
+            ease: "power2.out",
+            delay: 0.05, // Start slightly after the expand animation begins
+            clearProps: "opacity,transform"
+          });
+        }
+      }
+    });
+  });
+}
+
+// --- Rechner: results reveal, sticky KPI strip & scroll reveals ---
+
+// Keeps --header-h current so the sticky strip and the pinned results panel
+// always sit exactly below the (responsive-height) sticky header.
+function syncHeaderHeightVar() {
+  const header = document.querySelector('header');
+  if (header) {
+    document.documentElement.style.setProperty('--header-h', `${header.offsetHeight}px`);
+  }
+}
+
+// Choreographed swap from the empty state to the first real analysis: donut
+// scales in, then legend and breakdown rows cascade. Plays once per transition.
+function revealCalcResults(emptyState, resultsContent, netProfitEUR) {
+  emptyState.style.display = 'none';
+  resultsContent.style.display = 'block';
+
+  const donut = resultsContent.querySelector('.donut-wrap');
+
+  if (prefersReducedMotion()) {
+    if (netProfitEUR > 0) state.profitCelebrated = true; // skip confetti too
+    return;
+  }
+
+  const legendItems = resultsContent.querySelectorAll('.chart-legend .cl-item');
+  const rest = resultsContent.querySelectorAll(
+    '.result-breakdown-heading, .calc-composition-bar, .breakdown-details .detail-row, ' +
+    '.breakdown-details .detail-note, .sale-process-collapsible, .alert-info'
+  );
+
+  if (donut) gsap.killTweensOf(donut);
+
+  const tl = gsap.timeline({
+    onComplete: () => {
+      gsap.set([donut, ...legendItems, ...rest].filter(Boolean), { clearProps: 'transform,opacity' });
+      if (netProfitEUR > 0) celebrateProfit(donut);
+    }
+  });
+
+  tl.fromTo(resultsContent, { opacity: 0 }, { opacity: 1, duration: 0.25, ease: 'power1.out', clearProps: 'opacity' }, 0);
+  if (donut) {
+    tl.fromTo(donut, { scale: 0.82, opacity: 0 }, { scale: 1, opacity: 1, duration: 0.65, ease: 'back.out(1.6)' }, 0.05);
+  }
+  if (legendItems.length) {
+    tl.fromTo(legendItems, { opacity: 0, y: 10 }, { opacity: 1, y: 0, duration: 0.35, stagger: 0.05, ease: 'power2.out' }, 0.3);
+  }
+  if (rest.length) {
+    tl.fromTo(rest, { opacity: 0, y: 14 }, { opacity: 1, y: 0, duration: 0.4, stagger: 0.035, ease: 'power2.out' }, 0.35);
+  }
+}
+
+// One-time 2D-canvas particle burst from the donut when the first calculation
+// lands on a positive net profit. No extra dependency, removes itself.
+function celebrateProfit(donutWrap) {
+  if (!donutWrap || state.profitCelebrated || prefersReducedMotion()) return;
+  // Once per browser session — a restored calculation on reload shouldn't re-fire it.
+  try {
+    if (sessionStorage.getItem('espp_celebrated')) return;
+    sessionStorage.setItem('espp_celebrated', '1');
+  } catch (e) { /* private mode: fall back to the in-memory flag */ }
+  state.profitCelebrated = true;
+
+  const size = donutWrap.offsetWidth || 270;
+  const canvas = document.createElement('canvas');
+  canvas.width = size * 2;
+  canvas.height = size * 2;
+  canvas.style.cssText =
+    'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
+    'width:200%;height:200%;pointer-events:none;z-index:5;';
+  donutWrap.appendChild(canvas);
+
+  const ctx = canvas.getContext('2d');
+  const colors = chartPalette();
+  const cx = canvas.width / 2;
+  const cy = canvas.height / 2;
+  const particles = Array.from({ length: 50 }, () => {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 2.5 + Math.random() * 5;
+    return {
+      x: cx, y: cy,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 2,
+      size: 3 + Math.random() * 4,
+      color: colors[(Math.random() * colors.length) | 0],
+      rot: Math.random() * Math.PI,
+      vr: (Math.random() - 0.5) * 0.3
+    };
+  });
+
+  let frame = 0;
+  const maxFrames = 70;
+  (function tick() {
+    frame++;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const alpha = Math.max(0, 1 - frame / maxFrames);
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.12; // gravity
+      p.rot += p.vr;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      ctx.restore();
+    }
+    if (frame < maxFrames) {
+      requestAnimationFrame(tick);
+    } else {
+      canvas.remove();
+    }
+  })();
+}
+
+// The condensed sticky strip is shared between the Rechner and Portfolio tabs —
+// each caches its own KPIs here and the strip is repopulated on tab switch.
+function applyStickyKpis(tab) {
+  const kpis = tab === 'portfolio' ? state.stickyKpisPortfolio : state.stickyKpisCalculator;
+  const labelEl = document.getElementById('stickyInvestmentLabel');
+  if (labelEl) labelEl.textContent = (kpis && kpis.investLabel) || 'Einsatz';
+  // The Prognose/Historisch tag only applies to Rechner figures — portfolio data is real.
+  const modeTag = document.getElementById('stickyModeTag');
+  if (modeTag) modeTag.style.display = tab === 'calculator' ? '' : 'none';
+  const returnEl = document.getElementById('stickyReturn');
+
+  if (!kpis) {
+    ['stickyNetProfit', 'stickyInvestment', 'stickyReturn', 'stickyShares'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = '–';
+    });
+    if (returnEl) returnEl.style.color = '';
+    return;
+  }
+
+  const fmtEUR = (v) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  animateNumberValue('stickyNetProfit', kpis.netProfitEUR, fmtEUR);
+  animateNumberValue('stickyInvestment', kpis.investEUR, fmtEUR);
+  animateNumberValue('stickyReturn', kpis.returnPct, (v) => `${v >= 0 ? '+' : ''}${v.toFixed(1)}%`);
+  animateNumberValue('stickyShares', kpis.shares, (v) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Stk.`);
+  if (returnEl) returnEl.style.color = kpis.returnPct >= 0 ? 'var(--success)' : '#f87171';
+}
+
+// Condensed sticky KPI strip: top bar on desktop, bottom chip on phones.
+// Appears once the tab's summary (Rechner banner / portfolio stat boxes) has
+// scrolled out of view — and, on phones, while the results panel itself is
+// off-screen — so the headline numbers give feedback wherever the user is.
+function updateStickySummaryVisibility() {
+  const strip = document.getElementById('calcStickySummary');
+  if (!strip) return;
+
+  const header = document.querySelector('header');
+  const headerH = header ? header.offsetHeight : 84;
+
+  // Per-tab: the element that must scroll out of view before the strip appears.
+  let anchor = null;
+  let hasData = false;
+  if (state.activeTab === 'calculator') {
+    const banner = document.querySelector('.calc-summary-banner');
+    anchor = (banner && banner.style.display !== 'none') ? banner : null;
+    hasData = !!state.salaryProvided;
+  } else if (state.activeTab === 'portfolio') {
+    anchor = document.querySelector('#tab-portfolio .portfolio-summary');
+    hasData = !!state.stickyKpisPortfolio;
+  }
+
+  let show = false;
+  if (anchor && hasData) {
+    const anchorGone = anchor.getBoundingClientRect().bottom < headerH + 6;
+    if (window.innerWidth <= 768) {
+      // Hide the chip while the results panel itself is on screen.
+      const panel = document.querySelector(`#tab-${state.activeTab} .panel-outputs`);
+      const rect = panel ? panel.getBoundingClientRect() : null;
+      const panelInView = rect && rect.bottom > headerH + 40 && rect.top < window.innerHeight - 120;
+      show = anchorGone && !panelInView;
+    } else {
+      show = anchorGone;
+    }
+  }
+
+  if (show === state.stickyStripShown) return;
+  state.stickyStripShown = show;
+  strip.setAttribute('aria-hidden', show ? 'false' : 'true');
+  gsap.killTweensOf(strip);
+
+  const slideY = window.innerWidth <= 768 ? 16 : -14;
+  if (show) {
+    strip.classList.add('is-visible');
+    if (prefersReducedMotion()) {
+      gsap.set(strip, { opacity: 1, y: 0 });
+    } else {
+      gsap.fromTo(strip, { opacity: 0, y: slideY }, { opacity: 1, y: 0, duration: 0.32, ease: 'power2.out' });
+    }
+  } else if (prefersReducedMotion()) {
+    gsap.set(strip, { opacity: 0 });
+    strip.classList.remove('is-visible');
+  } else {
+    gsap.to(strip, {
+      opacity: 0,
+      y: slideY,
+      duration: 0.22,
+      ease: 'power1.in',
+      onComplete: () => strip.classList.remove('is-visible')
+    });
+  }
+}
+
+function initStickySummary() {
+  const strip = document.getElementById('calcStickySummary');
+  if (!strip) return;
+
+  const goToResults = () => {
+    if (window.innerWidth <= 768) {
+      const panel = document.querySelector(`#tab-${state.activeTab} .panel-outputs`);
+      if (panel) panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  };
+  strip.addEventListener('click', goToResults);
+  strip.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      goToResults();
+    }
+  });
+
+  window.addEventListener('scroll', updateStickySummaryVisibility, { passive: true });
+  window.addEventListener('resize', updateStickySummaryVisibility);
+}
+
+// Soft scroll-in reveals for the calculator's below-the-fold cards. Phones and
+// tablets only: on desktop the results pane is pinned, so nothing meaningful
+// sits below the fold, and its internal scrolling would confuse ScrollTrigger.
+function setupCalcScrollReveals() {
+  if (state.calcRevealsDone || !window.ScrollTrigger || prefersReducedMotion()) return;
+  if (window.innerWidth > 900) return;
+  state.calcRevealsDone = true;
+
+  const targets = document.querySelectorAll(
+    '#tab-calculator .collapsible-step, #tab-calculator .sale-process-collapsible'
+  );
+  if (!targets.length) return;
+
+  ScrollTrigger.batch(targets, {
+    start: 'top 92%',
+    once: true,
+    onEnter: (batch) => {
+      gsap.fromTo(batch,
+        { opacity: 0, y: 24 },
+        { opacity: 1, y: 0, duration: 0.5, stagger: 0.08, ease: 'power2.out', clearProps: 'opacity,transform' }
+      );
+    }
+  });
+}
+
 
 
 

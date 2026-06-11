@@ -29,6 +29,13 @@
   --gradient-primary: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
   --gradient-button: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
   --gradient-success: linear-gradient(135deg, #22c55e 0%, #15803d 100%);
+
+  /* Donut/legend/composition-bar palette (read by Chart.js via getComputedStyle,
+     so canvas, HTML legend and composition bar always stay in sync per theme). */
+  --chart-savings: #3b82f6;
+  --chart-tax: #fbbf24;
+  --chart-fees: #f87171;
+  --chart-profit: #10b981;
   
   /* Fonts */
   --font-header: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -77,6 +84,12 @@
   --accent-glow: rgba(8, 145, 178, 0.16);
   --success-hsl: 142, 72%, 35%;
   --success-glow: rgba(22, 163, 74, 0.15);
+
+  /* Slightly deeper tones so the donut segments keep contrast on white cards. */
+  --chart-savings: #2563eb;
+  --chart-tax: #d97706;
+  --chart-fees: #dc2626;
+  --chart-profit: #059669;
 
   --header-bg: rgba(255, 255, 255, 0.92);
   --surface-soft: rgba(15, 23, 42, 0.05);
@@ -324,6 +337,7 @@ main {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 30px;
+  align-items: start; /* Prevents vertical stretching and empty spaces inside card panels */
 }
 
 /* Grid items default to min-width:auto, which lets wide inner content (e.g. a long
@@ -423,6 +437,9 @@ main {
 
 .col {
   flex: 1;
+  /* Without this, a column refuses to shrink below its content (nowrap label +
+     value chip) and the row overflows the card instead of ellipsizing the label. */
+  min-width: 0;
 }
 
 @media (max-width: 600px) {
@@ -453,14 +470,34 @@ label > i {
 
 .label-with-value {
   display: flex;
+  flex-wrap: nowrap;
   justify-content: space-between;
   align-items: center;
+  gap: 6px;
   margin-bottom: 8px;
 }
 
+/* The value chip resizes with its content (fitSliderChip); the label must never
+   wrap to a second line because of that — ellipsize in the worst case instead. */
 .label-with-value label {
   margin-bottom: 0;
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
 }
+
+/* Labels are flex containers, where text-overflow has no effect on the bare text
+   node — overflow would hard-clip mid-character. The text therefore sits in its
+   own .label-text span that can shrink and ellipsize properly; icon and tooltip
+   trigger stay outside the span, so the tooltip bubble is never clipped. */
+.label-with-value label .label-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.label-with-value .slider-val { flex-shrink: 0; }
 
 .slider-val {
   font-family: var(--font-header);
@@ -765,6 +802,13 @@ input[type="range"]::-webkit-slider-thumb:hover {
   font-size: 0.9rem;
   padding-bottom: 8px;
   border-bottom: 1px solid var(--surface-soft);
+  /* Rounded corners + side padding (compensated by negative margins) so the
+     GSAP value-change highlight flash reads as a soft pill, not a hard box. */
+  border-radius: 8px;
+  padding-left: 6px;
+  padding-right: 6px;
+  margin-left: -6px;
+  margin-right: -6px;
 }
 
 .detail-row:last-child {
@@ -989,6 +1033,31 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 .cl-item i { width: 11px; height: 11px; border-radius: 3px; flex-shrink: 0; }
 
+/* Shared palette classes for the legend swatches and the composition bar */
+.cl-savings { background: var(--chart-savings); }
+.cl-tax     { background: var(--chart-tax); }
+.cl-fees    { background: var(--chart-fees); }
+.cl-profit  { background: var(--chart-profit); }
+
+/* Stacked horizontal composition bar above the breakdown table */
+.calc-composition-bar {
+  display: flex;
+  height: 10px;
+  border-radius: 99px;
+  overflow: hidden;
+  margin: 0 0 16px;
+  background: var(--surface-soft);
+}
+.calc-composition-bar .comp-seg {
+  display: block;
+  height: 100%;
+  width: 0;
+  transition: width 0.45s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.calc-composition-bar .comp-seg + .comp-seg {
+  box-shadow: -1.5px 0 0 0 var(--panel-bg);
+}
+
 /* At-a-glance KPI tiles under the chart */
 .kpi-grid {
   display: grid;
@@ -1032,19 +1101,6 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .tab-content.active {
   display: block;
-}
-
-/* Ensure portfolio tab content is visible when active */
-#tab-portfolio.active {
-  display: block !important;
-}
-
-#tab-portfolio .grid-2col {
-  display: grid !important;
-}
-
-#tab-portfolio .glass-card {
-  display: block !important;
 }
 
 @keyframes fadeIn {
@@ -2162,18 +2218,13 @@ footer {
   font-size: 1rem;
 }
 
+/* Purely informational boxes — no hover feedback, nothing here is clickable. */
 .sale-step {
   background: rgba(0, 0, 0, 0.2);
   border: 1px solid var(--surface-soft-hover);
   border-radius: 12px;
   padding: 18px;
   margin-bottom: 20px;
-  transition: var(--transition-fast);
-}
-
-.sale-step:hover {
-  background: var(--surface-soft);
-  border-color: var(--panel-border);
 }
 
 .sale-step-header {
@@ -2218,11 +2269,6 @@ footer {
   background: linear-gradient(135deg, rgba(0, 242, 254, 0.05) 0%, rgba(59, 130, 246, 0.05) 100%);
   border: 1px solid rgba(0, 242, 254, 0.15);
   box-shadow: 0 4px 15px rgba(0, 242, 254, 0.1);
-}
-
-.sale-result-step:hover {
-  background: linear-gradient(135deg, rgba(0, 242, 254, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
-  border-color: rgba(0, 242, 254, 0.25);
 }
 
 .sale-profit-row {
@@ -2354,17 +2400,12 @@ footer {
   margin-bottom: 20px;
 }
 
+/* Purely informational boxes — no hover feedback, nothing here is clickable. */
 .portfolio-stat-box {
   background: var(--surface-soft);
   border: 1px solid var(--panel-border);
   border-radius: 12px;
   padding: 20px;
-  transition: var(--transition-normal);
-}
-
-.portfolio-stat-box:hover {
-  background: var(--surface-soft-hover);
-  border-color: var(--panel-border);
 }
 
 .portfolio-stat-label {
@@ -2627,7 +2668,7 @@ footer {
 }
 
 .sale-process-collapsible[open] .sale-process-summary .chevron {
-  transform: rotate(180deg);
+  /* transform: rotate(180deg); - Handled via GSAP in JS */
 }
 
 .sale-process-summary .summary-hint {
@@ -2731,7 +2772,7 @@ footer {
   margin-bottom: 18px !important;
 }
 .input-group-body .form-row {
-  gap: 18px !important;
+  gap: 14px !important;
   margin-bottom: 18px !important;
 }
 .input-group-body .form-row .form-group {
@@ -2914,9 +2955,7 @@ footer {
   align-items: center;
   justify-content: center;
   padding: 20px;
-  animation: welcomeFade 0.25s ease;
 }
-@keyframes welcomeFade { from { opacity: 0; } to { opacity: 1; } }
 .welcome-modal {
   position: relative;
   width: 100%;
@@ -2929,9 +2968,7 @@ footer {
   padding: 32px 30px 26px;
   box-shadow: 0 24px 70px rgba(0, 0, 0, 0.55);
   text-align: center;
-  animation: welcomePop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2);
 }
-@keyframes welcomePop { from { transform: translateY(14px) scale(0.97); opacity: 0; } to { transform: none; opacity: 1; } }
 .welcome-close {
   position: absolute;
   top: 14px;
@@ -2960,9 +2997,33 @@ footer {
 }
 .welcome-modal h2 { font-size: 1.5rem; color: var(--text-strong); margin-bottom: 10px; }
 .welcome-lead { color: var(--text-muted); font-size: 0.95rem; line-height: 1.55; margin-bottom: 22px; }
-.welcome-features { display: flex; flex-direction: column; gap: 14px; text-align: left; margin-bottom: 24px; }
-.welcome-feature { display: flex; gap: 14px; align-items: flex-start; }
-.welcome-feature > i {
+.welcome-features { display: flex; flex-direction: column; gap: 6px; text-align: left; margin-bottom: 20px; }
+
+/* Feature rows are buttons: each jumps straight to its tab (and closes the overlay) */
+.welcome-feature {
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 9px 10px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  font-family: var(--font-body);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+.welcome-feature:hover {
+  background: var(--surface-soft-hover);
+  border-color: var(--panel-border);
+}
+.welcome-feature:hover .wf-chevron {
+  color: var(--accent);
+  transform: translateX(3px);
+}
+.welcome-feature > i:first-child {
   flex-shrink: 0;
   width: 38px;
   height: 38px;
@@ -2975,9 +3036,34 @@ footer {
   justify-content: center;
   font-size: 0.95rem;
 }
+.welcome-feature .wf-chevron {
+  flex-shrink: 0;
+  margin-left: auto;
+  align-self: center;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  transition: transform var(--transition-fast), color var(--transition-fast);
+}
 .welcome-feature strong { display: block; color: var(--text-strong); font-size: 0.95rem; margin-bottom: 2px; }
 .welcome-feature span { color: var(--text-muted); font-size: 0.85rem; line-height: 1.45; }
 .welcome-start { width: 100%; justify-content: center; font-size: 1rem; }
+
+/* Eyebrow line above the headline + "you can reopen this" hint below the CTA */
+.welcome-eyebrow {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+.welcome-reopen-hint {
+  margin-top: 14px;
+  margin-bottom: 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+.welcome-reopen-hint strong { color: var(--text-main); }
 
 /* Trust box: data privacy & offline reassurance, prominent right before the CTA */
 .welcome-privacy-card {
@@ -3576,7 +3662,8 @@ footer {
 .formats-details summary::-webkit-details-marker { display: none; }
 .formats-details summary:hover { color: var(--text-main); }
 .formats-details summary i { color: var(--primary); }
-.formats-details ul {
+.formats-details ul,
+.formats-details ol {
   margin: 6px 0 6px 26px;
   line-height: 1.7;
 }
@@ -3997,4 +4084,525 @@ select:hover {
 .welcome-overlay,
 .welcome-modal {
   overscroll-behavior: contain;
+}
+
+
+/* --- Antigravity Modern UI Upgrades --- */
+
+
+/* Glassmorphism Refinements & Hover Effects */
+.glass-card {
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              box-shadow 0.3s cubic-bezier(0.25, 0.8, 0.25, 1), 
+              border-color 0.3s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(0, 242, 254, 0.25);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+:root[data-theme="light"] .glass-card:hover {
+  border-color: rgba(8, 145, 178, 0.25);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08);
+}
+
+/* Nav Tab transitions */
+.nav-tab {
+  position: relative;
+  overflow: hidden;
+  transition: color 0.3s ease, background-color 0.3s ease;
+}
+
+.nav-tab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #00f2fe, #0072ff);
+  transition: width 0.3s ease, left 0.3s ease;
+}
+
+.nav-tab.active::after {
+  width: 100%;
+  left: 0;
+}
+
+/* Slider Track Color Fills */
+input[type="range"] {
+  accent-color: #00f2fe;
+}
+:root[data-theme="light"] input[type="range"] {
+  accent-color: #0891b2;
+}
+
+/* Connection line for vertical accordion step flow */
+.panel-inputs {
+  position: relative;
+}
+
+/* Connection indicator */
+.input-group-card {
+  position: relative;
+  border-left: 3px solid rgba(255, 255, 255, 0.05);
+  transition: border-color 0.4s ease;
+  margin-left: 0;
+}
+
+.input-group-card.open {
+  border-left-color: #00f2fe;
+}
+
+:root[data-theme="light"] .input-group-card {
+  border-left: 3px solid rgba(15, 23, 42, 0.05);
+}
+
+:root[data-theme="light"] .input-group-card.open {
+  border-left-color: #0891b2;
+}
+
+/* ============================================================
+   Rechner tab: sticky results pane, sticky KPI strip,
+   compact mobile KPI grid, reduced-motion support
+   ============================================================ */
+
+/* Tapping the sticky strip scrolls to the analysis — keep it clear of the header. */
+#tab-calculator .panel-outputs,
+#tab-portfolio .panel-outputs {
+  scroll-margin-top: calc(var(--header-h, 84px) + 12px);
+}
+
+/* --- Condensed sticky KPI strip (top bar on desktop, bottom pill on mobile) --- */
+.calc-sticky-summary {
+  position: fixed;
+  top: var(--header-h, 84px);
+  left: 0;
+  right: 0;
+  z-index: 99; /* just below the sticky header (100) */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 9px 20px;
+  background: var(--header-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--panel-border);
+  cursor: pointer;
+  /* hidden by default; shown/hidden via GSAP from JS */
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+.calc-sticky-summary.is-visible {
+  visibility: visible;
+  pointer-events: auto;
+}
+.css-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
+  white-space: nowrap;
+}
+.css-item i { color: var(--accent); font-size: 0.8rem; align-self: center; }
+.css-label {
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.css-item strong {
+  font-family: var(--font-header);
+  font-size: 0.98rem;
+  font-weight: 800;
+  color: var(--text-strong);
+}
+.css-item.primary strong { font-size: 1.08rem; }
+.css-go { color: var(--text-muted); font-size: 0.8rem; display: none; }
+
+@media (max-width: 768px) {
+  /* Bottom pill on phones: thumb-reachable, taps through to the analysis. */
+  .calc-sticky-summary {
+    top: auto;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    border: 1px solid var(--panel-border);
+    border-radius: 99px;
+    padding: 10px 18px;
+    gap: 18px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+  }
+  .css-desktop-only { display: none; }
+  .css-go { display: inline; }
+}
+
+/* --- Mobile KPI banner: 2x2 grid instead of four stacked cards --- */
+@media (max-width: 640px) {
+  .calc-summary-banner {
+    grid-template-columns: 1fr 1fr;
+  }
+  .calc-summary-banner .calc-kpi.primary {
+    grid-column: 1 / -1;
+  }
+  /* Keep the explainer line only on the primary card so the grid stays compact. */
+  .calc-summary-banner .calc-kpi:not(.primary) .calc-kpi-sub {
+    display: none;
+  }
+}
+
+/* ============================================================
+   Portfolio-Analyse tab: value chart, table expander, mobile fixes
+   ============================================================ */
+
+/* Cumulative invested vs. market value chart above the stat boxes */
+.pf-chart-wrap {
+  position: relative;
+  height: 230px;
+  margin-bottom: 20px;
+}
+.pf-chart-wrap canvas { max-height: 205px; }
+.pf-chart-caption {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* "Alle X Käufe anzeigen" expander under the EquatePlus buy table */
+#btnToggleAllBuys { width: 100%; margin-top: 10px; }
+
+/* --- Steuerreport (Anlage KAP) --- */
+.tax-year-section { margin-top: 24px; }
+.tax-year-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.tax-year-head h4 {
+  font-size: 1rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.tax-year-head h4 i { color: var(--accent); }
+.tax-report-table .th-sub {
+  font-weight: 400;
+  font-size: 0.65rem;
+  color: var(--text-muted);
+  text-transform: none;
+}
+.tax-lot-type {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+.tax-sale-subtotal td {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-top: 1px dashed var(--panel-border);
+}
+.tax-kap-summary {
+  margin-top: 14px;
+  background: var(--surface-soft);
+  border: 1px solid var(--panel-border);
+  border-radius: 12px;
+  padding: 14px 18px;
+}
+.tax-kap-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 0.92rem;
+  padding: 4px 0;
+}
+.tax-kap-hint {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--panel-border);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}
+
+/* The ESPP lifecycle boxes stack vertically on phones — point the connecting
+   arrows downwards instead of sideways between wrapped rows. */
+@media (max-width: 700px) {
+  .workflow-steps-container { flex-direction: column; }
+  .workflow-step-box { min-width: 0 !important; }
+  .workflow-arrow-separator i { transform: rotate(90deg); }
+}
+
+/* --- Reduced motion: kill decorative CSS animations; JS checks the same query --- */
+@media (prefers-reduced-motion: reduce) {
+  .glow-bg { animation: none; }
+  .pulse { animation: none; }
+  .tab-content { animation: none; }
+  .calc-composition-bar .comp-seg { transition: none; }
+}
+
+
+
+
+/* ============================================================
+   Rechner: Szenario-Kontext
+   Mode toggle (panel header), scenario strip above the donut,
+   first-time simulation explainer, sticky-strip mode tag.
+   ============================================================ */
+
+/* Segmented Prognose/Historisch toggle in the output panel header */
+.calc-mode-toggle {
+  display: inline-flex;
+  flex-shrink: 0;
+  gap: 3px;
+  padding: 3px;
+  background: var(--input-bg);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+}
+
+.calc-mode-toggle .mode-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.calc-mode-toggle .mode-btn:not(.active):hover {
+  color: var(--text-main);
+  background: var(--surface-soft-hover);
+}
+
+.calc-mode-toggle .mode-btn.active { cursor: default; }
+
+.calc-mode-toggle .mode-btn.active[data-mode="forecast"] {
+  background: rgba(59, 130, 246, 0.22);
+  color: #93c5fd;
+}
+
+.calc-mode-toggle .mode-btn.active[data-mode="historical"] {
+  background: rgba(34, 197, 94, 0.22);
+  color: #86efac;
+}
+
+/* Scenario strip: names the assumptions behind the numbers below it */
+.scenario-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  margin-bottom: 18px;
+  background: var(--surface-soft);
+  border: 1px dashed var(--panel-border);
+  border-radius: 12px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.scenario-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.scenario-label i { color: var(--primary); }
+.scenario-strip.historical .scenario-label i { color: var(--success); }
+
+.scenario-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.scenario-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(59, 130, 246, 0.12);
+  border: 1px solid rgba(59, 130, 246, 0.25);
+  color: var(--text-main);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: background var(--transition-fast), border-color var(--transition-fast);
+}
+
+.scenario-chip i { font-size: 0.7rem; color: var(--text-muted); }
+
+.scenario-chip:not(:disabled):hover {
+  background: rgba(59, 130, 246, 0.24);
+  border-color: rgba(59, 130, 246, 0.5);
+}
+
+.scenario-chip:disabled { cursor: default; opacity: 0.75; }
+
+.scenario-strip.historical .scenario-chip {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.25);
+}
+
+.scenario-strip.historical .scenario-chip:not(:disabled):hover {
+  background: rgba(34, 197, 94, 0.2);
+  border-color: rgba(34, 197, 94, 0.5);
+}
+
+.scenario-switch {
+  margin-left: auto;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--accent);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.scenario-switch:hover { text-decoration: underline; }
+.scenario-switch i { font-size: 0.65rem; }
+
+/* First-time "this is a simulation" explainer */
+.sim-explainer {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(59, 130, 246, 0.15);
+  color: #93c5fd;
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.sim-explainer > i {
+  font-size: 1.2rem;
+  margin-top: 2px;
+  color: #60a5fa;
+}
+
+.sim-explainer .btn { flex-shrink: 0; align-self: center; }
+
+/* Mode tag in the condensed sticky KPI strip */
+.css-mode-tag {
+  align-self: center;
+  padding: 2px 6px;
+  border-radius: 5px;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  background: rgba(59, 130, 246, 0.2);
+  color: #93c5fd;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+
+.css-mode-tag.historical {
+  background: rgba(34, 197, 94, 0.2);
+  color: #86efac;
+  border-color: rgba(34, 197, 94, 0.3);
+}
+
+/* Scenario-chip jump target: same flash as the upload zone */
+.form-group.pulse-highlight {
+  animation: uploadZonePulse 2.2s ease;
+  border-radius: 10px;
+}
+
+/* Light theme */
+:root[data-theme="light"] .calc-mode-toggle .mode-btn.active[data-mode="forecast"] { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
+:root[data-theme="light"] .calc-mode-toggle .mode-btn.active[data-mode="historical"] { background: rgba(21, 128, 61, 0.12); color: #15803d; }
+:root[data-theme="light"] .scenario-chip { background: rgba(37, 99, 235, 0.07); border-color: rgba(37, 99, 235, 0.25); }
+:root[data-theme="light"] .scenario-chip:not(:disabled):hover { background: rgba(37, 99, 235, 0.14); border-color: rgba(37, 99, 235, 0.45); }
+:root[data-theme="light"] .scenario-strip.historical .scenario-chip { background: rgba(21, 128, 61, 0.07); border-color: rgba(21, 128, 61, 0.25); }
+:root[data-theme="light"] .scenario-strip.historical .scenario-chip:not(:disabled):hover { background: rgba(21, 128, 61, 0.14); border-color: rgba(21, 128, 61, 0.45); }
+:root[data-theme="light"] .sim-explainer { color: #1e3a8a; background: rgba(37, 99, 235, 0.07); border-color: rgba(37, 99, 235, 0.2); }
+:root[data-theme="light"] .sim-explainer > i { color: #2563eb; }
+:root[data-theme="light"] .css-mode-tag { background: rgba(37, 99, 235, 0.1); color: #1d4ed8; border-color: rgba(37, 99, 235, 0.3); }
+:root[data-theme="light"] .css-mode-tag.historical { background: rgba(21, 128, 61, 0.1); color: #15803d; border-color: rgba(21, 128, 61, 0.3); }
+
+/* Mobile: explainer stacks, switch link drops below the chips */
+@media (max-width: 768px) {
+  .sim-explainer { flex-wrap: wrap; }
+  .sim-explainer .btn { width: 100%; }
+  .scenario-switch { margin-left: 0; }
+}
+
+/* ============================================================
+   Editable slider value chips: every .slider-val is a real text
+   input — same chip look as before, but the value can be typed.
+   A small pencil (SVG background; inputs can't carry ::before)
+   signals editability and hides while the chip is focused.
+   (Overrides the global input[type="text"] panel styling.)
+   ============================================================ */
+input.slider-val {
+  /* Width is set in px from the measured text by fitSliderChip(), so the chip
+     hugs its content exactly like a static value chip would. */
+  width: 5rem;
+  min-width: 2.5rem;
+  text-align: right;
+  padding: 2px 8px 2px 19px; /* left padding = room for the pencil */
+  background-color: var(--accent-glow);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='rgba(0,229,229,0.5)' d='M497.9 142.1l-46.1 46.1c-4.7 4.7-12.3 4.7-17 0l-111-111c-4.7-4.7-4.7-12.3 0-17l46.1-46.1c18.7-18.7 49.1-18.7 67.9 0l60.1 60.1c18.8 18.7 18.8 49.1 0 67.9zM284.2 99.8L21.6 362.4.4 483.9c-2.9 16.4 11.4 30.6 27.8 27.8l121.5-21.3 262.6-262.6c4.7-4.7 4.7-12.3 0-17l-111-111c-4.8-4.7-12.4-4.7-17.1 0z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: 6px center;
+  background-size: 9px 9px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  color: var(--accent);
+  font-family: var(--font-header);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: text;
+  transition: background-color var(--transition-fast), border-color var(--transition-fast);
+}
+
+input.slider-val:hover { background-color: rgba(0, 242, 254, 0.22); }
+
+input.slider-val:focus {
+  background-image: none; /* caret replaces the pencil while editing */
+  border-color: var(--accent);
+  box-shadow: 0 0 10px var(--accent-glow);
+  outline: none;
+}
+
+input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
+
+:root[data-theme="light"] input.slider-val {
+  background-color: rgba(8, 145, 178, 0.13);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath fill='rgba(7,107,146,0.55)' d='M497.9 142.1l-46.1 46.1c-4.7 4.7-12.3 4.7-17 0l-111-111c-4.7-4.7-4.7-12.3 0-17l46.1-46.1c18.7-18.7 49.1-18.7 67.9 0l60.1 60.1c18.8 18.7 18.8 49.1 0 67.9zM284.2 99.8L21.6 362.4.4 483.9c-2.9 16.4 11.4 30.6 27.8 27.8l121.5-21.3 262.6-262.6c4.7-4.7 4.7-12.3 0-17l-111-111c-4.8-4.7-12.4-4.7-17.1 0z'/%3E%3C/svg%3E");
+  color: hsl(192, 91%, 30%);
+  border-color: transparent;
+}
+
+:root[data-theme="light"] input.slider-val:hover { background-color: rgba(8, 145, 178, 0.2); }
+
+:root[data-theme="light"] input.slider-val:focus {
+  background-image: none;
+  border-color: hsl(192, 91%, 35%);
+  box-shadow: 0 0 10px rgba(8, 145, 178, 0.2);
 }

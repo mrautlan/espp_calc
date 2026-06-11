@@ -72,17 +72,68 @@
     </div>
   </header>
 
+  <!-- Condensed sticky KPI strip for the Rechner tab: top bar on desktop, bottom
+       chip on mobile. Lives outside <main> because tab sections carry transforms
+       (fadeIn animation), which would hijack this element's fixed positioning.
+       Appears once the big banner is scrolled out of view so the headline figures
+       stay visible while adjusting the sliders further down. -->
+  <div class="calc-sticky-summary" id="calcStickySummary" role="button" tabindex="0"
+       aria-label="Zur Gewinn-Analyse springen" aria-hidden="true">
+    <span class="css-item primary">
+      <i class="fa-solid fa-sack-dollar"></i>
+      <span class="css-label">Netto-Gewinn</span>
+      <strong id="stickyNetProfit">–</strong>
+      <span class="css-mode-tag" id="stickyModeTag">Prognose</span>
+    </span>
+    <span class="css-item">
+      <span class="css-label">Rendite</span>
+      <strong id="stickyReturn">–</strong>
+    </span>
+    <span class="css-item css-desktop-only">
+      <span class="css-label" id="stickyInvestmentLabel">Einsatz</span>
+      <strong id="stickyInvestment">–</strong>
+    </span>
+    <span class="css-item css-desktop-only">
+      <span class="css-label">Aktien</span>
+      <strong id="stickyShares">–</strong>
+    </span>
+    <i class="fa-solid fa-arrow-right css-go"></i>
+  </div>
+
   <!-- First-visit welcome / "what is this" overlay (re-openable via the header ? button) -->
   <div id="welcomeOverlay" class="welcome-overlay" style="display: none;">
     <div class="welcome-modal" role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
       <button class="welcome-close" id="welcomeClose" type="button" aria-label="Schließen">&times;</button>
       <div class="welcome-logo"><i class="fa-solid fa-arrow-trend-up"></i></div>
-      <h2 id="welcomeTitle">Willkommen beim IBM ESPP Navigator</h2>
-      <p class="welcome-lead">Lohnt sich das IBM-Aktienprogramm für Dich? Dieses Tool rechnet es Dir durch – mit <strong>deutschen Steuerregeln</strong>, Live-Kursen und Deinen eigenen Zahlen.</p>
+      <div class="welcome-eyebrow">IBM ESPP Navigator</div>
+      <h2 id="welcomeTitle">Lohnt sich Dein IBM-Aktienprogramm?</h2>
+      <p class="welcome-lead">Dieses Tool rechnet es Dir durch – mit <strong>deutschen Steuerregeln</strong>, echten Kursen und Deinen eigenen Zahlen.</p>
       <div class="welcome-features">
-        <div class="welcome-feature"><i class="fa-solid fa-calculator"></i><div><strong>Rechner</strong><span>Dein Netto-Gewinn nach Steuern &amp; Gebühren – auf Wunsch automatisch aus Deiner Gehaltsabrechnung.</span></div></div>
-        <div class="welcome-feature"><i class="fa-solid fa-chart-pie"></i><div><strong>Portfolio-Analyse</strong><span>EquatePlus- &amp; CapTrader-/IBKR-Statements hochladen und echten Bestand, Wert &amp; Verkaufs-Erlös sehen.</span></div></div>
-        <div class="welcome-feature"><i class="fa-solid fa-bullseye"></i><div><strong>Ziel-Tracker</strong><span>Sparziel setzen und sehen, wie viele Aktien dafür nötig sind – und wie lange es noch dauert.</span></div></div>
+        <button type="button" class="welcome-feature" data-goto-tab="calculator">
+          <i class="fa-solid fa-calculator"></i>
+          <div><strong>Rechner</strong><span>Dein Netto-Gewinn nach Steuern &amp; Gebühren – live berechnet.</span></div>
+          <i class="fa-solid fa-chevron-right wf-chevron"></i>
+        </button>
+        <button type="button" class="welcome-feature" data-goto-tab="portfolio">
+          <i class="fa-solid fa-chart-pie"></i>
+          <div><strong>Portfolio-Analyse</strong><span>Depot-Auszüge hochladen, echten Bestand &amp; Wert sehen.</span></div>
+          <i class="fa-solid fa-chevron-right wf-chevron"></i>
+        </button>
+        <button type="button" class="welcome-feature" data-goto-tab="porsche">
+          <i class="fa-solid fa-bullseye"></i>
+          <div><strong>Ziel-Tracker</strong><span>Sparziel setzen und sehen, wie lange es noch dauert.</span></div>
+          <i class="fa-solid fa-chevron-right wf-chevron"></i>
+        </button>
+        <button type="button" class="welcome-feature" data-goto-tab="guide">
+          <i class="fa-solid fa-route"></i>
+          <div><strong>Reiseführer</strong><span>Schritt für Schritt durchs ESPP – vom Beitritt bis zum Verkauf.</span></div>
+          <i class="fa-solid fa-chevron-right wf-chevron"></i>
+        </button>
+        <button type="button" class="welcome-feature" data-goto-tab="taxes">
+          <i class="fa-solid fa-receipt"></i>
+          <div><strong>Steuern (DE)</strong><span>Geldwerter Vorteil, Freibetrag &amp; Abgeltungsteuer erklärt.</span></div>
+          <i class="fa-solid fa-chevron-right wf-chevron"></i>
+        </button>
       </div>
       <div class="welcome-privacy-card">
         <i class="fa-solid fa-shield-halved"></i>
@@ -91,7 +142,8 @@
           <span>Gehaltsabrechnungen &amp; Depot-Statements werden zu 100&nbsp;% <strong>lokal in Deinem Browser</strong> ausgelesen – kein Upload, keine Speicherung auf einem Server. Das PDF-Einlesen funktioniert sogar <strong>offline</strong>: Probier's im Flugmodus aus.</span>
         </div>
       </div>
-      <button class="btn btn-primary welcome-start" id="welcomeStart" type="button">Los geht's <i class="fa-solid fa-arrow-right"></i></button>
+      <button class="btn btn-primary welcome-start" id="welcomeStart" type="button">Jetzt durchrechnen <i class="fa-solid fa-arrow-right"></i></button>
+      <p class="welcome-reopen-hint">Diese Übersicht findest Du jederzeit wieder – über das <strong>?</strong>-Symbol oben rechts.</p>
     </div>
   </div>
   
@@ -105,7 +157,7 @@
       </div>
 
       <!-- Hinweis, solange noch kein echtes Gehalt eingestellt wurde -->
-      <div class="alert alert-warning" id="exampleDataNote" style="display: none; margin-bottom: 20px;">
+      <div class="alert alert-warning" id="exampleDataNote" style="margin-bottom: 20px;">
         <i class="fa-solid fa-circle-info"></i>
         <div>
           <strong>Hier fehlen noch Deine Daten:</strong> Stelle in <strong>Schritt 1</strong> Dein
@@ -120,11 +172,11 @@
       </div>
 
       <!-- Ergebnis auf einen Blick -->
-      <div class="calc-summary-banner">
+      <div class="calc-summary-banner" style="display: none;">
         <div class="calc-kpi primary">
           <span class="calc-kpi-label"><i class="fa-solid fa-sack-dollar"></i> Netto-Gewinn</span>
           <strong id="netProfitEuro">0,00 €</strong>
-          <span class="calc-kpi-sub">nach Steuern &amp; Gebühren, wenn Du alle Aktien verkaufst</span>
+          <span class="calc-kpi-sub" id="netProfitSub">nach Steuern &amp; Gebühren, wenn Du alle Aktien verkaufst</span>
         </div>
         <div class="calc-kpi">
           <span class="calc-kpi-label"><i class="fa-solid fa-wallet"></i> Dein Einsatz (netto)</span>
@@ -162,15 +214,22 @@
               <div class="form-row">
                 <div class="form-group col">
                   <div class="label-with-value">
-                    <label for="inputMonthlySalary"><i class="fa-solid fa-money-check-dollar"></i> Bruttogehalt (€/Monat)</label>
-                    <span class="slider-val" id="valMonthlySalary">5.000 €</span>
+                    <label for="inputMonthlySalary"><i class="fa-solid fa-money-check-dollar"></i> <span class="label-text">Bruttogehalt (mtl.)</span></label>
+                    <!-- The value chip is a real input: click (or tab) and type the salary directly -->
+                    <input type="text" class="slider-val" id="valMonthlySalary" value="5.000 €"
+                           inputmode="numeric" autocomplete="off" enterkeyhint="done"
+                           placeholder="eintippen" title="Klicken und Betrag direkt eintippen"
+                           aria-label="Bruttogehalt in Euro – direkt eintippen oder Schieberegler nutzen">
                   </div>
                   <input type="range" id="inputMonthlySalary" min="1000" max="20000" step="1" value="5000">
                 </div>
                 <div class="form-group col">
                   <div class="label-with-value">
-                    <label for="inputSavingsRate"><i class="fa-solid fa-percent"></i> Sparquote (% vom Brutto)</label>
-                    <span class="slider-val" id="valSavingsRate">10 %</span>
+                    <label for="inputSavingsRate"><i class="fa-solid fa-percent"></i> <span class="label-text">Sparquote (% vom Brutto)</span></label>
+                    <input type="text" class="slider-val" id="valSavingsRate" value="10 %"
+                           inputmode="numeric" autocomplete="off" enterkeyhint="done"
+                           title="Klicken und Wert direkt eintippen"
+                           aria-label="Sparquote in Prozent – direkt eintippen oder Schieberegler nutzen">
                   </div>
                   <input type="range" id="inputSavingsRate" min="1" max="10" step="1" value="10">
                 </div>
@@ -222,8 +281,11 @@
                 
                 <div class="form-group col">
                   <div class="label-with-value">
-                    <label for="inputTaxRate"><i class="fa-solid fa-percent"></i> Grenzsteuersatz <span class="tooltip-trigger" data-tooltip="Dein Spitzensteuersatz. Aus einer Gehaltsabrechnung nur grob geschätzt (das Monatsgehalt × 12), denn der echte Satz hängt vom gesamten Jahreseinkommen ab. Am genauesten: Wert aus dem Steuerbescheid eintragen.">i</span></label>
-                    <span class="slider-val" id="valTaxRate">35 %</span>
+                    <label for="inputTaxRate"><i class="fa-solid fa-percent"></i> <span class="label-text">Grenzsteuersatz</span> <span class="tooltip-trigger" data-tooltip="Dein Spitzensteuersatz. Aus einer Gehaltsabrechnung nur grob geschätzt (das Monatsgehalt × 12), denn der echte Satz hängt vom gesamten Jahreseinkommen ab. Am genauesten: Wert aus dem Steuerbescheid eintragen.">i</span></label>
+                    <input type="text" class="slider-val" id="valTaxRate" value="35 %"
+                           inputmode="numeric" autocomplete="off" enterkeyhint="done"
+                           title="Klicken und Wert direkt eintippen"
+                           aria-label="Grenzsteuersatz in Prozent – direkt eintippen oder Schieberegler nutzen">
                   </div>
                   <input type="range" id="inputTaxRate" min="14" max="45" step="1" value="35">
                 </div>
@@ -253,7 +315,7 @@
           <div class="input-group-card group-selling collapsible-step">
             <div class="input-group-header" role="button" tabindex="0" aria-expanded="false">
               <span class="calc-step-num">3</span>
-              <h4>Aktienkurs &amp; Verkauf</h4>
+              <h4>Szenario: Kurse &amp; Verkauf</h4>
               <span class="calc-step-summary" id="summaryStep3"></span>
               <i class="fa-solid fa-chevron-down step-chevron"></i>
             </div>
@@ -261,9 +323,13 @@
               <div class="form-group">
                 <label for="selectCalcMode"><i class="fa-solid fa-clock-rotate-left"></i> Berechnungsmodus</label>
                 <select id="selectCalcMode">
-                  <option value="forecast" selected>Prognose – mit angenommenen Kursen</option>
-                  <option value="historical">Historisch – echte IBM-Kurse seit Deinem Beitritt</option>
+                  <option value="forecast" selected>Prognose – Du wählst Kurse &amp; Haltedauer (Was wäre wenn?)</option>
+                  <option value="historical">Historisch – echte IBM-Kurse seit Deinem Beitritt (Was wäre gewesen?)</option>
                 </select>
+                <div class="input-subtitle">
+                  Bestimmt, womit gerechnet wird: <strong>Prognose</strong> simuliert mit Deinen
+                  Annahmen, <strong>Historisch</strong> nutzt reale Kursdaten.
+                </div>
               </div>
 
               <!-- Historical mode: ESPP join month -->
@@ -311,8 +377,11 @@
 
               <div class="form-group" id="holdingGroup">
                 <div class="label-with-value">
-                  <label for="inputAccumulatedMonths"><i class="fa-solid fa-clock"></i> Haltedauer (Monate)</label>
-                  <span class="slider-val" id="valAccumulatedMonths">12 Monate</span>
+                  <label for="inputAccumulatedMonths"><i class="fa-solid fa-clock"></i> <span class="label-text">Haltedauer (Monate)</span></label>
+                  <input type="text" class="slider-val" id="valAccumulatedMonths" value="12 Monate"
+                         inputmode="numeric" autocomplete="off" enterkeyhint="done"
+                         title="Klicken und Anzahl Monate direkt eintippen"
+                         aria-label="Haltedauer in Monaten – direkt eintippen oder Schieberegler nutzen">
                 </div>
                 <input type="range" id="inputAccumulatedMonths" min="1" max="120" step="1" value="12">
                 <div class="input-helper">Berechnet den kumulierten Gewinn und prüft die Ausschöpfung des Freibetrags über das Jahr.</div>
@@ -325,18 +394,52 @@
         <div class="glass-card panel-outputs">
           <div class="panel-header">
             <h3><i class="fa-solid fa-chart-pie"></i> Gewinn-Analyse & Steuern</h3>
-            <span class="badge badge-success">Live</span>
+            <!-- Segmented mode switch: mirrors the Berechnungsmodus-Select in Schritt 3,
+                 but sits where the numbers are read — so "Prognose vs. Historisch" is
+                 visible without opening the collapsed step. -->
+            <div class="calc-mode-toggle" id="calcModeToggle" role="group" aria-label="Berechnungsmodus wählen">
+              <button type="button" class="mode-btn active" data-mode="forecast" title="Simulation mit von Dir gewählten Kursen und Haltedauer">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Prognose
+              </button>
+              <button type="button" class="mode-btn" data-mode="historical" title="Echte IBM-Monatskurse seit Deinem ESPP-Beitritt">
+                <i class="fa-solid fa-clock-rotate-left"></i> Historisch
+              </button>
+            </div>
           </div>
 
           <!-- Empty state: shown until the user provides a real salary -->
-          <div class="calc-empty-state" id="calcEmptyState" style="display: none;">
+          <div class="calc-empty-state" id="calcEmptyState">
             <div class="empty-state-icon"><i class="fa-solid fa-chart-pie"></i></div>
             <h4>Noch keine Berechnung</h4>
             <p>Deine Gewinn-Analyse erscheint hier, sobald Du die Parameter anpasst oder Deine
             Gehaltsabrechnung (PDF) hochlädst.</p>
           </div>
 
-          <div id="calcResultsContent">
+          <div id="calcResultsContent" style="display: none;">
+
+          <!-- One-time explainer (dismiss persists): educates first-time users that the
+               numbers below are a simulation with default assumptions, not real data. -->
+          <div class="sim-explainer" id="simExplainer" style="display: none;">
+            <i class="fa-solid fa-lightbulb"></i>
+            <div>
+              <strong>Gut zu wissen:</strong> Diese Zahlen sind eine <strong>Simulation</strong> mit
+              Standard-Annahmen: Du sparst <strong>12 Monate</strong> lang und verkaufst dann alle
+              Aktien zum angenommenen Kurs. Passe Haltedauer &amp; Kurse in
+              <strong>Schritt&nbsp;3</strong> an – oder schalte oben auf
+              <strong>Historisch</strong>, um mit echten IBM-Kursen seit Deinem Beitritt zu rechnen.
+            </div>
+            <button type="button" class="btn btn-outline btn-sm" id="simExplainerClose">Verstanden</button>
+          </div>
+
+          <!-- Scenario strip: always names the assumptions that produce the numbers below.
+               Chips jump to the matching control in step 3; content is filled by
+               updateScenarioUI() on every recalculation. -->
+          <div class="scenario-strip" id="scenarioStrip">
+            <span class="scenario-label" id="scenarioLabel"><i class="fa-solid fa-flask"></i> Prognose-Szenario</span>
+            <span class="scenario-chips" id="scenarioChips"></span>
+            <button type="button" class="scenario-switch" id="scenarioSwitch"></button>
+          </div>
+
           <!-- HERO: the donut is the focal point, with the net profit centered inside it -->
           <div class="result-hero">
             <div class="donut-wrap">
@@ -347,14 +450,23 @@
               </div>
             </div>
             <div class="chart-legend">
-              <span class="cl-item"><i style="background:#3b82f6"></i> Netto-Sparrate</span>
-              <span class="cl-item"><i style="background:#fbbf24"></i> Lohnsteuer</span>
-              <span class="cl-item"><i style="background:#f87171"></i> Gebühren &amp; KSt.</span>
-              <span class="cl-item"><i style="background:#10b981"></i> Netto-Gewinn</span>
+              <span class="cl-item"><i class="cl-savings"></i> Netto-Sparrate</span>
+              <span class="cl-item"><i class="cl-tax"></i> Lohnsteuer</span>
+              <span class="cl-item"><i class="cl-fees"></i> Gebühren &amp; KSt.</span>
+              <span class="cl-item"><i class="cl-profit"></i> Netto-Gewinn</span>
             </div>
           </div>
 
           <div class="result-breakdown-heading">Aufschlüsselung</div>
+
+          <!-- Stacked composition bar: same data & colors as the donut, lets the
+               proportions be read at a glance before diving into the rows. -->
+          <div class="calc-composition-bar" aria-hidden="true">
+            <span class="comp-seg cl-savings" id="compSavings"></span>
+            <span class="comp-seg cl-tax" id="compTax"></span>
+            <span class="comp-seg cl-fees" id="compFees"></span>
+            <span class="comp-seg cl-profit" id="compProfit"></span>
+          </div>
 
           <!-- Detailed Breakdown Table -->
           <div class="breakdown-details">
@@ -565,10 +677,12 @@
             <span class="badge badge-primary">3 Schritte</span>
           </div>
 
-          <div class="input-group-card group-stocks-savings">
-            <div class="input-group-header">
+          <div class="input-group-card group-stocks-savings collapsible-step open">
+            <div class="input-group-header" role="button" tabindex="0" aria-expanded="true">
               <span class="calc-step-num">1</span>
               <h4>Statements hochladen</h4>
+              <span class="calc-step-summary" id="pfSummaryStep1"></span>
+              <i class="fa-solid fa-chevron-down step-chevron"></i>
             </div>
             <div class="input-group-body">
               <div class="upload-zone" id="csvUploadZone">
@@ -591,6 +705,26 @@
                   <li><strong>CapTrader / IBKR Activity Statement:</strong> PDF-Jahresübersicht (z. B. 2024, 2025, 2026)</li>
                 </ul>
               </details>
+              <details class="formats-details">
+                <summary><i class="fa-solid fa-download"></i> Woher bekomme ich das EquatePlus-Statement?</summary>
+                <ol>
+                  <li>Bei <strong>EquatePlus</strong> einloggen</li>
+                  <li>Auf <strong>„Bibliothek“ (Library)</strong> klicken, dann <strong>„Dokumente &amp; Steuerbelege“ (Documents &amp; Tax Slips)</strong></li>
+                  <li>Auf <strong>„Download Plan Holdings Statement“</strong> klicken</li>
+                  <li><strong>Start- und Enddatum</strong> wählen – und das PDF hier oben ablegen</li>
+                </ol>
+                <p style="margin: 4px 0 6px 26px;">Alternativ funktionieren auch die <strong>Jahres-Statements</strong> oder die <strong>Quartals-Statements (Purchase Activity)</strong> – beide findest Du ebenfalls unter „Dokumente &amp; Steuerbelege“.</p>
+              </details>
+              <details class="formats-details">
+                <summary><i class="fa-solid fa-download"></i> Woher bekomme ich das CapTrader-/IBKR-Statement?</summary>
+                <ol>
+                  <li>Bei <strong>CapTrader</strong> einloggen</li>
+                  <li>Im Menü auf <strong>„Überweisen und Transferieren“</strong> klicken</li>
+                  <li><strong>„Kontoauszug“</strong> auswählen</li>
+                  <li>Zeitraum auf <strong>„Jährlich“</strong> oder <strong>„Seit Jahresbeginn“</strong> stellen</li>
+                  <li>Auf <strong>„PDF herunterladen“</strong> klicken – und das PDF hier oben ablegen</li>
+                </ol>
+              </details>
               <div id="csvUploadStatus" class="upload-status-message hidden-status"></div>
               <button id="btnClearPortfolio" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
                 <i class="fa-solid fa-trash-can"></i> Portfolio-Daten zurücksetzen
@@ -598,10 +732,12 @@
             </div>
           </div>
 
-          <div class="input-group-card group-taxes">
-            <div class="input-group-header">
+          <div class="input-group-card group-taxes collapsible-step open">
+            <div class="input-group-header" role="button" tabindex="0" aria-expanded="true">
               <span class="calc-step-num">2</span>
               <h4>Kurs prüfen</h4>
+              <span class="calc-step-summary" id="pfSummaryStep2"></span>
+              <i class="fa-solid fa-chevron-down step-chevron"></i>
             </div>
             <div class="input-group-body">
               <div class="form-row">
@@ -622,10 +758,12 @@
             </div>
           </div>
 
-          <div class="input-group-card group-selling">
-            <div class="input-group-header">
+          <div class="input-group-card group-selling collapsible-step open">
+            <div class="input-group-header" role="button" tabindex="0" aria-expanded="true">
               <span class="calc-step-num">3</span>
               <h4>Analysieren</h4>
+              <span class="calc-step-summary" id="pfSummaryStep3"></span>
+              <i class="fa-solid fa-chevron-down step-chevron"></i>
             </div>
             <div class="input-group-body">
               <button id="btnAnalyzePortfolio" class="btn btn-primary" style="width: 100%;" disabled>
@@ -919,6 +1057,16 @@
         </div>
       </div>
 
+      <!-- Steuerreport (Anlage KAP): realisierte Verkäufe pro Steuerjahr, FIFO,
+           EUR-Umrechnung zum jeweiligen Tageskurs (Kauf & Verkauf getrennt) -->
+      <div class="glass-card" id="portfolioTaxReportCard" style="margin-top: 30px; display: none;">
+        <div class="panel-header">
+          <h3><i class="fa-solid fa-file-invoice text-accent"></i> Steuerreport – Anlage KAP</h3>
+          <span class="badge badge-info" id="taxReportBadge">–</span>
+        </div>
+        <div id="taxReportContent"><!-- JS --></div>
+      </div>
+
       <!-- Detailed Transactions Table -->
 
       <div class="glass-card" id="portfolioTransactionsCard" style="margin-top: 30px; display: none;">
@@ -945,6 +1093,7 @@
             <tfoot id="equateplusBuyFoot"><!-- JS --></tfoot>
           </table>
         </div>
+        <button id="btnToggleAllBuys" class="btn btn-outline btn-sm" style="display: none;"></button>
         <div class="detail-note" id="equateplusBuyNote" style="margin-top: 8px;"><!-- JS --></div>
 
         <!-- ===================== CapTrader: BESTAND & VERKAUF-Seite ===================== -->
@@ -1010,7 +1159,7 @@
 
               <div class="form-group">
                 <label for="goalPrice"><i class="fa-solid fa-tag"></i> Zielbetrag (EUR)</label>
-                <input type="number" id="goalPrice" step="0.01" min="0" placeholder="z. B. 50.000">
+                <input type="text" id="goalPrice" inputmode="decimal" placeholder="z. B. 50.000">
               </div>
 
               <div class="upload-divider"><span>oder automatisch laden</span></div>
@@ -1030,6 +1179,9 @@
                 <img id="goalImage" src="" alt="Ziel" class="goal-product-img-lg">
               </div>
               <a id="goalLink" href="#" target="_blank" rel="noopener" class="goal-product-link" style="display: none; margin-top: 10px;"><i class="fa-solid fa-up-right-from-square"></i> Produkt ansehen</a>
+              <button id="btnClearGoal" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 15px; display: none;">
+                <i class="fa-solid fa-trash-can"></i> Sparziel zurücksetzen
+              </button>
             </div>
           </div>
 
@@ -1041,8 +1193,11 @@
             <div class="input-group-body">
               <div class="form-group">
                 <div class="label-with-value">
-                  <label for="inputStockGrowth"><i class="fa-solid fa-chart-line"></i> Erwartetes Wachstum (p.a.)</label>
-                  <span class="slider-val" id="valStockGrowth">7 %</span>
+                  <label for="inputStockGrowth"><i class="fa-solid fa-chart-line"></i> <span class="label-text">Erwartetes Wachstum (p.a.)</span></label>
+                  <input type="text" class="slider-val" id="valStockGrowth" value="7 %"
+                         inputmode="numeric" autocomplete="off" enterkeyhint="done"
+                         title="Klicken und Wert direkt eintippen"
+                         aria-label="Erwartetes Wachstum in Prozent pro Jahr – direkt eintippen oder Schieberegler nutzen">
                 </div>
                 <input type="range" id="inputStockGrowth" min="0" max="25" step="1" value="7">
                 <div class="input-helper">Der jährliche Kurszuwachs der IBM-Aktie verkürzt Deine Sparzeit durch Zinseszins-Effekte.</div>
@@ -1260,8 +1415,8 @@
       <div class="transfer-flow">
         <div class="flow-step">
           <div class="flow-icon"><i class="fa-solid fa-file-signature"></i></div>
-          <h4>1. Empfangsanweisung bei CapTrader / IBKR erstellen</h4>
-          <p>Erstelle eine Order bei CapTrader/IBKR, um die Aktien anzukündigen.</p>
+          <h4>1. Empfangsanweisung bei CapTrader / IBKR erstellen <span class="text-muted">(optional)</span></h4>
+          <p>Kündigt die eingehenden Aktien bei CapTrader/IBKR an. Nach Nutzer-Erfahrung nicht zwingend nötig – der Sendeauftrag in Schritt 2 reicht aus.</p>
           <button class="btn btn-outline btn-sm btn-show-details" data-target="details-step1">Anleitung anzeigen</button>
         </div>
         <div class="flow-arrow"><i class="fa-solid fa-arrow-right"></i></div>
@@ -1283,8 +1438,11 @@
         <!-- Step 1 Details -->
         <div class="glass-card transfer-details-card hidden-details" id="details-step1">
           <div class="card-header-with-close">
-            <h3><span class="step-badge">Schritt 1</span> Empfangsanweisung erstellen (CapTrader/IBKR)</h3>
+            <h3><span class="step-badge">Schritt 1</span> Empfangsanweisung erstellen (CapTrader/IBKR) – optional</h3>
             <button class="btn-close-details"><i class="fa-solid fa-xmark"></i></button>
+          </div>
+          <div class="detail-note" style="margin-bottom: 12px;">
+            <i class="fa-solid fa-circle-info"></i> <strong>Optional:</strong> Nach Erfahrung von Nutzern ist die Ankündigung bei IBKR <strong>nicht notwendig</strong> – das Auslösen des Transfers bei EquatePlus (Schritt 2) mit korrektem Broker-Code und Deiner Kontonummer reicht aus. Die Empfangsanweisung schadet aber nicht und kann die Zuordnung beschleunigen.
           </div>
           <ol class="styled-list">
             <li>Gehe im Menü auf <strong>Transfer & Zahlen / Positionen übertragen</strong>.</li>
@@ -1585,6 +1743,8 @@ Steuer darauf (z. B. 35 %):   26,25 €</code>
     </div>
   </footer>
 
+  <script src="vendor/gsap.min.js"></script>
+  <script src="vendor/ScrollTrigger.min.js"></script>
   <script src="app.js"></script>
   <script src="debug-portfolio.js"></script>
 </body>

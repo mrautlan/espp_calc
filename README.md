@@ -92,12 +92,6 @@ dividends, capital gains, and the **W-8BEN** form for reduced US withholding.
   tax).
 - **Historical USD/EUR rate at the purchase date** for an accurate EUR cost basis.
 
-### And a light theme 🌗
-
-Toggle dark/light from the header.
-
-![Light mode](docs/screenshots/calculator-light.png)
-
 ---
 
 ## Tech stack
@@ -110,7 +104,7 @@ Toggle dark/light from the header.
 | **Animations** | **GSAP** + ScrollTrigger (entrance choreography, counters, reveals). |
 | **PDF parsing** | **pdf.js**, running **100 % client-side**. |
 | **Icons & fonts** | **FontAwesome** + Inter / Outfit — self-hosted. |
-| **Styling** | A dark/light "glassmorphism" design system in `style.css` driven by CSS custom properties. |
+| **Styling** | A dark "glassmorphism" design system in `style.css` driven by CSS custom properties. |
 
 Every third-party asset is **vendored in `public/vendor/`** — there are **no CDNs and zero external
 asset requests**, so the page loads and parses PDFs fully offline. The server is only a thin proxy for
@@ -141,7 +135,7 @@ stale-on-error fallback, so visitors don't hammer the upstreams.
 ├── public/                # Frontend — served statically, no build step
 │   ├── index.html         # Single page, five tabs + first-visit welcome modal
 │   ├── app.js             # All client logic: calculator, PDF parsing, portfolio, goal tracker, charts
-│   ├── style.css          # Dark/light glassmorphism design system
+│   ├── style.css          # Dark glassmorphism design system
 │   ├── favicon.svg
 │   └── vendor/            # Self-hosted libs: pdf.js, Chart.js, GSAP+ScrollTrigger, FontAwesome, fonts
 ├── docs/screenshots/      # Images used in this README

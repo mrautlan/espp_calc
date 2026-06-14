@@ -2,9 +2,6 @@
 
 FROM node:20-alpine
 
-# server.js shells out to `curl` to fetch IBM prices from Yahoo Finance.
-RUN apk add --no-cache curl
-
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -23,7 +20,8 @@ EXPOSE 3002
 # Run as the unprivileged built-in "node" user.
 USER node
 
+# busybox wget ships with alpine — no extra packages needed for the healthcheck.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -fsS "http://localhost:${PORT}/" >/dev/null || exit 1
+  CMD wget -q -O /dev/null "http://localhost:${PORT}/" || exit 1
 
 CMD ["node", "server.js"]

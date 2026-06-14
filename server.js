@@ -1,234 +1,186 @@
 const express = require('express');
-const { exec } = require('child_process');
 const path = require('path');
 const https = require('https');
+const http = require('http');
+const zlib = require('zlib');
+const dns = require('dns').promises;
 
 const app = express();
 const PORT = process.env.PORT || 3002;
 
+// The single ticker this app tracks. One place to change if it ever needs to.
+const SYMBOL = process.env.STOCK_SYMBOL || 'IBM';
+
 // Serve static files from the root or a 'public' directory
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Fetch USD to EUR Exchange Rate from open.er-api.com (Backend helper)
+// ------------------------------------------------------------------
+// Tiny in-memory TTL cache with stale-on-error: Yahoo rate-limits
+// aggressively, so every visitor must NOT trigger a fresh upstream
+// request. If a refresh fails and we still hold an expired value,
+// serve that — stale beats a 500.
+// ------------------------------------------------------------------
+const cache = new Map(); // key -> { value, expires }
+async function withCache(key, ttlMs, fn) {
+  const hit = cache.get(key);
+  const now = Date.now();
+  if (hit && hit.expires > now) return hit.value;
+  try {
+    const value = await fn();
+    cache.set(key, { value, expires: now + ttlMs });
+    return value;
+  } catch (e) {
+    if (hit) return hit.value; // stale beats failure
+    throw e;
+  }
+}
+
+// Fetch + parse a Yahoo Finance chart URL (fetchHtml is defined below and hoisted).
+async function yahooChart(query) {
+  const url = `https://query2.finance.yahoo.com/v8/finance/chart/${query}`;
+  const body = await fetchHtml(url, 0, 'application/json');
+  if (body.trim().startsWith('<')) {
+    throw new Error('Yahoo Finance returned HTML instead of JSON (rate limited or blocked)');
+  }
+  const json = JSON.parse(body);
+  if (!json.chart || !json.chart.result || !json.chart.result[0]) {
+    throw new Error('Invalid response structure from Yahoo Finance');
+  }
+  return json.chart.result[0];
+}
+
+// Fetch USD to EUR Exchange Rate from open.er-api.com (cached: the feed updates daily)
 function getExchangeRate() {
-  return new Promise((resolve, reject) => {
-    https.get('https://open.er-api.com/v6/latest/USD', (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data);
-          if (json && json.rates && json.rates.EUR) {
-            resolve(json.rates.EUR);
-          } else {
-            resolve(0.92); // Reasonable fallback
-          }
-        } catch (e) {
-          resolve(0.92);
-        }
-      });
-    }).on('error', () => {
-      resolve(0.92); // Fallback
-    });
+  return withCache('fx_usd_eur', 60 * 60 * 1000, async () => {
+    const json = JSON.parse(await fetchHtml('https://open.er-api.com/v6/latest/USD', 0, 'application/json'));
+    if (json && json.rates && json.rates.EUR) return json.rates.EUR;
+    throw new Error('no EUR rate in response');
+  }).catch(() => 0.92); // Reasonable fallback
+}
+
+// Current stock quote (cached 60 s — plenty "live" for a salary tool).
+function getStockPrice() {
+  return withCache(`quote_${SYMBOL}`, 60 * 1000, async () => {
+    const result = await yahooChart(SYMBOL);
+    return {
+      price: result.meta.regularMarketPrice,
+      previousClose: result.meta.previousClose
+    };
   });
 }
 
-// Fetch IBM stock price from Yahoo Finance via curl (to bypass anti-bot and CORS)
-function getIBMPrice() {
-  return new Promise((resolve, reject) => {
-    const url = 'https://query2.finance.yahoo.com/v8/finance/chart/IBM';
-    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    const cmd = `curl -s -L -H "User-Agent: ${userAgent}" -H "Accept: application/json" "${url}"`;
-
-    exec(cmd, (error, stdout, stderr) => {
-      if (error) {
-        return reject(error);
-      }
-      try {
-        const json = JSON.parse(stdout);
-        const result = json.chart.result[0];
-        const price = result.meta.regularMarketPrice;
-        const previousClose = result.meta.previousClose;
-        resolve({ price, previousClose });
-      } catch (e) {
-        reject(new Error('Failed to parse Yahoo Finance response'));
-      }
-    });
-  });
-}
-
-// Endpoint to get historical IBM stock prices
+// Endpoint to get historical stock prices (monthly averages over the last N months)
 app.get('/api/stock/historical', async (req, res) => {
   const months = parseInt(req.query.months) || 12;
-  
-  try {
-    const endDate = new Date();
-    const startDate = new Date();
-    startDate.setMonth(startDate.getMonth() - (months + 1));
-    
-    const period1 = Math.floor(startDate.getTime() / 1000);
-    const period2 = Math.floor(endDate.getTime() / 1000);
 
-    // For long ranges use Yahoo's native monthly bars: daily data over decades is huge and
-    // Yahoo silently coarsens the granularity anyway. IBM data reaches back to 1962-01.
-    const interval = months > 119 ? '1mo' : '1d';
-    const url = `https://query2.finance.yahoo.com/v8/finance/chart/IBM?period1=${period1}&period2=${period2}&interval=${interval}`;
-    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    const cmd = `curl -s -L -H "User-Agent: ${userAgent}" -H "Accept: application/json" -H "Accept-Language: en-US,en;q=0.9" "${url}"`;
-    
-    exec(cmd, async (error, stdout, stderr) => {
-      if (error) {
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to fetch historical data',
-          error: error.message
+  try {
+    // Monthly averages barely change — cache the whole series per month count.
+    const recentMonths = await withCache(`hist_${SYMBOL}_${months}`, 6 * 60 * 60 * 1000, async () => {
+      const endDate = new Date();
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - (months + 1));
+
+      const period1 = Math.floor(startDate.getTime() / 1000);
+      const period2 = Math.floor(endDate.getTime() / 1000);
+
+      // For long ranges use Yahoo's native monthly bars: daily data over decades is huge and
+      // Yahoo silently coarsens the granularity anyway. IBM data reaches back to 1962-01.
+      const interval = months > 119 ? '1mo' : '1d';
+      const result = await yahooChart(`${SYMBOL}?period1=${period1}&period2=${period2}&interval=${interval}`);
+      const timestamps = result.timestamp;
+      const prices = result.indicators.quote[0].close;
+
+      // Group by month and calculate averages
+      const monthlyPrices = {};
+      for (let i = 0; i < timestamps.length; i++) {
+        const date = new Date(timestamps[i] * 1000);
+        const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+        if (!monthlyPrices[monthKey]) {
+          monthlyPrices[monthKey] = [];
+        }
+        if (prices[i] !== null) {
+          monthlyPrices[monthKey].push(prices[i]);
+        }
+      }
+
+      const monthlyAverages = [];
+      for (const month of Object.keys(monthlyPrices).sort()) {
+        const pricesInMonth = monthlyPrices[month];
+        monthlyAverages.push({
+          month: month,
+          averagePrice: pricesInMonth.reduce((sum, p) => sum + p, 0) / pricesInMonth.length
         });
       }
-      
-      try {
-        // Check if response is HTML (error page)
-        if (stdout.trim().startsWith('<')) {
-          throw new Error('Yahoo Finance returned HTML instead of JSON (rate limited or blocked)');
-        }
-        
-        const json = JSON.parse(stdout);
-        
-        if (!json.chart || !json.chart.result || !json.chart.result[0]) {
-          throw new Error('Invalid response structure from Yahoo Finance');
-        }
-        
-        const result = json.chart.result[0];
-        const timestamps = result.timestamp;
-        const prices = result.indicators.quote[0].close;
-        
-        // Get exchange rate
-        const exchangeRate = await getExchangeRate();
-        
-        // Group by month and calculate averages
-        const monthlyPrices = {};
-        
-        for (let i = 0; i < timestamps.length; i++) {
-          const date = new Date(timestamps[i] * 1000);
-          const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-          
-          if (!monthlyPrices[monthKey]) {
-            monthlyPrices[monthKey] = [];
-          }
-          
-          if (prices[i] !== null) {
-            monthlyPrices[monthKey].push(prices[i]);
-          }
-        }
-        
-        // Calculate monthly averages
-        const monthlyAverages = [];
-        const sortedMonths = Object.keys(monthlyPrices).sort();
-        
-        for (const month of sortedMonths) {
-          const pricesInMonth = monthlyPrices[month];
-          const average = pricesInMonth.reduce((sum, p) => sum + p, 0) / pricesInMonth.length;
-          monthlyAverages.push({
-            month: month,
-            averagePrice: average
-          });
-        }
-        
-        // Take only the last N months
-        const recentMonths = monthlyAverages.slice(-months);
-        
-        res.json({
-          success: true,
-          months: recentMonths,
-          exchangeRate: exchangeRate,
-          timestamp: Date.now()
-        });
-      } catch (e) {
-        res.status(500).json({
-          success: false,
-          message: 'Failed to parse historical data',
-          error: e.message
-        });
-      }
+
+      // Take only the last N months
+      return monthlyAverages.slice(-months);
+    });
+
+    res.json({
+      success: true,
+      months: recentMonths,
+      exchangeRate: await getExchangeRate(),
+      timestamp: Date.now()
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error processing request',
+      message: 'Failed to fetch historical data',
       error: error.message
     });
   }
 });
 
-// Endpoint to get historical IBM stock prices for a specific date range
-app.get('/api/stock/historical-range', async (req, res) => {
+// Clamp + hour-align a client-supplied unix range so equivalent requests share one
+// cache entry (the frontend passes period2 = Date.now(), unique on every reload —
+// hour granularity is irrelevant for daily/monthly bars).
+function normalizeRange(req) {
   const period1 = parseInt(req.query.period1);
-  const period2 = parseInt(req.query.period2);
-  
-  if (!period1 || !period2) {
+  let period2 = parseInt(req.query.period2);
+  if (!period1 || !period2) return null;
+  period2 = Math.min(period2, Math.floor(Date.now() / 1000));
+  period2 = Math.floor(period2 / 3600) * 3600;
+  return { period1, period2 };
+}
+
+// Endpoint to get historical stock prices for a specific date range
+app.get('/api/stock/historical-range', async (req, res) => {
+  const range = normalizeRange(req);
+  if (!range) {
     return res.status(400).json({
       success: false,
       message: 'Missing period1 or period2 parameters'
     });
   }
-  
+
   try {
-    const url = `https://query2.finance.yahoo.com/v8/finance/chart/IBM?period1=${period1}&period2=${period2}&interval=1d`;
-    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    const cmd = `curl -s -L -H "User-Agent: ${userAgent}" -H "Accept: application/json" -H "Accept-Language: en-US,en;q=0.9" "${url}"`;
-    
-    exec(cmd, async (error, stdout, stderr) => {
-      if (error) {
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to fetch historical data',
-          error: error.message
-        });
+    const priceData = await withCache(`range_${SYMBOL}_${range.period1}_${range.period2}`, 6 * 60 * 60 * 1000, async () => {
+      const result = await yahooChart(`${SYMBOL}?period1=${range.period1}&period2=${range.period2}&interval=1d`);
+      const timestamps = result.timestamp;
+      const prices = result.indicators.quote[0].close;
+
+      // Build array of {timestamp, price}
+      const data = [];
+      for (let i = 0; i < timestamps.length; i++) {
+        if (prices[i] !== null) {
+          data.push({
+            timestamp: timestamps[i] * 1000, // Convert to milliseconds
+            price: prices[i]
+          });
+        }
       }
-      
-      try {
-        // Check if response is HTML (error page)
-        if (stdout.trim().startsWith('<')) {
-          throw new Error('Yahoo Finance returned HTML instead of JSON (rate limited or blocked)');
-        }
-        
-        const json = JSON.parse(stdout);
-        
-        if (!json.chart || !json.chart.result || !json.chart.result[0]) {
-          throw new Error('Invalid response structure from Yahoo Finance');
-        }
-        
-        const result = json.chart.result[0];
-        const timestamps = result.timestamp;
-        const prices = result.indicators.quote[0].close;
-        
-        // Build array of {timestamp, price}
-        const priceData = [];
-        for (let i = 0; i < timestamps.length; i++) {
-          if (prices[i] !== null) {
-            priceData.push({
-              timestamp: timestamps[i] * 1000, // Convert to milliseconds
-              price: prices[i]
-            });
-          }
-        }
-        
-        res.json({
-          success: true,
-          prices: priceData,
-          count: priceData.length
-        });
-      } catch (e) {
-        res.status(500).json({
-          success: false,
-          message: 'Failed to parse historical data',
-          error: e.message
-        });
-      }
+      return data;
+    });
+
+    res.json({
+      success: true,
+      prices: priceData,
+      count: priceData.length
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error processing request',
+      message: 'Failed to fetch historical data',
       error: error.message
     });
   }
@@ -236,84 +188,53 @@ app.get('/api/stock/historical-range', async (req, res) => {
 
 // Endpoint to get historical USD/EUR exchange rates for a specific date range
 app.get('/api/forex/historical-range', async (req, res) => {
-  const period1 = parseInt(req.query.period1);
-  const period2 = parseInt(req.query.period2);
-  
-  if (!period1 || !period2) {
+  const range = normalizeRange(req);
+  if (!range) {
     return res.status(400).json({
       success: false,
       message: 'Missing period1 or period2 parameters'
     });
   }
-  
+
   try {
-    const fxInterval = (period2 - period1) > 10 * 365.25 * 86400 ? '1mo' : '1d';
-    const url = `https://query2.finance.yahoo.com/v8/finance/chart/USDEUR=X?period1=${period1}&period2=${period2}&interval=${fxInterval}`;
-    const userAgent = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    const cmd = `curl -s -L -H "User-Agent: ${userAgent}" -H "Accept: application/json" -H "Accept-Language: en-US,en;q=0.9" "${url}"`;
-    
-    exec(cmd, async (error, stdout, stderr) => {
-      if (error) {
-        return res.status(500).json({
-          success: false,
-          message: 'Failed to fetch historical forex data',
-          error: error.message
-        });
+    const priceData = await withCache(`fxrange_${range.period1}_${range.period2}`, 6 * 60 * 60 * 1000, async () => {
+      const fxInterval = (range.period2 - range.period1) > 10 * 365.25 * 86400 ? '1mo' : '1d';
+      const result = await yahooChart(`USDEUR=X?period1=${range.period1}&period2=${range.period2}&interval=${fxInterval}`);
+      const timestamps = result.timestamp;
+      const prices = result.indicators.quote[0].close;
+
+      const data = [];
+      for (let i = 0; i < timestamps.length; i++) {
+        if (prices[i] !== null && prices[i] !== undefined) {
+          data.push({
+            timestamp: timestamps[i] * 1000,
+            rate: prices[i]
+          });
+        }
       }
-      
-      try {
-        if (stdout.trim().startsWith('<')) {
-          throw new Error('Yahoo Finance returned HTML instead of JSON');
-        }
-        
-        const json = JSON.parse(stdout);
-        
-        if (!json.chart || !json.chart.result || !json.chart.result[0]) {
-          throw new Error('Invalid response structure from Yahoo Finance');
-        }
-        
-        const result = json.chart.result[0];
-        const timestamps = result.timestamp;
-        const prices = result.indicators.quote[0].close;
-        
-        const priceData = [];
-        for (let i = 0; i < timestamps.length; i++) {
-          if (prices[i] !== null && prices[i] !== undefined) {
-            priceData.push({
-              timestamp: timestamps[i] * 1000,
-              rate: prices[i]
-            });
-          }
-        }
-        
-        res.json({
-          success: true,
-          rates: priceData,
-          count: priceData.length
-        });
-      } catch (e) {
-        res.status(500).json({
-          success: false,
-          message: 'Failed to parse historical forex data',
-          error: e.message
-        });
-      }
+      return data;
+    });
+
+    res.json({
+      success: true,
+      rates: priceData,
+      count: priceData.length
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Error processing request',
+      message: 'Failed to fetch historical forex data',
       error: error.message
     });
   }
 });
 
-// Endpoint to get current IBM stock price (for portfolio module)
+// Endpoint to get current stock price (for portfolio module)
 app.get('/api/stock/current', async (req, res) => {
   try {
     const exchangeRate = await getExchangeRate();
-    const stockData = await getIBMPrice();
-    
+    const stockData = await getStockPrice();
+
     res.json({
       success: true,
       price: stockData.price,
@@ -330,12 +251,12 @@ app.get('/api/stock/current', async (req, res) => {
   }
 });
 
-// Endpoint to get current IBM stock price in EUR and USD (legacy)
+// Endpoint to get current stock price in EUR and USD (legacy)
 app.get('/api/stock', async (req, res) => {
   try {
     const exchangeRate = await getExchangeRate();
-    const stockData = await getIBMPrice();
-    
+    const stockData = await getStockPrice();
+
     const usdPrice = stockData.price;
     const eurPrice = parseFloat((usdPrice * exchangeRate).toFixed(2));
     const previousCloseUSD = stockData.previousClose;
@@ -368,10 +289,6 @@ app.get('/api/stock', async (req, res) => {
 // ============================================================
 // Amazon product goal extraction (for the goal tracker)
 // ============================================================
-const zlib = require('zlib');
-const http = require('http');
-const dns = require('dns').promises;
-
 const AMAZON_HOST = /(^|\.)amazon\.(de|com|co\.uk|fr|it|es|nl|se|pl|com\.be|com\.tr|ca|com\.mx|co\.jp|in|com\.au|ae|sa|eg)$/i;
 
 // Self-hosted SearXNG instance (reachable only inside the deployment network). JSON output must be
@@ -398,6 +315,10 @@ function isPrivateIp(ip) {
   );
 }
 
+// Validates the URL and returns it together with the resolved address, so the
+// caller can PIN the connection to exactly the IP that was checked (otherwise a
+// DNS-rebinding host could pass the check and then resolve to a private IP for
+// the actual request).
 async function assertSafeUrl(targetUrl) {
   let u;
   try { u = new URL(targetUrl); } catch { throw new Error('Ungültiger Link.'); }
@@ -406,21 +327,36 @@ async function assertSafeUrl(targetUrl) {
   // IP literal → check directly; hostname → resolve and check every address.
   if (/^[0-9.]+$/.test(host) || host.includes(':')) {
     if (isPrivateIp(host)) throw new Error('Private Adressen sind nicht erlaubt.');
-  } else {
-    if (/^localhost$|\.local$/i.test(host)) throw new Error('Private Hosts sind nicht erlaubt.');
-    const addrs = await dns.lookup(host, { all: true });
-    if (addrs.some(a => isPrivateIp(a.address))) throw new Error('Host löst auf eine private Adresse auf.');
+    return { u, address: host, family: host.includes(':') ? 6 : 4 };
   }
-  return u;
+  if (/^localhost$|\.local$/i.test(host)) throw new Error('Private Hosts sind nicht erlaubt.');
+  const addrs = await dns.lookup(host, { all: true });
+  if (addrs.length === 0) throw new Error('Host nicht auflösbar.');
+  if (addrs.some(a => isPrivateIp(a.address))) throw new Error('Host löst auf eine private Adresse auf.');
+  return { u, address: addrs[0].address, family: addrs[0].family };
 }
 
 // Fetch a URL with Node https (no shell -> no command injection), following redirects,
 // and transparently decompressing gzip/deflate/br responses.
-function fetchHtml(targetUrl, redirects = 0, accept = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8') {
+//
+// guard=true is for URLs that came from a user or from search results: EVERY hop
+// (including each redirect target — a hostile page can 302 to an internal address)
+// is validated by assertSafeUrl and the socket connects to the exact IP that was
+// validated. guard=false is for server-side constructed URLs (Yahoo, SearXNG).
+async function fetchHtml(targetUrl, redirects = 0, accept = 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8', guard = false) {
+  if (redirects > 5) throw new Error('Too many redirects');
+
+  let u;
+  let pinned = null; // { address, family } from assertSafeUrl when guarded
+  if (guard) {
+    const safe = await assertSafeUrl(targetUrl);
+    u = safe.u;
+    pinned = { address: safe.address, family: safe.family };
+  } else {
+    try { u = new URL(targetUrl); } catch { throw new Error('Invalid URL'); }
+  }
+
   return new Promise((resolve, reject) => {
-    if (redirects > 5) return reject(new Error('Too many redirects'));
-    let u;
-    try { u = new URL(targetUrl); } catch { return reject(new Error('Invalid URL')); }
     const transport = u.protocol === 'http:' ? http : https;
     const options = {
       hostname: u.hostname,
@@ -434,11 +370,18 @@ function fetchHtml(targetUrl, redirects = 0, accept = 'text/html,application/xht
         'Accept-Encoding': 'gzip, deflate, br'
       }
     };
+    if (pinned) {
+      // Pin the connection to the address we validated (TLS SNI/Host still use the hostname).
+      options.lookup = (hostname, opts, cb) => {
+        if (opts && opts.all) return cb(null, [{ address: pinned.address, family: pinned.family }]);
+        cb(null, pinned.address, pinned.family);
+      };
+    }
     const reqObj = transport.get(options, (resp) => {
       if (resp.statusCode >= 300 && resp.statusCode < 400 && resp.headers.location) {
         resp.resume();
         const next = new URL(resp.headers.location, targetUrl).href;
-        return resolve(fetchHtml(next, redirects + 1));
+        return resolve(fetchHtml(next, redirects + 1, accept, guard));
       }
       let stream = resp;
       const enc = (resp.headers['content-encoding'] || '').toLowerCase();
@@ -622,11 +565,11 @@ app.get('/api/product', async (req, res) => {
     return res.status(400).json({ success: false, message: 'Kein Link angegeben.' });
   }
   let u;
-  try { u = await assertSafeUrl(url); }
+  try { ({ u } = await assertSafeUrl(url)); }
   catch (e) { return res.status(400).json({ success: false, message: e.message }); }
   const host = u.hostname;
   try {
-    const html = await fetchHtml(url);
+    const html = await fetchHtml(url, 0, undefined, true); // guarded: user-supplied URL
     if (!html) throw new Error('Leere Antwort');
 
     const { title, image, price } = extractProduct(html, host);
@@ -687,8 +630,7 @@ app.get('/api/resolve-goal', async (req, res) => {
   const cands = [];
   for (const c of candidates) {
     try {
-      await assertSafeUrl(c.url);
-      const html = await fetchHtml(c.url);
+      const html = await fetchHtml(c.url, 0, undefined, true); // guarded: URL from search results
       const p = extractProduct(html, new URL(c.url).hostname);
       cands.push({ ...p, url: c.url, host: new URL(c.url).hostname });
     } catch { /* skip this candidate */ }

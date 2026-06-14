@@ -50,12 +50,12 @@
         </div>
       </div>
       
-      <nav>
-        <button class="nav-tab active" data-tab="calculator"><i class="fa-solid fa-calculator"></i> Rechner</button>
-        <button class="nav-tab" data-tab="portfolio"><i class="fa-solid fa-chart-line"></i> Portfolio-Analyse</button>
-        <button class="nav-tab" data-tab="porsche"><i class="fa-solid fa-bullseye"></i> Ziel-Tracker</button>
-        <button class="nav-tab" data-tab="guide"><i class="fa-solid fa-route"></i> Reiseführer</button>
-        <button class="nav-tab" data-tab="taxes"><i class="fa-solid fa-receipt"></i> Steuern (DE)</button>
+      <nav role="tablist" aria-label="Bereiche">
+        <button class="nav-tab active" id="navtab-calculator" role="tab" aria-selected="true" aria-controls="tab-calculator" data-tab="calculator"><i class="fa-solid fa-calculator"></i> Rechner</button>
+        <button class="nav-tab" id="navtab-portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio" data-tab="portfolio"><i class="fa-solid fa-chart-line"></i> Portfolio-Analyse</button>
+        <button class="nav-tab" id="navtab-porsche" role="tab" aria-selected="false" aria-controls="tab-porsche" data-tab="porsche"><i class="fa-solid fa-bullseye"></i> Ziel-Tracker</button>
+        <button class="nav-tab" id="navtab-guide" role="tab" aria-selected="false" aria-controls="tab-guide" data-tab="guide"><i class="fa-solid fa-route"></i> Anleitung</button>
+        <button class="nav-tab" id="navtab-taxes" role="tab" aria-selected="false" aria-controls="tab-taxes" data-tab="taxes"><i class="fa-solid fa-receipt"></i> Steuern (DE)</button>
       </nav>
       
       <div class="header-right">
@@ -126,7 +126,7 @@
         </button>
         <button type="button" class="welcome-feature" data-goto-tab="guide">
           <i class="fa-solid fa-route"></i>
-          <div><strong>Reiseführer</strong><span>Schritt für Schritt durchs ESPP – vom Beitritt bis zum Verkauf.</span></div>
+          <div><strong>Anleitung</strong><span>Schritt für Schritt durchs ESPP – vom Beitritt bis zum Verkauf.</span></div>
           <i class="fa-solid fa-chevron-right wf-chevron"></i>
         </button>
         <button type="button" class="welcome-feature" data-goto-tab="taxes">
@@ -149,7 +149,7 @@
   
   <main class="container">
     <!-- CALCULATOR TAB -->
-    <section id="tab-calculator" class="tab-content active">
+    <section id="tab-calculator" class="tab-content active" role="tabpanel" aria-labelledby="navtab-calculator">
       <div class="hero-section">
         <h2>Lohnt sich das ESPP für Dich?</h2>
         <p>Dein Netto-Gewinn aus dem IBM-Aktienprogramm – nach deutschen Steuern, Freibetrag und Gebühren,
@@ -487,14 +487,14 @@
               <span class="detail-val text-warning" id="rowDiscountTax">0,00 €</span>
             </div>
             <div class="detail-row warning-row">
-              <span class="detail-label"><i class="fa-solid fa-scale-unbalanced text-warning"></i> Kapitalertragsteuer beim Verkauf <span class="tooltip-trigger" data-tooltip="Die Differenz zwischen dem Verkaufspreis und dem unrabattierten Einstandspreis (Costbasis) wird mit der deutschen Abgeltungsteuer (25% + Soli = 26,375%) belegt.">i</span></span>
+              <span class="detail-label"><i class="fa-solid fa-scale-unbalanced text-warning"></i> Kapitalertragsteuer beim Verkauf <span class="tooltip-trigger" data-tooltip="Die Differenz zwischen dem Verkaufspreis und dem unrabattierten Einstandspreis (Costbasis) wird mit der deutschen Abgeltungsteuer (25% + Soli = 26,375%) belegt. Liegt Dein eingestellter Steuersatz darunter, rechnet der Rechner automatisch mit diesem (Günstigerprüfung – vereinfacht über den Grenzsteuersatz; tatsächlich prüft das Finanzamt den Durchschnittssteuersatz des Gesamteinkommens).">i</span></span>
               <span class="detail-val text-warning" id="rowCapitalGainsTax">0,00 €</span>
             </div>
             <div class="detail-note">
               <i class="fa-solid fa-circle-info"></i> Ein evtl. noch offener <strong>Sparer-Pauschbetrag</strong> (1.000 € / 2.000 € zusammenveranlagt) ist hier nicht berücksichtigt – falls zutreffend, kann er in der Steuererklärung geltend gemacht werden.
             </div>
             <div class="detail-note" id="germanBrokerNote" style="display: none; color: var(--warning);">
-              <i class="fa-solid fa-triangle-exclamation"></i> <strong>Steuer-Falle deutscher Broker:</strong> Ohne bekannte Anschaffungskosten behält die Bank <strong>30 % des Brutto-Erlöses</strong> als Ersatzbemessungsgrundlage ein (§ 43a Abs. 2 EStG) – statt 26,375 % nur auf den Gewinn. Der zu viel einbehaltene Betrag ist über die Steuererklärung (mit Nachweis der Costbasis) teils erstattbar.
+              <i class="fa-solid fa-triangle-exclamation"></i> <strong>Steuer-Falle deutscher Broker:</strong> Ohne bekannte Anschaffungskosten behält die Bank beim Verkauf <strong>26,375 % auf 30 % des Brutto-Erlöses</strong> als Ersatzbemessungsgrundlage ein (§ 43a Abs. 2 EStG) – statt nur auf den echten Gewinn. Bei kleinen Gewinnen wird dadurch <strong>zu viel</strong> einbehalten (über die Steuererklärung mit Nachweis der Costbasis erstattbar); bei großen Kursgewinnen (z.&nbsp;B. langer Haltedauer) liegt der echte Gewinn über dieser Pauschale und Du schuldest die volle Abgeltungsteuer auf den <strong>tatsächlichen Gewinn</strong>. Der Rechner zeigt daher den höheren der beiden Beträge.
             </div>
             <div class="detail-row">
               <span class="detail-label"><i class="fa-solid fa-coins"></i> Transaktionskosten & Gebühren</span>
@@ -611,7 +611,7 @@
     </section>
 
     <!-- PORTFOLIO ANALYSIS TAB -->
-    <section id="tab-portfolio" class="tab-content">
+    <section id="tab-portfolio" class="tab-content" role="tabpanel" aria-labelledby="navtab-portfolio">
       <div class="hero-section">
         <h2>Portfolio-Analyse</h2>
         <p>Lade Deine ESPP-Transaktionshistorie und CapTrader-/IBKR-Auszüge hoch, um Dein Portfolio zu analysieren.</p>
@@ -674,7 +674,7 @@
         <div class="glass-card panel-inputs">
           <div class="panel-header">
             <h3><i class="fa-solid fa-file-invoice"></i> Statements importieren</h3>
-            <span class="badge badge-primary">3 Schritte</span>
+            <span class="badge badge-primary">1 Schritt</span>
           </div>
 
           <div class="input-group-card group-stocks-savings collapsible-step open">
@@ -726,52 +726,14 @@
                 </ol>
               </details>
               <div id="csvUploadStatus" class="upload-status-message hidden-status"></div>
+              <div class="input-helper" style="margin-top: 10px;">
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Die Analyse startet <strong>automatisch</strong> nach dem Upload
+                und bewertet Deinen Bestand zum <strong>Live-Kurs</strong> – Ergebnisse erscheinen rechts und weiter
+                unten (inkl. Verkaufs-Simulator, in dem Du einen eigenen Verkaufskurs simulieren kannst).
+              </div>
               <button id="btnClearPortfolio" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
                 <i class="fa-solid fa-trash-can"></i> Portfolio-Daten zurücksetzen
               </button>
-            </div>
-          </div>
-
-          <div class="input-group-card group-taxes collapsible-step open">
-            <div class="input-group-header" role="button" tabindex="0" aria-expanded="true">
-              <span class="calc-step-num">2</span>
-              <h4>Kurs prüfen</h4>
-              <span class="calc-step-summary" id="pfSummaryStep2"></span>
-              <i class="fa-solid fa-chevron-down step-chevron"></i>
-            </div>
-            <div class="input-group-body">
-              <div class="form-row">
-                <div class="form-group col">
-                  <label for="portfolioCurrentPrice"><i class="fa-solid fa-dollar-sign"></i> Verkaufskurs (USD)</label>
-                  <div class="input-inline-wrap">
-                    <input type="number" id="portfolioCurrentPrice" step="0.01" value="180.00">
-                    <button id="btnFetchPortfolioPrice" title="Live-Kurs laden"><i class="fa-solid fa-arrows-rotate"></i></button>
-                  </div>
-                  <div class="input-subtitle">Wird automatisch geladen – bei Bedarf anpassen.</div>
-                </div>
-                <div class="form-group col">
-                  <label for="portfolioExchangeRate"><i class="fa-solid fa-euro-sign"></i> Wechselkurs USD/EUR</label>
-                  <input type="number" id="portfolioExchangeRate" step="0.0001" value="0.92" readonly>
-                  <div class="input-subtitle">Live-Kurs, wird automatisch gesetzt.</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="input-group-card group-selling collapsible-step open">
-            <div class="input-group-header" role="button" tabindex="0" aria-expanded="true">
-              <span class="calc-step-num">3</span>
-              <h4>Analysieren</h4>
-              <span class="calc-step-summary" id="pfSummaryStep3"></span>
-              <i class="fa-solid fa-chevron-down step-chevron"></i>
-            </div>
-            <div class="input-group-body">
-              <button id="btnAnalyzePortfolio" class="btn btn-primary" style="width: 100%;" disabled>
-                <i class="fa-solid fa-chart-line"></i> Portfolio analysieren
-              </button>
-              <div class="input-helper" style="margin-top: 10px;">
-                Zeigt Bestand, Einstand, aktuellen Wert und Deinen Netto-Gewinn bei Verkauf – inkl. Verkaufs-Simulator weiter unten.
-              </div>
             </div>
           </div>
         </div>
@@ -782,14 +744,21 @@
             <h3><i class="fa-solid fa-chart-pie"></i> Portfolio-Übersicht</h3>
             <span class="badge badge-success">Ergebnisse</span>
           </div>
-          
+
+          <!-- Valuation context: the live price + FX every figure below is computed with.
+               Read-only by design — what-if sell prices live in the Verkaufs-Simulator. -->
+          <div class="portfolio-price-line" id="portfolioPriceLine">
+            <span class="ppl-text" id="portfolioPriceText"><i class="fa-solid fa-circle-notch fa-spin"></i> Lade Live-Kurs…</span>
+            <button id="btnFetchPortfolioPrice" class="ppl-refresh" type="button" title="Live-Kurs neu laden" aria-label="Live-Kurs neu laden"><i class="fa-solid fa-arrows-rotate"></i></button>
+          </div>
+
           <div id="portfolioResults" class="portfolio-results-container">
             <div class="calc-empty-state">
               <div class="empty-state-icon"><i class="fa-solid fa-chart-line"></i></div>
               <h4>Noch keine Analyse</h4>
-              <p>Lade links in <strong>Schritt 1</strong> Deine Statements (PDF) hoch und klicke auf
-              <strong>„Portfolio analysieren“</strong> – hier erscheinen dann Dein Bestand, der aktuelle
-              Wert und Dein Netto-Gewinn bei Verkauf.</p>
+              <p>Lade links in <strong>Schritt 1</strong> Deine Statements (PDF) hoch – die Analyse
+              startet automatisch und hier erscheinen Dein Bestand, der aktuelle Wert und Dein
+              Netto-Gewinn bei Verkauf.</p>
             </div>
           </div>
         </div>
@@ -1129,10 +1098,10 @@
     </section>
 
     <!-- PORSCHE TAB -->
-    <section id="tab-porsche" class="tab-content">
+    <section id="tab-porsche" class="tab-content" role="tabpanel" aria-labelledby="navtab-porsche">
       <div class="hero-section">
         <h2>Ziel-Tracker</h2>
-        <p>Verfolge Deinen Weg zu Deinem Ziel durch den Verkauf von IBM Aktien. Lege Deinen Zielbetrag fest – oder lade ein Produkt per Link bzw. Suchbegriff.</p>
+        <p>Verfolge Deinen Weg zu Deinem Ziel durch den Verkauf von IBM Aktien. Gib einfach ein, was Du Dir wünschst – auf Wunsch lädt das Tool Preis &amp; Bild automatisch dazu.</p>
       </div>
       
       <div class="grid-2col">
@@ -1149,12 +1118,19 @@
               <h4>Ziel festlegen</h4>
             </div>
             <div class="input-group-body">
+              <!-- ONE entry point: the goal field takes a name, a search term or a shop
+                   link. "Preis & Bild laden" is an optional enrichment, not a second mode. -->
               <div class="form-group">
-                <label for="goalName" class="goal-name-label"><i class="fa-solid fa-flag-checkered"></i> Bezeichnung des Ziels</label>
+                <label for="goalName" class="goal-name-label"><i class="fa-solid fa-flag-checkered"></i> Was ist Dein Ziel?</label>
                 <div class="goal-name-field">
-                  <input type="text" id="goalName" class="goal-name-input" placeholder="z. B. Traumreise, Laptop, Auto…" value="">
+                  <input type="text" id="goalName" class="goal-name-input" enterkeyhint="search" placeholder="z. B. Traumreise, „PlayStation 5“ oder Produktlink…" value="">
                   <i class="fa-solid fa-pen goal-name-edit-icon"></i>
                 </div>
+                <div class="goal-fetch-row">
+                  <button id="btnLoadGoal" type="button" class="goal-load-btn"><i class="fa-solid fa-wand-magic-sparkles"></i> Preis &amp; Bild laden</button>
+                  <span class="goal-fetch-hint">optional – findet Preis &amp; Produktbild im Netz</span>
+                </div>
+                <div id="goalStatus" class="goal-status"></div>
               </div>
 
               <div class="form-group">
@@ -1162,19 +1138,7 @@
                 <input type="text" id="goalPrice" inputmode="decimal" placeholder="z. B. 50.000">
               </div>
 
-              <div class="upload-divider"><span>oder automatisch laden</span></div>
-
-              <!-- Ziel per Link oder Freitext laden (Suche via SearXNG) -->
-              <div class="goal-url-section">
-                <label for="goalUrl"><i class="fa-solid fa-magnifying-glass"></i> Produkt suchen oder Link einfügen</label>
-                <div class="goal-url-row">
-                  <input type="text" id="goalUrl" placeholder="Produktlink oder Suchbegriff (z. B. „PlayStation 5 Pro“)…">
-                  <button id="btnLoadGoal" type="button" class="goal-load-btn"><i class="fa-solid fa-cloud-arrow-down"></i> Laden</button>
-                </div>
-                <div id="goalStatus" class="goal-status"></div>
-              </div>
-
-              <!-- Produktbild (nur falls vorhanden) -->
+              <!-- Product photo card: only shown when a fetched goal actually has an image -->
               <div id="goalImageWrap" class="goal-image-wrap" style="display: none;">
                 <img id="goalImage" src="" alt="Ziel" class="goal-product-img-lg">
               </div>
@@ -1213,9 +1177,9 @@
             <div class="calc-empty-state">
               <div class="empty-state-icon"><i class="fa-solid fa-bullseye"></i></div>
               <h4>Noch kein Ziel festgelegt</h4>
-              <p>Gib links in <strong>Schritt 1</strong> Deinen <strong>Zielbetrag</strong> ein – oder lade ein
-              Produkt per Link bzw. Suchbegriff. Hier erscheinen dann Dein Spar-Fortschritt, die Projektion
-              und wie viele IBM-Aktien Du für das Ziel verkaufen müsstest.</p>
+              <p>Gib links in <strong>Schritt 1</strong> ein, <strong>was Du Dir wünschst</strong> – plus
+              Zielbetrag, oder lass Preis &amp; Bild automatisch laden. Hier erscheinen dann Dein
+              Spar-Fortschritt, die Projektion und wie viele IBM-Aktien Du für das Ziel verkaufen müsstest.</p>
             </div>
           </div>
 
@@ -1278,12 +1242,12 @@
             <div class="porsche-projection-grid">
               <div class="projection-box">
                 <span class="proj-label">Verbleibende Sparzeit</span>
-                <h4 id="porscheTimeNeeded">Lade...</h4>
+                <h4 id="porscheTimeNeeded">–</h4>
                 <span class="proj-subtitle" id="porscheTargetDate">Erreicht ca. -</span>
               </div>
               <div class="projection-box">
                 <span class="proj-label" id="porscheSharesLabel">Zu verkaufende IBM Aktien</span>
-                <h4 id="porscheSharesNeeded">Lade...</h4>
+                <h4 id="porscheSharesNeeded">–</h4>
                 <span class="proj-subtitle" id="porscheSharesSubtitle">beim angenommenen Verkaufskurs</span>
               </div>
             </div>
@@ -1301,9 +1265,9 @@
     </section>
 
     <!-- GUIDE TAB -->
-    <section id="tab-guide" class="tab-content">
+    <section id="tab-guide" class="tab-content" role="tabpanel" aria-labelledby="navtab-guide">
       <div class="hero-section">
-        <h2>Der ESPP-Reiseführer</h2>
+        <h2>Die ESPP-Anleitung</h2>
         <p>Dein Wegweiser durch das IBM-Aktienprogramm – in vier kurzen Kapiteln.</p>
       </div>
 
@@ -1329,7 +1293,7 @@
           Mit dem <strong>IBM Employee Stock Purchase Plan (ESPP)</strong> kaufst Du monatlich IBM-Aktien
           mit <strong>15&nbsp;% Rabatt</strong> – direkt vom Bruttogehalt. Ob sich das wirklich lohnt, hängt
           von Freibetrag, geldwertem Vorteil, Abgeltungsteuer, Broker-Gebühren und Wechselkursen ab.
-          <strong>Dieses Tool rechnet all das für Dich durch</strong> – kostenlos und speziell für IBMer in Deutschland.
+          <strong>Dieses Tool rechnet all das für Dich durch</strong> – gemacht für IBMer in Deutschland.
         </p>
 
         <div class="guide-feature-grid">
@@ -1521,7 +1485,7 @@
     </section>
     
     <!-- TAXES TAB -->
-    <section id="tab-taxes" class="tab-content">
+    <section id="tab-taxes" class="tab-content" role="tabpanel" aria-labelledby="navtab-taxes">
       <div class="hero-section">
         <h2>Steuern in Deutschland</h2>
         <p>Was beim Kauf, bei Dividenden und beim Verkauf steuerlich passiert – Schritt für Schritt erklärt.</p>
@@ -1595,7 +1559,7 @@ Steuer darauf (z. B. 35 %):   26,25 €</code>
           <div class="guide-section-num">2</div>
           <div>
             <h3>Besteuerung der Dividenden</h3>
-            <p class="guide-section-sub">IBM zahlt viermal im Jahr – und zwei Länder wollen etwas davon.</p>
+            <p class="guide-section-sub">IBM zahlt Dividenden vierteljährlich aus (also viermal im Jahr) – und zwei Länder wollen etwas davon.</p>
           </div>
         </div>
 
@@ -1746,6 +1710,5 @@ Steuer darauf (z. B. 35 %):   26,25 €</code>
   <script src="vendor/gsap.min.js"></script>
   <script src="vendor/ScrollTrigger.min.js"></script>
   <script src="app.js"></script>
-  <script src="debug-portfolio.js"></script>
 </body>
 </html>

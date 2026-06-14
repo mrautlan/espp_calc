@@ -9,7 +9,7 @@ processed **only in the browser** — nothing is uploaded to or stored on the se
 
 | File | Purpose |
 |------|---------|
-| `Dockerfile` | Builds a small `node:20-alpine` production image (only `express`, plus `curl` which `server.js` uses to call Yahoo Finance). |
+| `Dockerfile` | Builds a small `node:20-alpine` production image (only `express` — Yahoo Finance is called with Node's built-in https client). |
 | `docker-compose.yml` | One-command run; maps a host port to the container. |
 | `.dockerignore` | Keeps `node_modules`, dev/test scripts **and your private `payslips/`, `*.pdf`, `*.txt` files** out of the image. |
 
@@ -125,7 +125,7 @@ container's port `3002` instead.)
 
 ## Notes
 
-- The image runs as the non-root `node` user and has a healthcheck (`curl /`).
+- The image runs as the non-root `node` user and has a healthcheck (busybox `wget /`).
 - If live prices show fallbacks, the server can't reach Yahoo Finance — check the
   container's outbound connectivity.
 - No persistent volume is needed: the app keeps no server-side state.

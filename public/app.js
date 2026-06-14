@@ -117,9 +117,8 @@ const elements = {
   porscheLeverageAmount: document.getElementById('porscheLeverageAmount'),
   porscheLeveragePercent: document.getElementById('porscheLeveragePercent'),
 
-  // Goal (Amazon link) elements
+  // Goal elements (one unified field: #goalName takes a name, search term or link)
   goalBadge: document.getElementById('goalBadge'),
-  goalUrl: document.getElementById('goalUrl'),
   btnLoadGoal: document.getElementById('btnLoadGoal'),
   goalStatus: document.getElementById('goalStatus'),
   goalImageWrap: document.getElementById('goalImageWrap'),
@@ -139,6 +138,11 @@ document.addEventListener('DOMContentLoaded', () => {
   initStrategySelector();
   initCalculator();
   fetchLiveStockPrice();
+  // Keep the header ticker honest: refresh every 2 min (cheap — the server caches
+  // the quote, and deliberately set Kauf-/Verkaufskurse are never overwritten).
+  // The portfolio tab is NOT auto-refreshed: a background re-analysis would
+  // re-render its tables and throw away the user's sorting mid-read.
+  setInterval(() => fetchLiveStockPrice({ silent: true }), 120000);
   initPdfUploader();
   initPorscheTracker();
   initPortfolioModule();
@@ -380,6 +384,24 @@ function initWelcome() {
   overlay?.addEventListener('click', (e) => { if (e.target === overlay) close(); });
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && overlay && overlay.style.display === 'flex') close(); });
 
+  // Focus trap (dialog etiquette): while the overlay is open, Tab cycles within it
+  // instead of wandering into the scroll-locked page behind it.
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Tab' || !overlay || overlay.style.display !== 'flex') return;
+    const focusables = overlay.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])');
+    if (!focusables.length) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const inside = overlay.contains(document.activeElement);
+    if (e.shiftKey && (!inside || document.activeElement === first)) {
+      e.preventDefault();
+      last.focus();
+    } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
+      e.preventDefault();
+      first.focus();
+    }
+  });
+
   // Show once, on the very first visit.
   let seen = false;
   try { seen = !!localStorage.getItem('espp_seen_welcome'); } catch (e) { /* private mode */ }
@@ -397,11 +419,9 @@ function initTabs() {
   if (savedTab) {
     state.activeTab = savedTab;
     elements.navTabs.forEach(t => {
-      if (t.getAttribute('data-tab') === savedTab) {
-        t.classList.add('active');
-      } else {
-        t.classList.remove('active');
-      }
+      const isActive = t.getAttribute('data-tab') === savedTab;
+      t.classList.toggle('active', isActive);
+      t.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
     elements.tabContents.forEach(c => {
       if (c.id === `tab-${savedTab}`) {
@@ -424,9 +444,13 @@ function initTabs() {
       state.activeTab = tabId;
       localStorage.setItem('espp_active_tab', tabId);
       
-      elements.navTabs.forEach(t => t.classList.remove('active'));
+      elements.navTabs.forEach(t => {
+        t.classList.remove('active');
+        t.setAttribute('aria-selected', 'false');
+      });
       tab.classList.add('active');
-      
+      tab.setAttribute('aria-selected', 'true');
+
       const currentContent = document.getElementById(`tab-${currentTabId}`);
       const nextContent = document.getElementById(`tab-${tabId}`);
       
@@ -466,6 +490,10 @@ function initTabs() {
       if (tabId === 'calculator') {
         setupCalcScrollReveals();
       }
+      if (tabId === 'porsche') {
+        animateGoalCardsIn();
+        if (state.goalCelebrationPending) celebrateGoalReached();
+      }
 
       // Sticky KPI strip + scroll-trigger positions depend on which tab is laid out.
       applyStickyKpis(tabId);
@@ -478,57 +506,70 @@ function initTabs() {
   });
 }
 
-// Fetch Live Stock Price
-async function fetchLiveStockPrice() {
-  elements.liveTicker.innerHTML = `<span class="pulse-dot pulse"></span> <span class="ticker-text">Aktualisiere Kurs...</span>`;
-  
+// Fetch Live Stock Price.
+// silent: skip the "Aktualisiere Kurs..." flicker (periodic background refresh).
+// force:  the user explicitly clicked the refresh button next to the Kaufkurs —
+//         overwrite the buy price even if they had typed a custom value.
+async function fetchLiveStockPrice({ silent = false, force = false } = {}) {
+  if (!silent) {
+    elements.liveTicker.innerHTML = `<span class="pulse-dot pulse"></span> <span class="ticker-text">Aktualisiere Kurs...</span>`;
+  }
+
   try {
     const response = await fetch('/api/stock');
     const data = await response.json();
-    
+
     if (data.success || data.fallback) {
-      // Decide BEFORE updating state whether the sell input was merely tracking
-      // the live price (or still coupled to the buy price). Only then move it
-      // along — a deliberately chosen Verkaufskurs must not be overwritten.
+      // Decide BEFORE updating state whether the buy/sell inputs were merely
+      // tracking the live price. Only then move them along — deliberately chosen
+      // Kauf-/Verkaufskurse must survive the periodic background refresh.
       const sellValBefore = parseFloat(elements.inputSellPrice.value);
       const buyValBefore = parseFloat(elements.inputStockPrice.value);
+      const buyTracksLive = force || state.lastLiveUSD === null ||
+        !isFinite(buyValBefore) ||
+        Math.abs(buyValBefore - state.lastLiveUSD) < 0.01;
       const sellTracksLive = state.lastLiveUSD === null ||
         !isFinite(sellValBefore) ||
         Math.abs(sellValBefore - state.lastLiveUSD) < 0.01 ||
         Math.abs(sellValBefore - buyValBefore) < 0.01;
 
-      state.usdPrice = data.usdPrice;
-      state.eurPrice = data.eurPrice;
+      const liveUSD = data.usdPrice;
       state.exchangeRate = data.exchangeRate;
       state.previousCloseUSD = data.previousCloseUSD || data.usdPrice;
       state.previousCloseEUR = data.previousCloseEUR || data.eurPrice;
-      state.lastLiveUSD = data.usdPrice;
+      if (buyTracksLive) {
+        state.usdPrice = liveUSD;
+        elements.inputStockPrice.value = liveUSD.toFixed(2);
+      }
+      state.eurPrice = state.usdPrice * state.exchangeRate;
+      state.lastLiveUSD = liveUSD;
 
       // Update UI Inputs
-      elements.inputStockPrice.value = state.usdPrice.toFixed(2);
-      if (sellTracksLive) elements.inputSellPrice.value = state.usdPrice.toFixed(2);
+      if (sellTracksLive) elements.inputSellPrice.value = liveUSD.toFixed(2);
       elements.valStockPriceEUR.textContent = `${state.eurPrice.toFixed(2)} €`;
       elements.valExchangeRate.textContent = state.exchangeRate.toFixed(4);
-      
-      // Render Live Ticker
-      const isUp = state.usdPrice >= state.previousCloseUSD;
-      const change = state.usdPrice - state.previousCloseUSD;
+
+      // Render Live Ticker (always with the LIVE price, independent of the inputs)
+      const isUp = liveUSD >= state.previousCloseUSD;
+      const change = liveUSD - state.previousCloseUSD;
       const changePercent = (change / state.previousCloseUSD) * 100;
-      
+
       elements.liveTicker.innerHTML = `
         <span class="pulse-dot"></span>
         <span class="ticker-text" style="white-space: nowrap;">
-          <strong>IBM: $${state.usdPrice.toFixed(2)}</strong> 
+          <strong>IBM: $${liveUSD.toFixed(2)}</strong>
           (<span style="color: ${isUp ? '#4ade80' : '#f87171'}">${isUp ? '+' : ''}${changePercent.toFixed(1)}%</span>)
         </span>
       `;
-      
+
       // Recalculate
       calculateESPP();
     }
   } catch (error) {
     console.error('Failed to fetch stock price:', error);
-    elements.liveTicker.innerHTML = `<span class="pulse-dot error"></span> <span class="ticker-text" style="color:#f87171">Offline (Nutze Fallback)</span>`;
+    if (!silent) {
+      elements.liveTicker.innerHTML = `<span class="pulse-dot error"></span> <span class="ticker-text" style="color:#f87171">Offline (Nutze Fallback)</span>`;
+    }
   }
 }
 
@@ -1078,7 +1119,8 @@ function initCalculator() {
     calculateESPP();
   });
   
-  elements.btnFetchStock.addEventListener('click', fetchLiveStockPrice);
+  // Explicit click on "Live-Kurs laden" = the user WANTS the live price in the field.
+  elements.btnFetchStock.addEventListener('click', () => fetchLiveStockPrice({ force: true }));
   
   elements.inputMonthlySalary.addEventListener('input', (e) => {
     state.salaryProvided = true; // user set a real salary
@@ -1336,10 +1378,15 @@ function calculateESPP() {
     });
     purchaseTaxPaid = taxableDiscount * effectiveTaxRate;
   } else {
-    const yearsRepresented = Math.ceil(accumulatedMonths / 12);
+    // The Freibetrag applies PER YEAR — model the months as consecutive 12-month
+    // blocks and apply it per block. (Aggregating ceil(months/12) allowances let the
+    // unused allowance of a short partial year wrongly offset another year's excess.)
     const annualFreibetrag = (taxYear === '2026' || taxYear === '2024') ? 2000 : 1440;
-    const totalFreibetrag = annualFreibetrag * yearsRepresented;
-    const taxableDiscountBenefit = Math.max(0, totalDiscountBenefitEUR - totalFreibetrag);
+    let taxableDiscountBenefit = 0;
+    for (let remaining = accumulatedMonths; remaining > 0; remaining -= 12) {
+      const monthsThisYear = Math.min(12, remaining);
+      taxableDiscountBenefit += Math.max(0, monthsThisYear * monthlyDiscountBenefitEUR - annualFreibetrag);
+    }
     purchaseTaxPaid = taxableDiscountBenefit * effectiveTaxRate;
   }
 
@@ -1404,13 +1451,19 @@ function calculateESPP() {
 
   // Capital gains tax.
   // German broker "Steuer-Falle" (§ 43a Abs. 2 Satz 7 EStG): when shares are transferred to a
-  // German Depot without a known cost basis, the bank applies the Ersatzbemessungsgrundlage =
-  // 30% of the gross proceeds as the tax base (taxed at the full Abgeltungsteuer, no Günstigerprüfung),
-  // instead of 26,375% on the actual gain. The over-withheld amount is partly reclaimable via the
-  // Steuererklärung once the real cost basis is proven.
+  // German Depot without a known cost basis, the bank withholds Abgeltungsteuer on the
+  // Ersatzbemessungsgrundlage = 30% of the gross proceeds (at the full rate, no Günstigerprüfung).
+  // For a typical modest gain that OVER-withholds vs. 26,375% on the real gain (the part that's
+  // reclaimable via the Steuererklärung). But for a long, highly-appreciated holding the real gain
+  // exceeds 30% of proceeds — and you still owe Abgeltungsteuer on the FULL real gain, so the 30%
+  // base UNDER-withholds and the rest is due on your return. The amount you actually bear is the
+  // higher of the two; modelling only the 30% base wrongly made the German Depot look cheapest for
+  // big historical gains. Taking max() keeps it correctly never better than a known cost basis.
   let capitalGainsTaxPaid;
   if (broker === 'german') {
-    capitalGainsTaxPaid = grossSaleRevenueEUR * 0.30 * abgeltungRate;
+    const ersatzWithholding = grossSaleRevenueEUR * 0.30 * abgeltungRate; // what the bank keeps at sale
+    const realGainTax = capitalGainsEUR * capGainsTaxRate;                // true final liability on the gain
+    capitalGainsTaxPaid = Math.max(ersatzWithholding, realGainTax);
   } else {
     capitalGainsTaxPaid = capitalGainsEUR * capGainsTaxRate;
   }
@@ -1710,6 +1763,7 @@ function calculateESPP() {
   rechnerEconomics = {
     shares: totalShares,
     netProfitEUR,
+    netCashReceived,
     sharePriceEUR,
     sellPriceEUR,
     monthlyGrossContribution,
@@ -2177,15 +2231,19 @@ function initPorscheTracker() {
 
   // ----- Goal inputs -----
   if (elements.btnLoadGoal) elements.btnLoadGoal.addEventListener('click', loadGoalFromUrl);
-  if (elements.goalUrl) {
-    elements.goalUrl.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); loadGoalFromUrl(); } });
-  }
   if (elements.goalName) {
     elements.goalName.addEventListener('input', () => {
       state.goal.name = elements.goalName.value;
       saveGoal();
       renderGoal();
       updateGoalTracker();
+    });
+    // Enter fetches price & image for whatever is in the field (link or search term),
+    // same as clicking "Preis & Bild laden".
+    elements.goalName.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      loadGoalFromUrl();
     });
   }
   if (elements.goalPrice) {
@@ -2258,15 +2316,20 @@ function renderGoal() {
     // Format the price nicely in German format (e.g. 50.000) when not editing.
     elements.goalPrice.value = (g.price > 0) ? Number(g.price).toLocaleString('de-DE', { minimumFractionDigits: 0, maximumFractionDigits: 2 }) : '';
   }
+  // Photo card: only when a fetched goal has a real product image. Manual goals
+  // show no card — the name lives in the field, the numbers on the right.
   if (elements.goalImageWrap && elements.goalImage) {
+    const wrap = elements.goalImageWrap;
+    const wasHidden = wrap.style.display === 'none';
     if (g.image) {
       elements.goalImage.src = g.image;
-      elements.goalImageWrap.style.setProperty('--goal-img', `url("${g.image}")`); // blurred backdrop
-      elements.goalImageWrap.style.display = '';
+      wrap.style.setProperty('--goal-img', `url("${g.image}")`); // blurred backdrop
+      wrap.style.display = '';
+      if (wasHidden) popGoalPreview();
     } else {
       elements.goalImage.removeAttribute('src');
-      elements.goalImageWrap.style.removeProperty('--goal-img');
-      elements.goalImageWrap.style.display = 'none';
+      wrap.style.removeProperty('--goal-img');
+      wrap.style.display = 'none';
     }
   }
   if (elements.goalLink) {
@@ -2288,11 +2351,22 @@ function setCustomGoal(goal) {
   calculateESPP();
 }
 
-// Load a goal from the input: a pasted link (any shop) → /api/product, or free text →
-// /api/resolve-goal (SearXNG finds the product, price and image).
+// "It worked" moment: pop the goal preview card when it appears or its content
+// is replaced by a freshly fetched product.
+function popGoalPreview() {
+  const wrap = elements.goalImageWrap;
+  if (!wrap || wrap.style.display === 'none' || prefersReducedMotion()) return;
+  gsap.fromTo(wrap,
+    { opacity: 0, scale: 0.94, y: 12 },
+    { opacity: 1, scale: 1, y: 0, duration: 0.5, ease: 'back.out(1.6)', overwrite: true, clearProps: 'opacity,scale,y' }
+  );
+}
+
+// Enrich the goal from the unified #goalName field: a pasted link (any shop) →
+// /api/product, free text → /api/resolve-goal (SearXNG finds product, price, image).
 async function loadGoalFromUrl() {
-  const input = (elements.goalUrl.value || '').trim();
-  if (!input) { showGoalStatus('Bitte einen Produktlink einfügen oder ein Ziel eingeben.', 'error'); return; }
+  const input = (elements.goalName && elements.goalName.value || '').trim();
+  if (!input) { showGoalStatus('Bitte gib zuerst Dein Ziel ein – Name, Suchbegriff oder Produktlink.', 'error'); return; }
 
   const isUrl = /^https?:\/\//i.test(input);
   const endpoint = isUrl
@@ -2323,12 +2397,13 @@ async function loadGoalFromUrl() {
       price: priceEUR ? Math.round(priceEUR * 100) / 100 : 0,
       url: isUrl ? input : (data.sourceUrl || null)
     });
+    popGoalPreview(); // celebrate the fetched product even if the card was already visible
 
     const nm = (data.title || input);
     const short = nm.length > 45 ? nm.slice(0, 45) + '…' : nm;
     const fxNote = data.originalCurrency ? ` (umgerechnet aus ${data.originalCurrency})` : '';
     if (!data.price) {
-      showGoalStatus(`Ziel „${short}“ geladen, aber Preis nicht gefunden – bitte unten eintragen.`, 'warning');
+      showGoalStatus(`Ziel „${short}“ geladen, aber Preis nicht gefunden – bitte als Zielbetrag eintragen.`, 'warning');
     } else if (data.currency && data.currency !== 'EUR' && data.currency !== 'USD' && data.currency !== 'GBP') {
       showGoalStatus(`Ziel „${short}“ geladen – Preis in ${data.currency}, bitte prüfen.`, 'warning');
     } else {
@@ -2385,6 +2460,58 @@ function solveSharesToSell(heldLots, goalPrice, priceUSD, broker) {
 // Goal tracker. Prefers the REAL portfolio holdings (from the Portfolio-Analyse tab) and shows how
 // many of YOUR shares to sell to afford the goal. Falls back to the Rechner's hypothetical model
 // when no statements have been uploaded.
+// Radial ring + center percentage driven by ONE shared GSAP value, so the number
+// never runs ahead of (or behind) the sweep.
+const radialAnim = { p: 0 };
+function setRadialProgress(percent) {
+  const fill = elements.porscheRadialFill;
+  const label = elements.porscheRadialPercent;
+  if (!fill || !label) return;
+  const circ = 2 * Math.PI * 42;
+  const fmt = (p) => ((p > 0 && p < 10) ? p.toFixed(1) : Math.round(p)) + '%';
+  if (prefersReducedMotion()) {
+    radialAnim.p = percent;
+    fill.style.strokeDashoffset = circ - (percent / 100) * circ;
+    label.textContent = fmt(percent);
+    return;
+  }
+  gsap.to(radialAnim, {
+    p: percent,
+    duration: state.rapidRecalc ? 0.18 : 0.8,
+    ease: 'power2.out',
+    overwrite: true,
+    onUpdate: () => {
+      fill.style.strokeDashoffset = circ - (radialAnim.p / 100) * circ;
+      label.textContent = fmt(radialAnim.p);
+    }
+  });
+}
+
+// Confetti over the radial widget the first time the goal flips to "Jetzt leistbar!".
+function celebrateGoalReached() {
+  if (state.goalCelebrated || prefersReducedMotion()) return;
+  try {
+    if (sessionStorage.getItem('espp_goal_celebrated')) { state.goalCelebrated = true; return; }
+    sessionStorage.setItem('espp_goal_celebrated', '1');
+  } catch (e) { /* private mode: in-memory flag below still guards */ }
+  state.goalCelebrated = true;
+  state.goalCelebrationPending = false;
+  const widget = document.querySelector('#tab-porsche .radial-progress-widget');
+  if (widget) confettiBurst(widget);
+}
+
+// Subtle stagger of the result cards each time the tab is entered (skipped while
+// the empty state is showing — there is nothing to stagger then).
+function animateGoalCardsIn() {
+  if (prefersReducedMotion()) return;
+  const content = document.getElementById('goalTrackerContent');
+  if (!content || content.style.display === 'none') return;
+  gsap.fromTo(content.querySelectorAll('.porsche-card'),
+    { opacity: 0, y: 14 },
+    { opacity: 1, y: 0, duration: 0.4, stagger: 0.08, ease: 'power2.out', overwrite: true, clearProps: 'opacity,transform' }
+  );
+}
+
 function updateGoalTracker() {
   if (!rechnerEconomics || !elements.inputStockGrowth) return;
   const e = rechnerEconomics;
@@ -2442,7 +2569,9 @@ function updateGoalTracker() {
     // ---- Rechner hypothetical fallback ----
     currentPriceEUR = e.sharePriceEUR;
     currentShares = e.shares;
-    currentValueNet = e.netProfitEUR;
+    // Same semantics as the portfolio path: net cash if everything were sold now
+    // (NOT the net profit — progress toward the goal is funded by the full proceeds).
+    currentValueNet = e.netCashReceived;
     costBasisPerShareEUR = e.sharePriceEUR;
     outOfPocketNow = e.totalEmployeeCost;
     sharesPerMonth = currentPriceEUR > 0 ? (e.monthlyGrossContribution / 0.85) / currentPriceEUR : 0;
@@ -2453,16 +2582,15 @@ function updateGoalTracker() {
     sharesSubtitle = 'hypothetisch – lade Statements für echte Zahlen';
   }
 
+  const fmtEUR2 = (v) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  const fmtEUR0 = (v) => `${v.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
+
   // Guard for name-only goals (price not set yet)
   if (targetPrice <= 0) {
     if (elements.porscheProgressBadge) elements.porscheProgressBadge.textContent = 'Warte auf Zielbetrag';
-    if (elements.porscheRadialPercent) elements.porscheRadialPercent.textContent = '0%';
-    if (elements.porscheRadialFill) {
-      const circ = 2 * Math.PI * 42;
-      elements.porscheRadialFill.style.strokeDashoffset = circ;
-    }
-    if (elements.porscheCurrentSavedLabel) elements.porscheCurrentSavedLabel.textContent = usePortfolio ? 'Netto-Verkaufswert Deiner Aktien' : 'Erwarteter Netto-Gewinn';
-    if (elements.porscheCurrentSaved) elements.porscheCurrentSaved.textContent = `${currentValueNet.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    setRadialProgress(0);
+    if (elements.porscheCurrentSavedLabel) elements.porscheCurrentSavedLabel.textContent = usePortfolio ? 'Netto-Verkaufswert Deiner Aktien' : 'Erwarteter Netto-Verkaufswert (Rechner)';
+    animateNumberValue('porscheCurrentSaved', currentValueNet, fmtEUR2);
     if (elements.porscheRemainingAmount) elements.porscheRemainingAmount.textContent = '–';
 
     if (elements.porscheTimeNeeded) elements.porscheTimeNeeded.textContent = 'Bitte Zielbetrag eingeben';
@@ -2479,24 +2607,18 @@ function updateGoalTracker() {
     updatePorscheGrowthChart(
       0, currentShares, costBasisPerShareEUR, currentPriceEUR,
       e.monthlyGrossContribution, e.effectiveTaxRate, capRate, brokerFee,
-      growthRate, 0, outOfPocketNow, e.accumulatedMonths
+      growthRate, 0, outOfPocketNow
     );
     return;
   }
 
   // ---- Progress ----
   const progressPercent = Math.max(0, Math.min(100, (currentValueNet / targetPrice) * 100));
-  if (elements.porscheProgressBadge) elements.porscheProgressBadge.textContent = `${progressPercent.toFixed(1)}% Erreicht`;
-  if (elements.porscheRadialPercent) {
-    elements.porscheRadialPercent.textContent = ((progressPercent > 0 && progressPercent < 10) ? progressPercent.toFixed(1) : Math.round(progressPercent)) + '%';
-  }
-  if (elements.porscheRadialFill) {
-    const circ = 2 * Math.PI * 42;
-    elements.porscheRadialFill.style.strokeDashoffset = circ - (progressPercent / 100) * circ;
-  }
-  if (elements.porscheCurrentSavedLabel) elements.porscheCurrentSavedLabel.textContent = usePortfolio ? 'Netto-Verkaufswert Deiner Aktien' : 'Erwarteter Netto-Gewinn';
-  if (elements.porscheCurrentSaved) elements.porscheCurrentSaved.textContent = `${currentValueNet.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  if (elements.porscheRemainingAmount) elements.porscheRemainingAmount.textContent = `${Math.max(0, targetPrice - currentValueNet).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  animateNumberValue('porscheProgressBadge', progressPercent, (p) => `${p.toFixed(1)}% Erreicht`);
+  setRadialProgress(progressPercent);
+  if (elements.porscheCurrentSavedLabel) elements.porscheCurrentSavedLabel.textContent = usePortfolio ? 'Netto-Verkaufswert Deiner Aktien' : 'Erwarteter Netto-Verkaufswert (Rechner)';
+  animateNumberValue('porscheCurrentSaved', currentValueNet, fmtEUR2);
+  animateNumberValue('porscheRemainingAmount', Math.max(0, targetPrice - currentValueNet), fmtEUR2);
 
   // ---- Time-to-goal: accumulate ESPP shares until the net sellable value covers the goal ----
   let monthsNeeded = 0;
@@ -2509,6 +2631,13 @@ function updateGoalTracker() {
       const cashout = grossEUR - gainEUR * capRate - brokerFee;
       if (cashout >= targetPrice) { achieved = true; monthsNeeded = t; break; }
     }
+  }
+
+  // The "made it" moment: confetti over the radial, once per session. If the tab
+  // isn't visible right now, remember it and fire on the next tab entry.
+  if (achieved && monthsNeeded === 0 && !state.goalCelebrated) {
+    if (state.activeTab === 'porsche') celebrateGoalReached();
+    else state.goalCelebrationPending = true;
   }
 
   if (elements.porscheTimeNeeded) {
@@ -2534,23 +2663,26 @@ function updateGoalTracker() {
   if (elements.porscheSharesSubtitle) elements.porscheSharesSubtitle.textContent = sharesSubtitle;
 
   // ---- Spar-Hebel (what you paid out of pocket vs. the goal value) ----
-  const monthlyOut = e.accumulatedMonths > 0 ? (outOfPocketNow / e.accumulatedMonths) : 0;
+  // Future months cost the real monthly NET salary deduction. (Dividing the PAST
+  // out-of-pocket cost by the Rechner's month slider was wrong whenever real
+  // portfolio holdings span a different period than the slider value.)
+  const monthlyOut = e.monthlyGrossContribution * (1 - e.effectiveTaxRate);
   const totalOutPocket = outOfPocketNow + ((achieved && monthsNeeded > 0) ? monthsNeeded * monthlyOut : 0);
   const leverageAmount = Math.max(0, targetPrice - totalOutPocket);
   const leveragePercent = (leverageAmount / targetPrice) * 100;
-  if (elements.porscheOutPocket) elements.porscheOutPocket.textContent = `${totalOutPocket.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
-  if (elements.porscheLeverageAmount) elements.porscheLeverageAmount.textContent = `${leverageAmount.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
-  if (elements.porscheLeveragePercent) elements.porscheLeveragePercent.textContent = `${leveragePercent.toFixed(0)}%`;
+  animateNumberValue('porscheOutPocket', totalOutPocket, fmtEUR0);
+  animateNumberValue('porscheLeverageAmount', leverageAmount, fmtEUR0);
+  animateNumberValue('porscheLeveragePercent', leveragePercent, (v) => `${v.toFixed(0)}%`);
 
   // ---- Projection chart ----
   updatePorscheGrowthChart(
     monthsNeeded, currentShares, costBasisPerShareEUR, currentPriceEUR,
     e.monthlyGrossContribution, e.effectiveTaxRate, capRate, brokerFee,
-    growthRate, targetPrice, outOfPocketNow, e.accumulatedMonths
+    growthRate, targetPrice, outOfPocketNow
   );
 }
 
-function updatePorscheGrowthChart(monthsNeeded, currentShares, sharePriceEUR, sellPriceEUR, monthlyGrossContribution, effectiveTaxRate, capGainsTaxRate, brokerFees, growthRate, targetPrice, totalEmployeeCost, accumulatedMonthsInput) {
+function updatePorscheGrowthChart(monthsNeeded, currentShares, sharePriceEUR, sellPriceEUR, monthlyGrossContribution, effectiveTaxRate, capGainsTaxRate, brokerFees, growthRate, targetPrice, totalEmployeeCost) {
   const ctx = document.getElementById('porscheGrowthChart').getContext('2d');
   
   let steps = 12;
@@ -2565,7 +2697,9 @@ function updatePorscheGrowthChart(monthsNeeded, currentShares, sharePriceEUR, se
   const monthlyMarketValueEUR = monthlyGrossContribution / 0.85;
   const sharesAcquiredPerMonth = monthlyMarketValueEUR / sharePriceEUR;
   
-  const monthlyOutPocket = totalEmployeeCost / accumulatedMonthsInput;
+  // Future months cost the actual monthly net salary deduction (consistent with the
+  // Spar-Hebel figure — not the past cost divided by the Rechner's month slider).
+  const monthlyOutPocket = monthlyGrossContribution * (1 - effectiveTaxRate);
   
   for (let i = 0; i <= steps; i++) {
     let t = i * stepSize;
@@ -2722,6 +2856,9 @@ const portfolioState = {
   transactions: [],
   currentPrice: 180.00,
   exchangeRate: 0.92,
+  // Last price actually delivered by /api/stock/current (null until known) — used to
+  // tell "input is just tracking the live price" apart from a deliberate user value.
+  lastLivePrice: null,
   isPdfSource: false,
   enrichedTransactions: [],
   equatePlusTransfers: [],
@@ -2750,6 +2887,7 @@ function savePortfolioState() {
     })),
     currentPrice: portfolioState.currentPrice,
     exchangeRate: portfolioState.exchangeRate,
+    lastLivePrice: portfolioState.lastLivePrice,
     isPdfSource: portfolioState.isPdfSource,
     equatePlusTransfers: (portfolioState.equatePlusTransfers || []).map(et => ({
       ...et,
@@ -2803,6 +2941,7 @@ function loadPortfolioState() {
     }
     portfolioState.currentPrice = parsed.currentPrice ?? 180.00;
     portfolioState.exchangeRate = parsed.exchangeRate ?? 0.92;
+    portfolioState.lastLivePrice = Number.isFinite(parsed.lastLivePrice) ? parsed.lastLivePrice : null;
     portfolioState.isPdfSource = parsed.isPdfSource ?? false;
     
     if (Array.isArray(parsed.equatePlusTransfers)) {
@@ -2835,17 +2974,8 @@ function loadPortfolioState() {
     }
 
     if (portfolioState.transactions.length > 0 || Object.keys(portfolioState.capTraderPositions).length > 0) {
-      if (portfolioElements.btnAnalyzePortfolio) {
-        portfolioElements.btnAnalyzePortfolio.disabled = false;
-      }
-      
-      // Update inputs
-      if (portfolioElements.portfolioCurrentPrice) {
-        portfolioElements.portfolioCurrentPrice.value = portfolioState.currentPrice.toFixed(2);
-      }
-      if (portfolioElements.portfolioExchangeRate) {
-        portfolioElements.portfolioExchangeRate.value = portfolioState.exchangeRate.toFixed(4);
-      }
+      // Show the restored valuation context (the live fetch replaces it shortly).
+      updatePortfolioPriceLine();
 
       // Restore simulator values
       if (parsed.sellQuantity !== undefined && portfolioElements.sellQuantity) {
@@ -2900,9 +3030,7 @@ function initPortfolioModule() {
     csvUploadZone: document.getElementById('csvUploadZone'),
     csvFileInput: document.getElementById('csvFileInput'),
     csvUploadStatus: document.getElementById('csvUploadStatus'),
-    btnAnalyzePortfolio: document.getElementById('btnAnalyzePortfolio'),
-    portfolioCurrentPrice: document.getElementById('portfolioCurrentPrice'),
-    portfolioExchangeRate: document.getElementById('portfolioExchangeRate'),
+    portfolioPriceText: document.getElementById('portfolioPriceText'),
     btnFetchPortfolioPrice: document.getElementById('btnFetchPortfolioPrice'),
     portfolioResults: document.getElementById('portfolioResults'),
     portfolioTransactionsCard: document.getElementById('portfolioTransactionsCard'),
@@ -2996,9 +3124,6 @@ function initPortfolioModule() {
     }
   });
 
-  // Analyze button (explicitly non-silent: the user asked for it)
-  portfolioElements.btnAnalyzePortfolio.addEventListener('click', () => analyzePortfolio());
-
   // Sortable tables: click any column header in the Portfolio-Analyse tab to sort by that column.
   // Delegated so it keeps working after the tables are re-rendered by analyzePortfolio.
   const portfolioTab = document.getElementById('tab-portfolio');
@@ -3085,8 +3210,6 @@ function initPortfolioModule() {
   }
 
   // Sync with main calculator price as an initial placeholder...
-  portfolioElements.portfolioCurrentPrice.value = state.usdPrice.toFixed(2);
-  portfolioElements.portfolioExchangeRate.value = state.exchangeRate.toFixed(4);
   portfolioState.currentPrice = state.usdPrice;
   portfolioState.exchangeRate = state.exchangeRate;
 
@@ -3101,13 +3224,10 @@ function initPortfolioModule() {
   // Load saved portfolio state if any
   loadPortfolioState();
 
-  // Collapsible import steps with their own persisted layout. When saved data was
-  // restored (returning user), default all steps to collapsed — the results are
-  // what matters then; first-time visitors keep every step open.
-  const hasPortfolioData = (portfolioState.transactions || []).length > 0 ||
-    Object.keys(portfolioState.capTraderPositions || {}).length > 0;
-  initCollapsibleSteps('#tab-portfolio', 'espp_portfolio_open_steps',
-    hasPortfolioData ? [false, false, false] : null);
+  // Collapsible import step with persisted open/closed state. It stays open unless
+  // the user collapses it themselves — auto-collapsing it after a data restore
+  // looked like the page had "forgotten" the state on reload.
+  initCollapsibleSteps('#tab-portfolio', 'espp_portfolio_open_steps');
 
   // ...then immediately replace it with the live IBM price on load.
   fetchPortfolioPrice({ silent: true });
@@ -3119,26 +3239,58 @@ async function fetchPortfolioPrice({ silent = false } = {}) {
   try {
     const response = await fetch('/api/stock/current');
     const data = await response.json();
-    if (data.success) {
-      portfolioElements.portfolioCurrentPrice.value = data.price.toFixed(2);
-      portfolioElements.portfolioExchangeRate.value = data.exchangeRate.toFixed(4);
-      // Default the simulated sell price to the live IBM price too.
-      if (portfolioElements.sellPrice) {
+    if (!data.success) throw new Error(data.message || 'Kurs nicht verfügbar');
+
+    // The portfolio is ALWAYS valued at the live market price (what-if sell prices
+    // live in the Verkaufs-Simulator). Only the simulator's own price input keeps
+    // the tracking guard: a deliberately typed simulated Verkaufskurs must survive
+    // both the on-load fetch and the periodic background refresh.
+    const lastLive = portfolioState.lastLivePrice;
+    if (portfolioElements.sellPrice) {
+      const sellVal = parseFloat(portfolioElements.sellPrice.value);
+      if (lastLive == null || !isFinite(sellVal) || Math.abs(sellVal - lastLive) < 0.01) {
         portfolioElements.sellPrice.value = data.price.toFixed(2);
       }
-      portfolioState.currentPrice = data.price;
-      portfolioState.exchangeRate = data.exchangeRate;
-      updatePortfolioStepSummaries();
-      if (!silent) {
-        showPortfolioStatus(`Kurs aktualisiert: $${data.price.toFixed(2)}`, 'success');
-      }
+    }
+    portfolioState.currentPrice = data.price;
+    portfolioState.exchangeRate = data.exchangeRate;
+    portfolioState.lastLivePrice = data.price;
+    portfolioState.priceIsLive = true;
+    updatePortfolioPriceLine();
+    updatePortfolioStepSummaries();
+    if (!silent) {
+      showPortfolioStatus(`Kurs aktualisiert: $${data.price.toFixed(2)}`, 'success');
+    }
 
-      if (hasAnyPortfolioData()) {
-        analyzePortfolio({ silent });
-      }
+    if (hasAnyPortfolioData()) {
+      analyzePortfolio({ silent });
     }
   } catch (error) {
+    portfolioState.priceIsLive = false;
+    updatePortfolioPriceLine();
     if (!silent) showPortfolioStatus('Fehler beim Abrufen des Kurses', 'error');
+  }
+}
+
+// Valuation-context line above the Portfolio-Übersicht: the price + FX every figure
+// is computed with, and whether that price is live or the last known fallback.
+function updatePortfolioPriceLine() {
+  const el = portfolioElements.portfolioPriceText;
+  if (!el) return;
+  const price = portfolioState.currentPrice;
+  const fx = portfolioState.exchangeRate;
+  if (!Number.isFinite(price) || !Number.isFinite(fx)) {
+    el.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Lade Live-Kurs…';
+    return;
+  }
+  const figures = `<strong>$${price.toFixed(2)}</strong> · USD/EUR ${fx.toFixed(4)}`;
+  if (portfolioState.priceIsLive === undefined) {
+    // First paint before the fetch has answered: show the restored price neutrally.
+    el.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> Bewertung zum Kurs ${figures} – lade Live-Kurs…`;
+  } else if (portfolioState.priceIsLive) {
+    el.innerHTML = `<i class="fa-solid fa-tower-broadcast text-success"></i> Bewertung zum Live-Kurs ${figures}`;
+  } else {
+    el.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-warning"></i> Live-Kurs nicht erreichbar – Bewertung zum letzten bekannten Kurs ${figures}`;
   }
 }
 
@@ -3248,9 +3400,6 @@ async function parsePDF(arrayBuffer, fileName) {
     }
 
     showPortfolioStatus(`✓ CapTrader-/IBKR-Statement (${data.year}) geladen: ${data.sells.length} Verkäufe, ${data.transfers.length} Transfers`, 'success');
-
-    // A CapTrader-only analysis is allowed; analyzePortfolio flags the missing EquatePlus side.
-    portfolioElements.btnAnalyzePortfolio.disabled = false;
   } else if (cleanedText.toLowerCase().includes('plan holdings statement') || cleanedText.toLowerCase().includes('plan holdings')) {
     // The actual EquatePlus balance is reported directly on the holdings summary page (Page 2)
     // as a list of lots. Parse it from the FULL text (before filtering) and keep the most recent
@@ -3298,7 +3447,6 @@ async function parsePDF(arrayBuffer, fileName) {
     });
     
     portfolioState.isPdfSource = true;
-    portfolioElements.btnAnalyzePortfolio.disabled = false;
     showPortfolioStatus(`✓ Jahres-Statement parsed: ${tx.length} Transaktionen erkannt`, 'success');
   } else if (cleanedText.includes('Employee Plan Statement') || (/Balance Forward/i.test(cleanedText) && /Computershare/i.test(cleanedText))) {
     // OLD Computershare statement format (pre-EquatePlus migration, e.g. 2024).
@@ -3332,7 +3480,6 @@ async function parsePDF(arrayBuffer, fileName) {
     }
 
     portfolioState.isPdfSource = true;
-    portfolioElements.btnAnalyzePortfolio.disabled = false;
     const yr = parsed.statementDate ? parsed.statementDate.getFullYear() : '?';
     showPortfolioStatus(`✓ Altes Plan-Statement (${yr}) geladen: ${parsed.purchases.length} Käufe erkannt`, 'success');
   } else if (cleanedText.toLowerCase().includes('purchase activity statement') || cleanedText.toLowerCase().includes('purchase activity') || cleanedText.toLowerCase().includes('purchases 1 jan')) {
@@ -3891,14 +4038,12 @@ async function analyzePortfolio(options = {}) {
   if (!hasAnyPortfolioData()) return;
 
   if (!silent) showPortfolioStatus('Lade historische Kurse & Wechselkurse...', 'loading');
-  portfolioElements.btnAnalyzePortfolio.disabled = true;
-  
+
   try {
-    const exchangeRate = parseFloat(portfolioElements.portfolioExchangeRate.value) || portfolioState.exchangeRate;
-    portfolioState.exchangeRate = exchangeRate;
-    
-    const currentPrice = parseFloat(portfolioElements.portfolioCurrentPrice.value) || portfolioState.currentPrice;
-    portfolioState.currentPrice = currentPrice;
+    // Valuation always uses the live market price + FX (set by fetchPortfolioPrice;
+    // persisted last-known values until the first fetch answers).
+    const exchangeRate = portfolioState.exchangeRate;
+    const currentPrice = portfolioState.currentPrice;
 
     // EquatePlus balance is read directly from the latest Plan Holdings Statement (Page 2).
     const eqShares = portfolioState.equatePlusHeld || 0;
@@ -3971,10 +4116,23 @@ async function analyzePortfolio(options = {}) {
     const totalShares = portfolioState.totalCombinedShares;
     portfolioElements.maxSellQuantityLabel.textContent = `/ ${totalShares.toFixed(5)}`;
     portfolioElements.sellQuantitySlider.max = totalShares.toFixed(5);
-    portfolioElements.sellQuantitySlider.value = 0;
     portfolioElements.sellQuantity.max = totalShares.toFixed(5);
-    portfolioElements.sellQuantity.value = 0;
-    portfolioElements.sellPrice.value = currentPrice.toFixed(2);
+    if (silent) {
+      // Background re-run (state restore / periodic price refresh): keep the user's
+      // simulator inputs. The slider may have been clamped while its max was still
+      // the HTML default — re-sync it now that the real max is set.
+      portfolioElements.sellQuantitySlider.value = parseFloat(portfolioElements.sellQuantity.value) || 0;
+    } else {
+      // User-triggered analysis (upload / price check): start the simulation fresh,
+      // but never overwrite a deliberately typed simulated Verkaufskurs.
+      portfolioElements.sellQuantitySlider.value = 0;
+      portfolioElements.sellQuantity.value = 0;
+      const lastLive = portfolioState.lastLivePrice;
+      const sellVal = parseFloat(portfolioElements.sellPrice.value);
+      if (lastLive == null || !isFinite(sellVal) || Math.abs(sellVal - lastLive) < 0.01) {
+        portfolioElements.sellPrice.value = currentPrice.toFixed(2);
+      }
+    }
 
     // Display card and run simulation once at 0 to clear
     showPortfolioCard(portfolioElements.portfolioSellSimulatorCard, 0.1);
@@ -4007,8 +4165,6 @@ async function analyzePortfolio(options = {}) {
     
   } catch (error) {
     showPortfolioStatus('Fehler bei der Analyse: ' + error.message, 'error');
-  } finally {
-    portfolioElements.btnAnalyzePortfolio.disabled = false;
   }
 }
 
@@ -4662,18 +4818,11 @@ function updatePortfolioStepSummaries() {
   if (s1) {
     const buys = (portfolioState.transactions || []).length;
     const hasCt = Object.keys(portfolioState.capTraderPositions || {}).length > 0;
-    s1.textContent = (buys || hasCt)
-      ? `${buys} Käufe${hasCt ? ' · CapTrader ✓' : ''}`
+    const shares = portfolioState.totalCombinedShares !== undefined
+      ? ` · ${portfolioState.totalCombinedShares.toFixed(2)} Aktien`
       : '';
-  }
-  const s2 = document.getElementById('pfSummaryStep2');
-  if (s2 && Number.isFinite(portfolioState.currentPrice)) {
-    s2.textContent = `$${portfolioState.currentPrice.toFixed(2)} · FX ${(+portfolioState.exchangeRate).toFixed(4)}`;
-  }
-  const s3 = document.getElementById('pfSummaryStep3');
-  if (s3) {
-    s3.textContent = portfolioState.totalCombinedShares !== undefined
-      ? `${portfolioState.totalCombinedShares.toFixed(2)} Aktien analysiert`
+    s1.textContent = (buys || hasCt)
+      ? `${buys} Käufe${hasCt ? ' · CapTrader ✓' : ''}${shares}`
       : '';
   }
 }
@@ -5530,15 +5679,20 @@ function celebrateProfit(donutWrap) {
     sessionStorage.setItem('espp_celebrated', '1');
   } catch (e) { /* private mode: fall back to the in-memory flag */ }
   state.profitCelebrated = true;
+  confettiBurst(donutWrap);
+}
 
-  const size = donutWrap.offsetWidth || 270;
+// One confetti burst centered over `wrap` (needs position: relative). Shared by the
+// Rechner profit reveal and the goal tracker's "Jetzt leistbar!" moment.
+function confettiBurst(wrap) {
+  const size = wrap.offsetWidth || 270;
   const canvas = document.createElement('canvas');
   canvas.width = size * 2;
   canvas.height = size * 2;
   canvas.style.cssText =
     'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
     'width:200%;height:200%;pointer-events:none;z-index:5;';
-  donutWrap.appendChild(canvas);
+  wrap.appendChild(canvas);
 
   const ctx = canvas.getContext('2d');
   const colors = chartPalette();

@@ -115,6 +115,17 @@ body, header, .glass-card, .nav-tab, input, select, textarea, .input-group-card 
   outline: none;
 }
 
+/* Keyboard navigation: a visible focus ring on every interactive element.
+   :focus-visible only fires for keyboard focus, so mouse clicks stay clean —
+   without this, the universal outline:none above leaves keyboard users blind. */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+input[type="range"]:focus-visible {
+  outline-offset: 4px;
+}
+
 html {
   /* Clip (not hidden) so off-screen tooltips/decorations never add horizontal
      scroll, while keeping the sticky header working. */
@@ -1976,7 +1987,8 @@ footer {
 .radial-progress-widget .circle-fill {
   stroke: var(--accent);
   stroke-linecap: round;
-  transition: stroke-dashoffset 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+  /* No CSS transition here: GSAP drives the sweep (setRadialProgress), keeping
+     the ring and the center percentage on one shared value. */
   filter: drop-shadow(0 0 6px var(--accent-glow));
 }
 
@@ -2375,6 +2387,42 @@ footer {
 /* ========================================
    PORTFOLIO ANALYSIS STYLES
    ======================================== */
+
+/* Valuation-context line above the Portfolio-Übersicht: which price + FX the
+   figures are computed with. Read-only — what-ifs live in the Verkaufs-Simulator. */
+.portfolio-price-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+  padding: 9px 14px;
+  background: var(--surface-soft);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+.portfolio-price-line .ppl-text i {
+  margin-right: 4px;
+}
+.portfolio-price-line .ppl-text strong {
+  color: var(--text-strong);
+}
+.portfolio-price-line .ppl-refresh {
+  margin-left: auto;
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  transition: background var(--transition-fast);
+}
+.portfolio-price-line .ppl-refresh:hover {
+  background: var(--surface-soft-hover);
+}
 
 .portfolio-results-container {
   min-height: 300px;
@@ -4606,3 +4654,25 @@ input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
   border-color: hsl(192, 91%, 35%);
   box-shadow: 0 0 10px rgba(8, 145, 178, 0.2);
 }
+
+/* ============================================================
+   Ziel-Tracker: unified goal entry + preview card
+   ============================================================ */
+
+/* "Preis & Bild laden" sits directly under the goal field — an optional
+   enrichment of the same goal, not a second entry mode. */
+.goal-fetch-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.goal-fetch-row .goal-load-btn { padding: 8px 14px; }
+.goal-fetch-hint {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* (Manual goals show no preview card — the photo card only appears for fetched
+   goals with a real product image; see renderGoal.) */

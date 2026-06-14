@@ -204,3 +204,22 @@ This tool and its calculations are for **informational purposes only** and do **
 financial or tax advice. The figures are best-effort and may be wrong — verify anything important
 yourself, and consult a tax advisor (Steuerberater) in case of doubt. Not affiliated with IBM,
 EquatePlus, Computershare, CapTrader or Interactive Brokers.
+
+---
+
+## License
+
+This project's own code is released under the **MIT License** — see [`LICENSE`](LICENSE).
+
+The third-party libraries bundled in `public/vendor/` keep their own licenses:
+
+| Library | License |
+|---------|---------|
+| [pdf.js](https://github.com/mozilla/pdf.js) | Apache-2.0 |
+| [Chart.js](https://github.com/chartjs/Chart.js) | MIT |
+| [GSAP](https://gsap.com/) + ScrollTrigger | GreenSock standard "no-charge" license (free to use, but **not** an OSI open-source license) |
+| [Font Awesome Free](https://fontawesome.com/) | Icons CC BY 4.0 · Fonts SIL OFL 1.1 · Code MIT |
+| [Inter](https://github.com/rsms/inter) & [Outfit](https://github.com/Outfitio/Outfit-Fonts) fonts | SIL OFL 1.1 |
+
+"IBM", "EquatePlus", "CapTrader" and other product names are trademarks of their respective owners; a
+software license does not grant any trademark rights, and this project is not affiliated with them.

@@ -1,5 +1,10 @@
 // IBM ESPP Navigator & Rechner - App Logic
 
+import { LS_KEYS, FX } from './js/constants.js';
+import { escapeHtml, parseGermanNumber } from './js/format.js';
+import { getAbgeltungRate, brokerFeesEUR as computeBrokerFees, estimateGrenzsteuersatz } from './js/tax.js';
+import * as api from './js/api.js';
+
 // State management
 let state = {
   usdPrice: 180.00,
@@ -196,7 +201,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // Light/Dark mode toggle. The saved theme is applied pre-paint by the inline
 // <head> script; here we keep the button in sync, handle clicks, and rebuild
 // the Chart.js charts so their canvas colors match the new theme.
-// Persisted in localStorage['espp_theme'] so it sticks across every tab/reload.
+// Persisted in localStorage[LS_KEYS.theme] so it sticks across every tab/reload.
 function initThemeToggle() {
   const btn = document.getElementById('themeToggle');
   if (!btn) return;
@@ -216,7 +221,7 @@ function initThemeToggle() {
   btn.addEventListener('click', () => {
     const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
     apply(next);
-    try { localStorage.setItem('espp_theme', next); } catch (e) { /* ignore */ }
+    try { localStorage.setItem(LS_KEYS.theme, next); } catch (e) { /* ignore */ }
 
     // Re-create the charts with the new theme's canvas colors.
     if (state.chart) { state.chart.destroy(); state.chart = null; }
@@ -356,7 +361,7 @@ function initWelcome() {
       document.body.style.overflow = '';
       window.scrollTo(0, lockedScrollY);
       if (focusWasInside) document.getElementById('helpBtn')?.focus({ preventScroll: true });
-      try { localStorage.setItem('espp_seen_welcome', '1'); } catch (e) { /* private mode */ }
+      try { localStorage.setItem(LS_KEYS.seenWelcome, '1'); } catch (e) { /* private mode */ }
     };
 
     if (prefersReducedMotion()) {
@@ -404,17 +409,17 @@ function initWelcome() {
 
   // Show once, on the very first visit.
   let seen = false;
-  try { seen = !!localStorage.getItem('espp_seen_welcome'); } catch (e) { /* private mode */ }
+  try { seen = !!localStorage.getItem(LS_KEYS.seenWelcome); } catch (e) { /* private mode */ }
   if (!seen) open();
 }
 
 // Tab Navigation
 function initTabs() {
-  let savedTab = localStorage.getItem('espp_active_tab');
+  let savedTab = localStorage.getItem(LS_KEYS.activeTab);
   // Guard against a saved tab that no longer exists (e.g. the removed "transfer" tab).
   if (savedTab && !document.getElementById(`tab-${savedTab}`)) {
     savedTab = 'calculator';
-    localStorage.setItem('espp_active_tab', savedTab);
+    localStorage.setItem(LS_KEYS.activeTab, savedTab);
   }
   if (savedTab) {
     state.activeTab = savedTab;
@@ -442,7 +447,7 @@ function initTabs() {
 
       const currentTabId = state.activeTab;
       state.activeTab = tabId;
-      localStorage.setItem('espp_active_tab', tabId);
+      localStorage.setItem(LS_KEYS.activeTab, tabId);
       
       elements.navTabs.forEach(t => {
         t.classList.remove('active');
@@ -516,8 +521,7 @@ async function fetchLiveStockPrice({ silent = false, force = false } = {}) {
   }
 
   try {
-    const response = await fetch('/api/stock');
-    const data = await response.json();
+    const data = await api.fetchStock();
 
     if (data.success || data.fallback) {
       // Decide BEFORE updating state whether the buy/sell inputs were merely
@@ -707,7 +711,7 @@ function saveCalculatorState() {
     joinDate: elements.inputJoinDate ? elements.inputJoinDate.dataset.value : ''
   };
 
-  localStorage.setItem('espp_calculator_state', JSON.stringify(serialized));
+  localStorage.setItem(LS_KEYS.calculatorState, JSON.stringify(serialized));
   
   if (btnClearCalculator) {
     btnClearCalculator.style.display = 'block';
@@ -716,7 +720,7 @@ function saveCalculatorState() {
 
 function loadCalculatorState() {
   try {
-    const raw = localStorage.getItem('espp_calculator_state');
+    const raw = localStorage.getItem(LS_KEYS.calculatorState);
     const btnClearCalculator = document.getElementById('btnClearCalculator');
     
     if (!raw) {
@@ -834,7 +838,7 @@ function applyCalcModeUI() {
 // Persisted copy of the last fetched series. Monthly averages barely change
 // (only the current month drifts), so a reload can paint the real numbers
 // synchronously from this cache instead of waiting seconds on Yahoo.
-const HIST_CACHE_LS_KEY = 'espp_hist_cache';
+const HIST_CACHE_LS_KEY = LS_KEYS.histCache;
 
 function readHistCache(key) {
   try {
@@ -871,8 +875,8 @@ async function ensureHistoricalData() {
     const period1 = Math.floor(join.getTime() / 1000);
     const period2 = Math.floor(Date.now() / 1000);
     const [stockResp, fxResp] = await Promise.all([
-      fetch(`/api/stock/historical?months=${monthsCount}`).then(r => r.json()),
-      fetch(`/api/forex/historical-range?period1=${period1}&period2=${period2}`).then(r => r.json()).catch(() => null)
+      api.fetchHistorical(monthsCount),
+      api.fetchForexRange(period1, period2).catch(() => null)
     ]);
     if (!stockResp || !stockResp.success || !Array.isArray(stockResp.months) || stockResp.months.length === 0) {
       throw new Error('keine Kursdaten erhalten');
@@ -1078,7 +1082,7 @@ function initCalculator() {
   const btnClearCalculator = document.getElementById('btnClearCalculator');
   if (btnClearCalculator) {
     btnClearCalculator.addEventListener('click', () => {
-      localStorage.removeItem('espp_calculator_state');
+      localStorage.removeItem(LS_KEYS.calculatorState);
       window.location.reload();
     });
   }
@@ -1219,7 +1223,7 @@ function initCalculator() {
     simExplainerClose.addEventListener('click', () => {
       const note = document.getElementById('simExplainer');
       if (note) note.style.display = 'none';
-      try { localStorage.setItem('espp_sim_note_dismissed', '1'); } catch (e) { /* private mode */ }
+      try { localStorage.setItem(LS_KEYS.simNoteDismissed, '1'); } catch (e) { /* private mode */ }
     });
   }
   if (elements.inputJoinDate) {
@@ -1438,9 +1442,7 @@ function calculateESPP() {
   // - 27.8186% (8% church tax)
   // - 27.9951% (9% church tax)
   // Let's implement this standard calculation exactly!
-  let abgeltungRate = 0.26375;
-  if (churchTaxRate === 0.08) abgeltungRate = 0.278186;
-  else if (churchTaxRate === 0.09) abgeltungRate = 0.279951;
+  const abgeltungRate = getAbgeltungRate(churchTaxRate);
 
   let capGainsTaxRate = abgeltungRate;
   // Günstigerprüfung: If the personal effective marginal tax rate is lower than the flat-rate capital gains tax,
@@ -1468,19 +1470,8 @@ function calculateESPP() {
     capitalGainsTaxPaid = capitalGainsEUR * capGainsTaxRate;
   }
   
-  // Broker fees calculation
-  let brokerFeesEUR = 0;
-  if (broker === 'captrader') {
-    // CapTrader: approx 2€ trade fee + 2€ currency swap
-    brokerFeesEUR = 4.00;
-  } else if (broker === 'equateplus') {
-    // EquatePlus: $19.95 commission + $35.00 wire fee + ~0.5% currency exchange (e.g. Wise)
-    const feesUSD = 19.95 + 35.00 + (grossSaleRevenueEUR / exchangeRate * 0.005);
-    brokerFeesEUR = feesUSD * exchangeRate;
-  } else if (broker === 'german') {
-    // German Broker: ca 10€ commission
-    brokerFeesEUR = 10.00;
-  }
+  // Broker fees (single source: js/tax.js — shared with the Steuerreport).
+  const brokerFeesEUR = computeBrokerFees(broker, grossSaleRevenueEUR, exchangeRate);
 
   // Net Cash returned to pocket
   const netCashReceived = grossSaleRevenueEUR - capitalGainsTaxPaid - brokerFeesEUR;
@@ -1842,7 +1833,7 @@ function updateScenarioUI({ historical, histMonths, accumulatedMonths, sharePric
   const simExplainer = document.getElementById('simExplainer');
   if (simExplainer) {
     let dismissed = false;
-    try { dismissed = localStorage.getItem('espp_sim_note_dismissed') === '1'; } catch (e) { /* private mode */ }
+    try { dismissed = localStorage.getItem(LS_KEYS.simNoteDismissed) === '1'; } catch (e) { /* private mode */ }
     simExplainer.style.display = (!historical && !isPlaceholder && !dismissed) ? '' : 'none';
   }
 }
@@ -2135,7 +2126,7 @@ function initPdfUploader() {
     elements.selectTaxYear.value = extractedYear;
 
     // Estimate marginal tax rate based on German linear tax progression formula
-    const estimatedMarginalRate = estimateGrenzsteuersatz(extractedSalary, extractedTaxClass);
+    const estimatedMarginalRate = estimateGrenzsteuersatz(extractedSalary, extractedTaxClass, elements.selectTaxYear.value);
     elements.inputTaxRate.value = estimatedMarginalRate;
     elements.valTaxRate.value = `${estimatedMarginalRate} %`;
 
@@ -2148,65 +2139,7 @@ function initPdfUploader() {
     saveCalculatorState();
   }
 
-  // Linear estimation of German marginal tax rate (Grenzsteuersatz)
-  function estimateGrenzsteuersatz(monthlyGross, taxClass) {
-    const annualGross = monthlyGross * 12;
-    const taxYear = elements.selectTaxYear.value;
-    
-    // Estimate taxable income (zu versteuerndes Einkommen, zvE)
-    // Subtract approx 20% social security contributions and 1,230 € Werbungskosten
-    let zvE = annualGross * 0.82 - 1230;
-    
-    // Tax class 3 splitting adjustment
-    if (taxClass === 3) {
-      zvE = zvE / 2;
-    } else if (taxClass === 5) {
-      zvE = zvE * 1.5; // Penalty
-    }
-
-    let marginalRate = 14;
-
-    if (taxYear === '2026') {
-      if (zvE <= 12348) {
-        marginalRate = 14;
-      } else if (zvE > 12348 && zvE <= 17799) {
-        marginalRate = 14 + ((zvE - 12348) / (17799 - 12348)) * (23.97 - 14);
-      } else if (zvE > 17799 && zvE <= 69879) {
-        marginalRate = 23.97 + ((zvE - 17799) / (69879 - 17799)) * (42 - 23.97);
-      } else if (zvE > 69879 && zvE <= 277826) {
-        marginalRate = 42;
-      } else {
-        marginalRate = 45;
-      }
-    } else if (taxYear === '2023') {
-      if (zvE <= 10908) {
-        marginalRate = 14;
-      } else if (zvE > 10908 && zvE <= 16000) {
-        marginalRate = 14 + ((zvE - 10908) / (16000 - 10908)) * 10;
-      } else if (zvE > 16000 && zvE <= 62810) {
-        marginalRate = 24 + ((zvE - 16000) / (62810 - 16000)) * 18;
-      } else if (zvE > 62810 && zvE <= 277825) {
-        marginalRate = 42;
-      } else {
-        marginalRate = 45;
-      }
-    } else {
-      // Default to 2024 / 2025 brackets
-      if (zvE <= 11784) {
-        marginalRate = 14;
-      } else if (zvE > 11784 && zvE <= 17005) {
-        marginalRate = 14 + ((zvE - 11784) / (17005 - 11784)) * 10;
-      } else if (zvE > 17005 && zvE <= 66760) {
-        marginalRate = 24 + ((zvE - 17005) / (66760 - 17005)) * 18;
-      } else if (zvE > 66760 && zvE <= 277825) {
-        marginalRate = 42;
-      } else {
-        marginalRate = 45;
-      }
-    }
-
-    return Math.round(marginalRate);
-  }
+  // estimateGrenzsteuersatz is imported from ./js/tax.js (called above with the tax year).
 }
 
 // Goal Tracker Logic
@@ -2290,7 +2223,7 @@ function initPorscheTracker() {
   updateGoalTracker();
 }
 
-const GOAL_LS_KEY = 'espp_goal_v1';
+const GOAL_LS_KEY = LS_KEYS.goal;
 
 function goalBadgeText(name) {
   if (!name) return 'Ziel';
@@ -2323,7 +2256,7 @@ function renderGoal() {
     const wasHidden = wrap.style.display === 'none';
     if (g.image) {
       elements.goalImage.src = g.image;
-      wrap.style.setProperty('--goal-img', `url("${g.image}")`); // blurred backdrop
+      wrap.style.setProperty('--goal-img', `url("${String(g.image).replace(/"/g, '%22')}")`); // blurred backdrop
       wrap.style.display = '';
       if (wasHidden) popGoalPreview();
     } else {
@@ -2369,18 +2302,14 @@ async function loadGoalFromUrl() {
   if (!input) { showGoalStatus('Bitte gib zuerst Dein Ziel ein – Name, Suchbegriff oder Produktlink.', 'error'); return; }
 
   const isUrl = /^https?:\/\//i.test(input);
-  const endpoint = isUrl
-    ? `/api/product?url=${encodeURIComponent(input)}`
-    : `/api/resolve-goal?q=${encodeURIComponent(input)}`;
   showGoalStatus(`<span class="loading-spinner"></span> ${isUrl ? 'Lade Produktdaten…' : 'Suche Dein Ziel…'}`, 'loading');
 
   try {
-    const resp = await fetch(endpoint);
-    const data = await resp.json();
+    const data = await (isUrl ? api.fetchProduct(input) : api.fetchResolveGoal(input));
 
     if (!data || (!data.title && !data.price && !data.image)) {
       showGoalStatus(data && data.message
-        ? data.message
+        ? escapeHtml(data.message)
         : (data && data.blocked ? 'Die Seite hat die Anfrage blockiert. Bitte Preis manuell eintragen.' : 'Konnte keine Produktdaten finden.'), 'error');
       return;
     }
@@ -2388,8 +2317,8 @@ async function loadGoalFromUrl() {
     // Convert to EUR (the tracker works in EUR). EUR + backend-normalized exotic currencies
     // arrive as 'EUR'; only USD/GBP still need converting here.
     let priceEUR = data.price || 0;
-    if (data.currency === 'USD') priceEUR *= (state.exchangeRate || 0.92);
-    else if (data.currency === 'GBP') priceEUR *= 1.17;
+    if (data.currency === 'USD') priceEUR *= (state.exchangeRate || FX.USD_EUR_FALLBACK);
+    else if (data.currency === 'GBP') priceEUR *= FX.GBP_EUR;
 
     setCustomGoal({
       name: data.title || input,
@@ -2400,12 +2329,14 @@ async function loadGoalFromUrl() {
     popGoalPreview(); // celebrate the fetched product even if the card was already visible
 
     const nm = (data.title || input);
-    const short = nm.length > 45 ? nm.slice(0, 45) + '…' : nm;
-    const fxNote = data.originalCurrency ? ` (umgerechnet aus ${data.originalCurrency})` : '';
+    // Escape: nm/data.* originate from scraped, attacker-influenceable pages and are
+    // interpolated into innerHTML by showGoalStatus.
+    const short = escapeHtml(nm.length > 45 ? nm.slice(0, 45) + '…' : nm);
+    const fxNote = data.originalCurrency ? ` (umgerechnet aus ${escapeHtml(data.originalCurrency)})` : '';
     if (!data.price) {
       showGoalStatus(`Ziel „${short}“ geladen, aber Preis nicht gefunden – bitte als Zielbetrag eintragen.`, 'warning');
     } else if (data.currency && data.currency !== 'EUR' && data.currency !== 'USD' && data.currency !== 'GBP') {
-      showGoalStatus(`Ziel „${short}“ geladen – Preis in ${data.currency}, bitte prüfen.`, 'warning');
+      showGoalStatus(`Ziel „${short}“ geladen – Preis in ${escapeHtml(data.currency)}, bitte prüfen.`, 'warning');
     } else {
       showGoalStatus(`✓ Ziel geladen: ${short}${fxNote}`, 'success');
     }
@@ -2414,28 +2345,7 @@ async function loadGoalFromUrl() {
   }
 }
 
-function parseGermanNumber(str) {
-  if (!str) return 0;
-  let clean = String(str).replace(/\s+/g, '');
-  if (clean.includes('.') && clean.includes(',')) {
-    const lastDot = clean.lastIndexOf('.');
-    const lastComma = clean.lastIndexOf(',');
-    if (lastComma > lastDot) {
-      clean = clean.replace(/\./g, '').replace(/,/g, '.');
-    } else {
-      clean = clean.replace(/,/g, '');
-    }
-  } else if (clean.includes(',')) {
-    clean = clean.replace(/,/g, '.');
-  } else if (clean.includes('.')) {
-    const parts = clean.split('.');
-    if (parts.length > 2 || (parts.length === 2 && parts[1].length === 3)) {
-      clean = clean.replace(/\./g, '');
-    }
-  }
-  const val = parseFloat(clean);
-  return isNaN(val) ? 0 : val;
-}
+// parseGermanNumber is imported from ./js/format.js
 
 // The tracker's target amount = the user's goal price.
 function getTargetPrice() {
@@ -2913,7 +2823,7 @@ function savePortfolioState() {
     sellPrice: portfolioElements.sellPrice ? portfolioElements.sellPrice.value : '',
     sellBroker: portfolioElements.sellBroker ? portfolioElements.sellBroker.value : ''
   };
-  localStorage.setItem('espp_portfolio_state', JSON.stringify(serialized));
+  localStorage.setItem(LS_KEYS.portfolioState, JSON.stringify(serialized));
   
   if (btnClearPortfolio) {
     btnClearPortfolio.style.display = 'block';
@@ -2922,7 +2832,7 @@ function savePortfolioState() {
 
 function loadPortfolioState() {
   try {
-    const raw = localStorage.getItem('espp_portfolio_state');
+    const raw = localStorage.getItem(LS_KEYS.portfolioState);
     const btnClearPortfolio = document.getElementById('btnClearPortfolio');
     
     if (!raw) {
@@ -3216,7 +3126,7 @@ function initPortfolioModule() {
   const btnClearPortfolio = document.getElementById('btnClearPortfolio');
   if (btnClearPortfolio) {
     btnClearPortfolio.addEventListener('click', () => {
-      localStorage.removeItem('espp_portfolio_state');
+      localStorage.removeItem(LS_KEYS.portfolioState);
       window.location.reload();
     });
   }
@@ -3237,8 +3147,7 @@ function initPortfolioModule() {
 // silent: don't show a status toast (used for the automatic fetch on page load).
 async function fetchPortfolioPrice({ silent = false } = {}) {
   try {
-    const response = await fetch('/api/stock/current');
-    const data = await response.json();
+    const data = await api.fetchCurrentStock();
     if (!data.success) throw new Error(data.message || 'Kurs nicht verfügbar');
 
     // The portfolio is ALWAYS valued at the live market price (what-if sell prices
@@ -4180,9 +4089,8 @@ async function fetchHistoricalPriceForDate(date) {
   const period2 = Math.floor(endDate.getTime() / 1000);
   
   try {
-    const response = await fetch(`/api/stock/historical-range?period1=${period1}&period2=${period2}`);
-    const data = await response.json();
-    
+    const data = await api.fetchHistoricalRange(period1, period2);
+
     if (data.success && data.prices && data.prices.length > 0) {
       // Find closest price to the target date
       const targetTime = date.getTime();
@@ -4214,8 +4122,7 @@ async function fetchHistoricalFxRange(startDate, endDate) {
   const period1 = Math.floor(startDate.getTime() / 1000);
   const period2 = Math.floor(endDate.getTime() / 1000);
   try {
-    const response = await fetch(`/api/forex/historical-range?period1=${period1}&period2=${period2}`);
-    const data = await response.json();
+    const data = await api.fetchForexRange(period1, period2);
     if (data.success && Array.isArray(data.rates) && data.rates.length > 0) return data.rates;
   } catch (error) {
     console.error('Error fetching historical FX:', error);
@@ -4302,23 +4209,14 @@ function simulateSale(lots, qtyToSell, sellPriceUSD, broker) {
   const totalTaxableGainEUR = Math.max(0, soldLots.reduce((s, l) => s + l.taxableGainEUR, 0));
 
   // Abgeltungsteuer 26,375 % (+ Kirchensteuer-Varianten). Sparer-Pauschbetrag nicht automatisch.
-  let taxRate = 0.26375;
   const churchTaxPercent = parseInt(document.getElementById('selectChurchTax')?.value) || 0;
-  if (churchTaxPercent === 9) taxRate = 0.279951;
-  else if (churchTaxPercent === 8) taxRate = 0.278186;
+  const taxRate = getAbgeltungRate(churchTaxPercent / 100);
   const totalTaxEUR = totalTaxableGainEUR * taxRate;
 
-  // Broker fees — same model as the "Rechner" tab.
-  let totalFeesEUR = 0;
-  if (qtyToSell > 0 && soldLots.length > 0) {
-    if (broker === 'broker-c') {
-      totalFeesEUR = 4.00; // CapTrader/IBKR: ~2€ Trade + ~2€ Devisentausch
-    } else {
-      // EquatePlus/CS: $19.95 Provision + $35.00 Wire + ~0,5% Devisentausch (z.B. bei Wise)
-      const feesUSD = 19.95 + 35.00 + (totalProceedsEUR / sellRate) * 0.005;
-      totalFeesEUR = feesUSD * sellRate;
-    }
-  }
+  // Broker fees (single source: js/tax.js — shared with the Rechner).
+  const totalFeesEUR = (qtyToSell > 0 && soldLots.length > 0)
+    ? computeBrokerFees(broker, totalProceedsEUR, sellRate)
+    : 0;
 
   return {
     soldLots,
@@ -5449,7 +5347,7 @@ function initGsapAnimations() {
   // Returning visitors get a snappier entrance — they came to use the tool,
   // not to watch the intro again.
   let returning = false;
-  try { returning = !!localStorage.getItem('espp_seen_welcome'); } catch (e) { /* private mode */ }
+  try { returning = !!localStorage.getItem(LS_KEYS.seenWelcome); } catch (e) { /* private mode */ }
   const speed = returning ? 0.55 : 1;
 
   // Fade and slide header in

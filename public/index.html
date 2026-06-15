@@ -1709,6 +1709,8 @@ Steuer darauf (z. B. 35 %):   26,25 €</code>
 
   <script src="vendor/gsap.min.js"></script>
   <script src="vendor/ScrollTrigger.min.js"></script>
-  <script src="app.js"></script>
+  <!-- app.js is an ES module: it imports from ./js/*. Module scripts are deferred,
+       so the vendored globals above (gsap/ScrollTrigger/Chart/pdf.js) are ready first. -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>

@@ -99,7 +99,7 @@ dividends, capital gains, and the **W-8BEN** form for reduced US withholding.
 | Layer | Detail |
 |-------|--------|
 | **Backend** | Node.js + **Express** (`server.js`). The only runtime dependency is `express`; upstream calls (stock price, FX, product lookup) use Node's built-in `https`/`http` — no shell-outs. |
-| **Frontend** | Vanilla **HTML / CSS / JS** in `public/` — no build step, no framework, no bundler. |
+| **Frontend** | Vanilla **HTML / CSS / JS** in `public/`, organised as native **ES modules** (`app.js` + `public/js/`) — no build step, no framework, no bundler. |
 | **Charts** | **Chart.js** (donut, projection and value charts). |
 | **Animations** | **GSAP** + ScrollTrigger (entrance choreography, counters, reveals). |
 | **PDF parsing** | **pdf.js**, running **100 % client-side**. |
@@ -132,9 +132,14 @@ stale-on-error fallback, so visitors don't hammer the upstreams.
 ```
 .
 ├── server.js              # Express server + cached API proxies (stock/FX, product lookup, SearXNG)
-├── public/                # Frontend — served statically, no build step
+├── public/                # Frontend — served statically, no build step (native ES modules)
 │   ├── index.html         # Single page, five tabs + first-visit welcome modal
-│   ├── app.js             # All client logic: calculator, PDF parsing, portfolio, goal tracker, charts
+│   ├── app.js             # App entry & DOM orchestration: wiring, charts, PDF parsing, portfolio, goal tracker
+│   ├── js/                # ES modules imported by app.js:
+│   │   ├── constants.js   #   tax-rate table, broker-fee model, FX fallbacks, localStorage keys
+│   │   ├── format.js      #   HTML-escaping (XSS-safe) + German number parsing
+│   │   ├── tax.js         #   Abgeltungsteuer rate, broker fees, marginal-rate (Grenzsteuersatz) estimate
+│   │   └── api.js         #   fetch wrappers for the /api/* endpoints
 │   ├── style.css          # Dark glassmorphism design system
 │   ├── favicon.svg
 │   └── vendor/            # Self-hosted libs: pdf.js, Chart.js, GSAP+ScrollTrigger, FontAwesome, fonts

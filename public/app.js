@@ -586,6 +586,7 @@ const strategies = {
       <div class="strategy-header">
         <h4 style="color: var(--accent); font-size:1.3rem; margin-bottom: 10px;"><i class="fa-solid fa-rocket"></i> Weg C: Der Königsweg für Rendite-Optimierung</h4>
         <p>Du behältst die Aktien nicht unbegrenzt, sondern transferierst sie regelmäßig gebührenfrei zu einem US-Broker (CapTrader / Interactive Brokers) und verkaufst sie dort für minimale Kosten (ca. 2€ Provision).</p>
+        <p style="margin-top:10px; font-size:0.9rem; color: var(--text-muted);"><i class="fa-solid fa-circle-info" style="color: var(--accent);"></i> <strong>„Regelmäßig" – welches Intervall?</strong> Es gibt keinen festen Takt. Sinnvoll ist ein Transfer immer dann, wenn sich genug <em>ganze</em> Aktien angesammelt haben (Bruchteile bleiben bei EquatePlus) – typischerweise quartalsweise, passend zum ESPP-/Dividenden-Rhythmus. Da Transfer + Verkauf zusammen nur ca. 4€ kosten, musst Du keine großen Stückzahlen bündeln; das Intervall ist Deine Entscheidung.</p>
       </div>
       <div class="grid-2col" style="margin-top: 20px;">
         <div>
@@ -600,7 +601,7 @@ const strategies = {
           <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-circle-exclamation text-warning"></i> Wichtig zu beachten</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
             <li><strong>Transfer läuft über EquatePlus:</strong> Du löst den Übertrag dort mit Broker-Code (0534) und Deiner IBKR-Kontonummer aus. Eine vorherige Empfangsanweisung bei CapTrader/IBKR ist <strong>optional</strong> – nach Nutzer-Erfahrung nicht notwendig.</li>
-            <li><strong>Dividenden-Zwischenstopp:</strong> Auch wenn Du regelmäßig verkaufst, fallen bis dahin Dividenden bei EquatePlus an – entscheide, ob Du sie auszahlen lässt oder reinvestierst.</li>
+            <li><strong>Dividenden sind Cash – kein Verkauf nötig:</strong> Solange Aktien bei EquatePlus liegen, fallen dort Dividenden an. Du stellst nur ein, ob sie als <strong>Bargeld</strong> ausgezahlt oder <strong>reinvestiert</strong> werden – verkaufen musst Du dafür nichts. Nur reinvestierte Dividenden werden zu Aktien, die Du später bei CapTrader/IBKR mitverkaufst.</li>
             <li><strong>Steuererklärung:</strong> Du musst die Gewinne selbst in der Anlage KAP angeben, da US-Broker keine deutsche Steuer automatisch abführen.</li>
           </ul>
         </div>
@@ -627,7 +628,8 @@ const strategies = {
           <h5 style="color:var(--text-strong); margin-bottom:10px;"><i class="fa-solid fa-triangle-exclamation text-danger"></i> Nachteile & Gebühren</h5>
           <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
             <li><strong>Klumpenrisiko bleibt:</strong> Dein Vermögen hängt stark von der Entwicklung der IBM ab.</li>
-            <li><strong>Späterer Verkauf teuer:</strong> Der Verkauf direkt über EquatePlus kostet über 50$ pro Trade plus zusätzliche Bankgebühren.</li>
+            <li><strong>US-Konto nötig für günstige Cash-Auszahlung:</strong> Die Bargeld-Dividende geht nur gebührenfrei, wenn bei EquatePlus ein US-Bankkonto (z.&nbsp;B. kostenloses Wise-Konto) hinterlegt ist – sonst drohen teurer Scheck (~28&nbsp;€) oder Wire (~35&nbsp;$). CapTrader/IBKR eignet sich dafür <strong>nicht</strong>.</li>
+            <li><strong>Verkauf erst später:</strong> Du realisierst Gewinne (und den 15&nbsp;%-Rabatt) nicht zeitnah. Wenn Du irgendwann verkaufst, transferiere die Aktien wie bei Weg&nbsp;C zu CapTrader/IBKR (~4&nbsp;€) – nur der Direktverkauf über EquatePlus wäre teuer (>50&nbsp;$).</li>
           </ul>
         </div>
       </div>

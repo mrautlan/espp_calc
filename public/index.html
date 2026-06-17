@@ -1346,6 +1346,7 @@
           <div class="strategy-icon"><i class="fa-solid fa-rocket"></i></div>
           <h3>Weg C: Regelmäßig verkaufen</h3>
           <p>Aktien kostenfrei an einen günstigen US-Broker transferieren und dort für ca. 2€ Gebühren verkaufen. Klumpenrisiko minimieren!</p>
+          <p class="text-muted" style="font-size:0.8rem; margin-top:6px;"><i class="fa-solid fa-clock"></i> Kein fester Takt – sinnvoll, sobald genug ganze Aktien da sind (typisch quartalsweise).</p>
         </div>
         
         <div class="strategy-card" data-strategy="path-b">
@@ -1375,6 +1376,42 @@
             <p class="guide-section-sub">Der wichtigste Handgriff für Weg C: Aktien <strong>kostenfrei</strong> zum US-Broker übertragen und dort für ca. 2&nbsp;€ statt über $50 verkaufen.</p>
           </div>
         </div>
+
+      <!-- Voraussetzung: US-Broker-Depot -->
+      <div class="glass-card" style="margin-bottom: 24px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;">
+          <div>
+            <h4 style="margin-bottom: 4px;"><i class="fa-solid fa-building-columns text-accent"></i> Voraussetzung: ein US-Broker-Depot</h4>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin: 0;">Bevor Du Aktien übertragen kannst, brauchst Du ein (kostenloses) Depot bei <strong>CapTrader</strong> oder <strong>IBKR</strong>.</p>
+          </div>
+          <button class="btn btn-outline btn-sm btn-show-details" data-target="details-broker">Depot eröffnen &amp; benötigte Daten</button>
+        </div>
+      </div>
+
+      <!-- Voraussetzung Details -->
+      <div class="glass-card transfer-details-card hidden-details" id="details-broker" style="margin-bottom: 24px;">
+        <div class="card-header-with-close">
+          <h3><span class="step-badge">Setup</span> US-Broker-Depot eröffnen</h3>
+          <button class="btn-close-details"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.9rem;">Empfohlen: <strong>CapTrader</strong> – ein deutscher Ableger von Interactive&nbsp;Brokers mit Büro in Deutschland und deutschem Steuerbericht. Alternativ direkt <strong>Interactive&nbsp;Brokers (IBKR)</strong>.</p>
+        <p style="margin: 12px 0;">
+          <a href="https://www.captrader.com/depot-eroeffnen/" target="_blank" rel="noopener" class="btn btn-outline btn-sm"><i class="fa-solid fa-arrow-up-right-from-square"></i> CapTrader-Depot eröffnen</a>
+          <a href="https://www.interactivebrokers.co.uk/de/home.php" target="_blank" rel="noopener" class="btn btn-outline btn-sm" style="margin-left: 6px;"><i class="fa-solid fa-arrow-up-right-from-square"></i> IBKR (Alternative)</a>
+        </p>
+        <p style="color: var(--text-strong); font-size: 0.9rem; font-weight: 600; margin-bottom: 6px;">Diese Daten brauchst Du für die Eröffnung:</p>
+        <ul class="styled-list" style="color: var(--text-muted); font-size: 0.9rem;">
+          <li><strong>E-Mail-Adresse</strong> und ein selbst gewählter <strong>Benutzername</strong> (bei IBKR mind. 9 Zeichen) plus Kennwort</li>
+          <li><strong>Steuer-Identifikationsnummer</strong> (Deine deutsche Steuer-ID)</li>
+          <li><strong>Ausweisdokument</strong> – Personalausweis, Reisepass oder Führerschein (Vorder- und Rückseite, ggf. als <em>eine</em> Datei)</li>
+          <li><strong>Name und Anschrift des Arbeitgebers</strong> (IBM)</li>
+          <li><strong>Telefonnummer</strong> zur Bestätigung</li>
+          <li><strong>20&nbsp;€ Ersteinzahlung</strong> auf das neue Konto (verbleibt als Guthaben / kann später wieder ausgezahlt werden)</li>
+        </ul>
+        <div class="detail-note" style="margin-top: 12px;">
+          <i class="fa-solid fa-circle-info"></i> Empfehlung: Kontotyp <strong>Cash / Barmittel</strong> und Basiswährung nach Wunsch (z.&nbsp;B. Euro). Bei der Eröffnung bestätigst Du eine Reihe von Pflichtdokumenten. Achte darauf, dass Dein <strong>W-8BEN</strong>-Formular angelegt und Deutschland als steuerlicher Wohnsitz hinterlegt ist.
+        </div>
+      </div>
 
       <div class="transfer-flow">
         <div class="flow-step">

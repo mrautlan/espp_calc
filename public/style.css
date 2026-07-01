@@ -3882,9 +3882,12 @@ footer {
   color: var(--accent);
 }
 
-/* Slider value pills: give them the accent pop */
+/* Slider value pills: give them the accent pop.
+   background-color ONLY — the background shorthand would reset the
+   background-repeat/-position/-size longhands of input.slider-val's pencil
+   icon, making the SVG tile across the whole chip in light mode. */
 :root[data-theme="light"] .slider-val {
-  background: rgba(8, 145, 178, 0.13);
+  background-color: rgba(8, 145, 178, 0.13);
   color: hsl(192, 91%, 30%);
   font-weight: 700;
 }
@@ -4728,3 +4731,10 @@ input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
 .w8ben-status.ok { color: var(--success); }
 .w8ben-status.warn { color: var(--warning); }
 .w8ben-status.expired { color: #f87171; }
+
+/* Light mode: the pastel red (#f87171) washes out on white — darken it. */
+:root[data-theme="light"] .w8ben-status.expired,
+:root[data-theme="light"] .kpi-card strong.negative,
+:root[data-theme="light"] .kpi-card.negative .kpi-label > i {
+  color: #dc2626;
+}

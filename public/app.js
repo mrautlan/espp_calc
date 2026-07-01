@@ -427,25 +427,30 @@ function initW8benTracker() {
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem(LS_KEYS.w8ben) || '{}') || {}; } catch (e) { /* corrupt entry */ }
 
-  const renderStatus = (row) => {
+  const renderStatus = (row, animate = false) => {
     const year = parseInt(row.select.value, 10);
     const el = row.status;
     el.classList.remove('ok', 'warn', 'expired');
     if (!isFinite(year)) {
       el.innerHTML = '<i class="fa-solid fa-circle-question"></i> Status unbekannt';
-      return;
-    }
-    const expiryYear = year + 3;
-    const daysLeft = Math.ceil((new Date(expiryYear, 11, 31, 23, 59, 59) - Date.now()) / 86400000);
-    if (daysLeft < 0) {
-      el.classList.add('expired');
-      el.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Abgelaufen am 31.12.${expiryYear} – erneuern, sonst 30&nbsp;% statt 15&nbsp;% Quellensteuer!`;
-    } else if (daysLeft <= 92) {
-      el.classList.add('warn');
-      el.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Läuft am 31.12.${expiryYear} ab (noch ${daysLeft} Tage) – jetzt erneuern`;
     } else {
-      el.classList.add('ok');
-      el.innerHTML = `<i class="fa-solid fa-circle-check"></i> Gültig bis 31.12.${expiryYear}`;
+      const expiryYear = year + 3;
+      const daysLeft = Math.ceil((new Date(expiryYear, 11, 31, 23, 59, 59) - Date.now()) / 86400000);
+      if (daysLeft < 0) {
+        el.classList.add('expired');
+        el.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Abgelaufen am 31.12.${expiryYear} – erneuern, sonst 30&nbsp;% statt 15&nbsp;% Quellensteuer!`;
+      } else if (daysLeft <= 92) {
+        el.classList.add('warn');
+        el.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Läuft am 31.12.${expiryYear} ab (noch ${daysLeft} Tage) – jetzt erneuern`;
+      } else {
+        el.classList.add('ok');
+        el.innerHTML = `<i class="fa-solid fa-circle-check"></i> Gültig bis 31.12.${expiryYear}`;
+      }
+    }
+    // Micro-feedback on user changes only (not on the initial restore render).
+    if (animate && !prefersReducedMotion()) {
+      gsap.fromTo(el, { opacity: 0, y: 6 },
+        { opacity: 1, y: 0, duration: 0.28, ease: 'power2.out', overwrite: true, clearProps: 'opacity,transform' });
     }
   };
 
@@ -462,7 +467,7 @@ function initW8benTracker() {
       const val = parseInt(row.select.value, 10);
       if (isFinite(val)) saved[row.key] = val; else delete saved[row.key];
       try { localStorage.setItem(LS_KEYS.w8ben, JSON.stringify(saved)); } catch (e) { /* private mode */ }
-      renderStatus(row);
+      renderStatus(row, true);
     });
     renderStatus(row);
   });
@@ -549,6 +554,9 @@ function initTabs() {
       }
       if (tabId === 'calculator') {
         setupCalcScrollReveals();
+      }
+      if (tabId === 'guide' || tabId === 'taxes') {
+        setupContentScrollReveals(tabId);
       }
       if (tabId === 'porsche') {
         animateGoalCardsIn();
@@ -1562,6 +1570,19 @@ function calculateESPP() {
     elements.netProfitEuro.style.color = "#f87171";
   }
 
+  // One quick pulse when the profit flips sign — the color swap alone is easy to
+  // miss, and this is the most decision-relevant state change in the tab.
+  if (!isPlaceholder) {
+    const profitPositive = netProfitEUR >= 0;
+    if (state.lastProfitSign !== undefined && state.lastProfitSign !== profitPositive) {
+      pulseElement(document.querySelector('#tab-calculator .chart-center'));
+      pulseElement(document.querySelector('.calc-summary-banner .calc-kpi.primary'));
+    }
+    state.lastProfitSign = profitPositive;
+  } else {
+    state.lastProfitSign = undefined; // reset: the first real result must not pulse
+  }
+
   // Update Outputs in UI (animated if not placeholder)
   if (!isPlaceholder) {
     const fmtEUR = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -1640,8 +1661,9 @@ function calculateESPP() {
   elements.lblNet276.textContent = `${monthlyNetDeduction.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
 
   // Calculate instant profit margin: (Market Value - Net Deduction) / Net Deduction
+  // Counter-animated like every other figure, so the tile glides with the sliders.
   const instantGain = ((monthlyMarketValueEUR - monthlyNetDeduction) / monthlyNetDeduction) * 100;
-  elements.lblInstantGain.textContent = `+${instantGain.toFixed(0)} %`;
+  animateNumberValue('lblInstantGain', instantGain, (v) => `+${v.toFixed(0)} %`);
 
   // Mirror the headline figure into the donut center and fill the summary-banner extras
   const chartCenterProfit = document.getElementById('chartCenterProfit');
@@ -1892,6 +1914,14 @@ function updateScenarioUI({ historical, histMonths, accumulatedMonths, sharePric
       : `nach Steuern & Gebühren – angenommener Verkauf zu ${sellLabel} nach ${accumulatedMonths} Monaten Sparen`;
   }
 
+  // Micro-fade when the MODE flips — but never on plain recalcs: slider drags
+  // re-render this strip many times per second.
+  if (state.lastScenarioHistorical !== undefined && state.lastScenarioHistorical !== historical && !prefersReducedMotion()) {
+    gsap.fromTo(strip, { opacity: 0.35, y: -6 },
+      { opacity: 1, y: 0, duration: 0.3, ease: 'power2.out', overwrite: true, clearProps: 'opacity,transform' });
+  }
+  state.lastScenarioHistorical = historical;
+
   // Tiny mode tag in the condensed sticky KPI strip.
   const stickyTag = document.getElementById('stickyModeTag');
   if (stickyTag) {
@@ -1918,6 +1948,7 @@ function updateBreakEven({ isPlaceholder, totalShares, exchangeRate, costBasisEU
   if (!note) return;
   if (isPlaceholder || !(totalShares > 0) || !(exchangeRate > 0) || !(sellPriceUSD > 0)) {
     note.style.display = 'none';
+    state.lastBreakEvenInProfit = undefined; // reset: the next real result must not pulse
     return;
   }
 
@@ -1950,8 +1981,14 @@ function updateBreakEven({ isPlaceholder, totalShares, exchangeRate, costBasisEU
   note.classList.toggle('negative', !inProfit);
   document.getElementById('beLabel').textContent = inProfit ? 'Sicherheitspuffer' : 'Bis zum Gewinn';
 
+  // Pulse the tile when it flips between buffer and loss — mirrors the donut pulse.
+  if (state.lastBreakEvenInProfit !== undefined && state.lastBreakEvenInProfit !== inProfit) {
+    pulseElement(note);
+  }
+  state.lastBreakEvenInProfit = inProfit;
+
   const val = document.getElementById('beValue');
-  val.textContent = inProfit ? `${Math.abs(diffPct).toFixed(0)} %` : `+${diffPct.toFixed(0)} %`;
+  animateNumberValue('beValue', Math.abs(diffPct), (v) => inProfit ? `${v.toFixed(0)} %` : `+${v.toFixed(0)} %`);
   val.classList.toggle('positive', inProfit);
   val.classList.toggle('negative', !inProfit);
 
@@ -3155,23 +3192,6 @@ function initPortfolioModule() {
       handleMultipleUploadedFiles(files);
     }
   });
-
-  // Sortable tables: click any column header in the Portfolio-Analyse tab to sort by that column.
-  // Delegated so it keeps working after the tables are re-rendered by analyzePortfolio.
-  const portfolioTab = document.getElementById('tab-portfolio');
-  if (portfolioTab) {
-    portfolioTab.addEventListener('click', (e) => {
-      const th = e.target.closest('th');
-      if (!th) return;
-      const table = th.closest('table.portfolio-table');
-      if (!table || !table.tBodies[0]) return;
-      // Sorting the collapsed buy table would shuffle hidden rows — expand first.
-      if (table.id === 'equateplusBuyTable' && !buyTableExpanded && buyTableSetCollapsed) {
-        buyTableSetCollapsed(false, false);
-      }
-      sortPortfolioTable(table, Array.from(th.parentNode.children).indexOf(th), th);
-    });
-  }
 
   // Fetch current price button
   portfolioElements.btnFetchPortfolioPrice.addEventListener('click', () => fetchPortfolioPrice());
@@ -4420,59 +4440,6 @@ function updateSellSimulation() {
   savePortfolioState();
 }
 
-// ---- Sortable Portfolio-Analyse tables (generic DOM sorter) -----------------------------------
-// Parses the displayed values; handles dd.mm.yyyy dates and both de ("1.234,56") and toFixed/$
-// ("180.00", "0.61443") number formats. Sorts only the <tbody> (totals in <tfoot> stay put).
-function parseSortDate(s) {
-  const m = /(\d{1,2})\.(\d{1,2})\.(\d{2,4})/.exec(s);
-  if (!m) return null;
-  const y = m[3].length === 2 ? 2000 + parseInt(m[3], 10) : parseInt(m[3], 10);
-  return new Date(y, parseInt(m[2], 10) - 1, parseInt(m[1], 10)).getTime();
-}
-function parseSortNumber(s) {
-  let t = s.replace(/[^0-9.,-]/g, '');
-  if (!t || t === '-') return null;
-  const hasDot = t.includes('.'), hasComma = t.includes(',');
-  if (hasDot && hasComma) {
-    t = (t.lastIndexOf(',') > t.lastIndexOf('.')) ? t.replace(/\./g, '').replace(',', '.') : t.replace(/,/g, '');
-  } else if (hasComma) {
-    t = t.replace(/\./g, '').replace(',', '.');         // lone comma = decimal (de format)
-  } else if ((t.match(/\./g) || []).length > 1) {
-    t = t.replace(/\./g, '');                            // multiple dots = thousands grouping
-  } // else a single dot stays a decimal point ($-prices / toFixed values)
-  const n = parseFloat(t);
-  return isFinite(n) ? n : null;
-}
-function detectColType(vals) {
-  const ne = vals.filter(v => v);
-  if (!ne.length) return 'text';
-  if (ne.filter(v => parseSortDate(v) !== null).length / ne.length >= 0.6) return 'date';
-  if (ne.filter(v => parseSortNumber(v) !== null).length / ne.length >= 0.6) return 'number';
-  return 'text';
-}
-function sortPortfolioTable(table, idx, th) {
-  if (idx < 0) return;
-  const tbody = table.tBodies[0];
-  const rows = Array.from(tbody.rows).filter(r => r.cells.length > idx);
-  if (rows.length < 2) return;
-  const asc = !th.classList.contains('sort-asc'); // toggle; first click = ascending
-  th.parentNode.querySelectorAll('th').forEach(h => h.classList.remove('sort-asc', 'sort-desc'));
-  th.classList.add(asc ? 'sort-asc' : 'sort-desc');
-  const type = detectColType(rows.slice(0, 10).map(r => r.cells[idx].textContent.trim()));
-  const val = (r) => {
-    const txt = r.cells[idx].textContent.trim();
-    if (type === 'date') { const d = parseSortDate(txt); return d === null ? -Infinity : d; }
-    if (type === 'number') { const n = parseSortNumber(txt); return n === null ? -Infinity : n; }
-    return txt.toLowerCase();
-  };
-  rows.sort((a, b) => {
-    const va = val(a), vb = val(b);
-    const cmp = (type === 'text') ? String(va).localeCompare(String(vb), 'de') : (va < vb ? -1 : va > vb ? 1 : 0);
-    return asc ? cmp : -cmp;
-  });
-  rows.forEach(r => tbody.appendChild(r));
-}
-
 // Display Portfolio Results
 // ===== Steuerreport (Anlage KAP) =====================================================
 // Replays the REAL sells from the CapTrader statements chronologically against the
@@ -4849,10 +4816,7 @@ function updatePortfolioStepSummaries() {
 
 // "Meine IBM Aktien": ~50 expanded monthly buy rows made the page enormous.
 // Show only the newest rows by default with an expander button underneath.
-// `buyTableSetCollapsed` is exposed so the column sorter can auto-expand first
-// (sorting a half-hidden table would shuffle invisible rows around).
 const BUY_TABLE_PREVIEW_ROWS = 10;
-let buyTableSetCollapsed = null;
 let buyTableExpanded = false; // survives re-analysis within the session
 
 function setupBuyTableCollapse() {
@@ -4867,7 +4831,6 @@ function setupBuyTableCollapse() {
   // Not worth an expander for one or two surplus rows.
   if (extra.length <= 2) {
     btn.style.display = 'none';
-    buyTableSetCollapsed = null;
     return;
   }
 
@@ -4886,7 +4849,6 @@ function setupBuyTableCollapse() {
 
   btn.style.display = '';
   btn.onclick = () => setCollapsed(buyTableExpanded, true);
-  buyTableSetCollapsed = setCollapsed;
   setCollapsed(!buyTableExpanded, false);
 }
 
@@ -5423,6 +5385,22 @@ function animateNumberValue(elementId, targetVal, formatFn, opts = {}) {
   if (opts.flashRow && changed) flashDetailRow(element);
 }
 
+// One quick scale pulse to mark a state FLIP (profit turning into loss and back).
+// Deliberately stronger than the row flash: sign changes must not be missed.
+function pulseElement(el) {
+  if (!el || prefersReducedMotion()) return;
+  gsap.set(el, { transition: 'none' }); // a CSS transition would smear the pulse
+  gsap.fromTo(el, { scale: 1 }, {
+    scale: 1.08,
+    duration: 0.16,
+    ease: 'power2.out',
+    yoyo: true,
+    repeat: 1,
+    overwrite: true,
+    onComplete: () => gsap.set(el, { clearProps: 'transform,transition' })
+  });
+}
+
 // Soft highlight pulse on a breakdown row whose value just changed — makes it
 // visible *which* figures a slider movement affected.
 function flashDetailRow(element) {
@@ -5499,6 +5477,10 @@ function initGsapAnimations() {
 
   // Stagger inputs and outputs panels fade-in for the active tab
   const activeTabId = state.activeTab || 'calculator';
+  // The initially-active tab gets THIS entrance — don't add scroll reveals on top.
+  if (activeTabId === 'guide' || activeTabId === 'taxes') {
+    (state.contentReveals = state.contentReveals || {})[activeTabId] = true;
+  }
   let cards;
   if (activeTabId === 'guide') {
     cards = document.querySelectorAll(
@@ -5710,51 +5692,84 @@ function celebrateProfit(donutWrap) {
 
 // One confetti burst centered over `wrap` (needs position: relative). Shared by the
 // Rechner profit reveal and the goal tracker's "Jetzt leistbar!" moment.
+// Rendered at devicePixelRatio for crispness; particles pop upward, tumble
+// (faked 3D flutter via vertical squash) and stay fully opaque for most of
+// their life before easing out — a bold burst instead of a faint sprinkle.
 function confettiBurst(wrap) {
   const size = wrap.offsetWidth || 270;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const W = size * 2;
+  const H = size * 2;
   const canvas = document.createElement('canvas');
-  canvas.width = size * 2;
-  canvas.height = size * 2;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
   canvas.style.cssText =
     'position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);' +
     'width:200%;height:200%;pointer-events:none;z-index:5;';
   wrap.appendChild(canvas);
 
   const ctx = canvas.getContext('2d');
-  const colors = chartPalette();
-  const cx = canvas.width / 2;
-  const cy = canvas.height / 2;
-  const particles = Array.from({ length: 50 }, () => {
+  ctx.scale(dpr, dpr);
+
+  // Chart palette + bright celebration extras. White pops on dark; on the light
+  // theme it would vanish, so swap it for a deep slate.
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  const colors = [...chartPalette(), '#fbbf24', '#f472b6', '#38bdf8', light ? '#0f172a' : '#ffffff'];
+
+  const cx = W / 2;
+  const cy = H / 2;
+  const particles = Array.from({ length: 90 }, () => {
     const angle = Math.random() * Math.PI * 2;
-    const speed = 2.5 + Math.random() * 5;
+    const speed = 3.5 + Math.random() * 6.5;
+    const kind = Math.random();
     return {
       x: cx, y: cy,
       vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed - 2,
-      size: 3 + Math.random() * 4,
+      vy: Math.sin(angle) * speed - 3.2, // upward bias: pop up, then rain down
+      w: 5 + Math.random() * 6,
+      h: 3 + Math.random() * 5,
+      shape: kind < 0.55 ? 'rect' : (kind < 0.85 ? 'circle' : 'ribbon'),
       color: colors[(Math.random() * colors.length) | 0],
       rot: Math.random() * Math.PI,
-      vr: (Math.random() - 0.5) * 0.3
+      vr: (Math.random() - 0.5) * 0.35,
+      flutter: Math.random() * Math.PI * 2,
+      vf: 0.15 + Math.random() * 0.2
     };
   });
 
   let frame = 0;
-  const maxFrames = 70;
+  const maxFrames = 110;
   (function tick() {
     frame++;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const alpha = Math.max(0, 1 - frame / maxFrames);
+    ctx.clearRect(0, 0, W, H);
+    // Fully opaque for the first 60% of the life, then ease out.
+    const t = frame / maxFrames;
+    const alpha = t < 0.6 ? 1 : Math.max(0, 1 - (t - 0.6) / 0.4);
     for (const p of particles) {
       p.x += p.vx;
       p.y += p.vy;
-      p.vy += 0.12; // gravity
+      p.vx *= 0.985;               // air drag
+      p.vy = p.vy * 0.985 + 0.16;  // drag + gravity
       p.rot += p.vr;
+      p.flutter += p.vf;
       ctx.save();
       ctx.globalAlpha = alpha;
       ctx.translate(p.x, p.y);
       ctx.rotate(p.rot);
       ctx.fillStyle = p.color;
-      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      if (p.shape === 'circle') {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.w / 2.4, 0, Math.PI * 2);
+        ctx.fill();
+      } else if (p.shape === 'ribbon') {
+        // long strip with a slow flutter — reads as a falling streamer
+        ctx.scale(1, 0.4 + Math.abs(Math.sin(p.flutter)) * 0.9);
+        ctx.fillRect(-p.w / 2, -p.h * 1.4, p.w, p.h * 2.8);
+      } else {
+        // tumbling rectangle: vertical squash fakes the 3D flip
+        ctx.scale(1, 0.25 + Math.abs(Math.sin(p.flutter)) * 0.95);
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+      }
       ctx.restore();
     }
     if (frame < maxFrames) {
@@ -5879,6 +5894,31 @@ function initStickySummary() {
 
   window.addEventListener('scroll', updateStickySummaryVisibility, { passive: true });
   window.addEventListener('resize', updateStickySummaryVisibility);
+}
+
+// Entrance cascade for the long CONTENT tabs (Anleitung / Steuern): the sections
+// visible on first entry fade in once, synchronously with the tab switch.
+// Below-the-fold content is deliberately NOT animated on scroll — reveal-on-scroll
+// flashed cards dark before loading them in whenever the user scrolled quickly.
+function setupContentScrollReveals(tab) {
+  if (tab !== 'guide' && tab !== 'taxes') return;
+  state.contentReveals = state.contentReveals || {};
+  if (state.contentReveals[tab] || prefersReducedMotion()) return;
+  state.contentReveals[tab] = true;
+
+  const targets = [...document.querySelectorAll(tab === 'guide'
+    ? '#tab-guide .guide-section'
+    : '#tab-taxes .tax-glance-grid .guide-feature-card, #tab-taxes .guide-section')]
+    .filter(el => el.getBoundingClientRect().top < window.innerHeight * 0.92);
+  if (!targets.length) return;
+
+  // The cards carry a CSS `transition: all` (hover lift) that would re-smooth
+  // every GSAP frame into mush — disable it for the tween, clearProps restores it.
+  gsap.set(targets, { transition: 'none' });
+  gsap.fromTo(targets,
+    { opacity: 0, y: 26 },
+    { opacity: 1, y: 0, duration: 0.55, stagger: 0.09, delay: 0.05, ease: 'power2.out', clearProps: 'opacity,transform,transition' }
+  );
 }
 
 // Soft scroll-in reveals for the calculator's below-the-fold cards. Phones and

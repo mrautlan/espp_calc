@@ -54,7 +54,7 @@ is then roughly estimated for you.
 Upload your **EquatePlus** and **CapTrader / Interactive Brokers (IBKR)** statements (PDF) to see your
 actual position: shares held per platform, cost basis (converted at the FX rate on each purchase date,
 per the German Anlage-KAP rule), current value, cash balance and net proceeds if sold now — plus a
-**FIFO sell simulator**, a sortable buy/sell history and an **Anlage-KAP tax report** of realised sales.
+**FIFO sell simulator**, a buy/sell history and an **Anlage-KAP tax report** of realised sales.
 
 ![Portfolio-Analyse](docs/screenshots/portfolio.png)
 

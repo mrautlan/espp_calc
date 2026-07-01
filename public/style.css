@@ -3173,16 +3173,6 @@ footer {
   line-height: 1.5;
 }
 
-/* Sortable Portfolio-Analyse table headers */
-#tab-portfolio .portfolio-table th {
-  cursor: pointer;
-  user-select: none;
-  transition: color var(--transition-fast);
-}
-#tab-portfolio .portfolio-table th:hover { color: var(--text-main); }
-#tab-portfolio .portfolio-table th.sort-asc::after { content: " \25B2"; font-size: 0.65em; opacity: 0.75; }
-#tab-portfolio .portfolio-table th.sort-desc::after { content: " \25BC"; font-size: 0.65em; opacity: 0.75; }
-
 /* Rechner-Kurzanleitung */
 .howto-card {
   margin-bottom: 24px;

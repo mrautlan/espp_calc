@@ -126,7 +126,7 @@
         </button>
         <button type="button" class="welcome-feature" data-goto-tab="guide">
           <i class="fa-solid fa-route"></i>
-          <div><strong>Anleitung</strong><span>Schritt für Schritt durchs ESPP – vom Beitritt bis zum Verkauf.</span></div>
+          <div><strong>Anleitung</strong><span>Schritt für Schritt durchs ESPP – vom Beitritt bis zum Austritt.</span></div>
           <i class="fa-solid fa-chevron-right wf-chevron"></i>
         </button>
         <button type="button" class="welcome-feature" data-goto-tab="taxes">
@@ -452,16 +452,40 @@
             <div class="chart-legend">
               <span class="cl-item"><i class="cl-savings"></i> Netto-Sparrate</span>
               <span class="cl-item"><i class="cl-tax"></i> Lohnsteuer</span>
-              <span class="cl-item"><i class="cl-fees"></i> Gebühren &amp; KSt.</span>
+              <span class="cl-item"><i class="cl-fees"></i> Gebühren &amp; Abgeltungsteuer</span>
               <span class="cl-item"><i class="cl-profit"></i> Netto-Gewinn</span>
             </div>
           </div>
 
-          <div class="result-breakdown-heading">Aufschlüsselung</div>
+          <!-- At-a-glance advantage tiles: the two headline arguments for the ESPP.
+               Tile 1 = instant gross-salary leverage, tile 2 = downside buffer until
+               break-even. Long explanations live in the tooltips, not in the panel. -->
+          <div class="kpi-grid">
+            <div class="kpi-card">
+              <span class="kpi-label"><i class="fa-solid fa-bolt"></i> Sofort-Hebel beim Kauf <span class="tooltip-trigger" data-tooltip="Dein Papier-Gewinn im Moment des Kaufs: Du erhältst Aktien im Wert von Beitrag ÷ 0,85 (15 % Rabatt), Dein Netto sinkt aber nur um Beitrag × (1 − Steuersatz). Je höher Dein Grenzsteuersatz, desto mehr davon wäre sonst als Steuer abgezogen worden – Du verzichtest also auf weniger Netto für dieselben Aktien, und der Hebel steigt. Gehalt, Sparquote und Aktienkurs kürzen sich heraus; nur das Steuerprofil (Schritt 2) verändert diesen Wert.">i</span></span>
+              <strong class="kpi-value positive" id="lblInstantGain">–</strong>
+              <span class="kpi-sub">Aktien für <span id="lblGross500">500 €</span> kosten Dich netto nur <span id="lblNet276">276 €</span></span>
+            </div>
+            <div class="kpi-card" id="breakEvenNote" style="display: none;">
+              <span class="kpi-label"><i class="fa-solid fa-life-ring"></i> <span id="beLabel">Sicherheitspuffer</span> <span class="tooltip-trigger" data-tooltip="Der Break-even ist der Verkaufskurs, bei dem Dein Netto-Gewinn genau 0 € beträgt. Dank 15 % Rabatt und Kauf vom Brutto darf der Kurs deutlich fallen, bevor Du echtes Geld verlierst – dieser Puffer zeigt, wie viel.">i</span></span>
+              <strong class="kpi-value" id="beValue">–</strong>
+              <span class="kpi-sub" id="beSub"></span>
+            </div>
+          </div>
+
+          <!-- Aufschlüsselung: collapsed by default so the panel leads with the donut
+               and the two advantage tiles instead of a wall of numbers. -->
+          <details class="sale-process-collapsible">
+            <summary class="sale-process-summary">
+              <i class="fa-solid fa-chart-simple"></i> Aufschlüsselung: Wohin fließt Dein Geld?
+              <span class="summary-hint">Details</span>
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </summary>
+            <div class="sale-process-body">
 
           <!-- Stacked composition bar: same data & colors as the donut, lets the
                proportions be read at a glance before diving into the rows. -->
-          <div class="calc-composition-bar" aria-hidden="true">
+          <div class="calc-composition-bar" aria-hidden="true" style="margin-top: 14px;">
             <span class="comp-seg cl-savings" id="compSavings"></span>
             <span class="comp-seg cl-tax" id="compTax"></span>
             <span class="comp-seg cl-fees" id="compFees"></span>
@@ -487,7 +511,7 @@
               <span class="detail-val text-warning" id="rowDiscountTax">0,00 €</span>
             </div>
             <div class="detail-row warning-row">
-              <span class="detail-label"><i class="fa-solid fa-scale-unbalanced text-warning"></i> Kapitalertragsteuer beim Verkauf <span class="tooltip-trigger" data-tooltip="Die Differenz zwischen dem Verkaufspreis und dem unrabattierten Einstandspreis (Costbasis) wird mit der deutschen Abgeltungsteuer (25% + Soli = 26,375%) belegt. Liegt Dein eingestellter Steuersatz darunter, rechnet der Rechner automatisch mit diesem (Günstigerprüfung – vereinfacht über den Grenzsteuersatz; tatsächlich prüft das Finanzamt den Durchschnittssteuersatz des Gesamteinkommens).">i</span></span>
+              <span class="detail-label"><i class="fa-solid fa-scale-unbalanced text-warning"></i> Abgeltungsteuer beim Verkauf <span class="tooltip-trigger" data-tooltip="Die Differenz zwischen dem Verkaufspreis und dem unrabattierten Einstandspreis (Costbasis) wird mit der deutschen Abgeltungsteuer (25% + Soli = 26,375%) belegt. Liegt Dein eingestellter Steuersatz darunter, rechnet der Rechner automatisch mit diesem (Günstigerprüfung – vereinfacht über den Grenzsteuersatz; tatsächlich prüft das Finanzamt den Durchschnittssteuersatz des Gesamteinkommens).">i</span></span>
               <span class="detail-val text-warning" id="rowCapitalGainsTax">0,00 €</span>
             </div>
             <div class="detail-note">
@@ -501,7 +525,9 @@
               <span class="detail-val" id="rowFees">0,00 €</span>
             </div>
           </div>
-          
+            </div>
+          </details>
+
           <!-- Verkaufsprozess im Detail (collapsible for a cleaner overview) -->
           <details class="sale-process-collapsible">
             <summary class="sale-process-summary">
@@ -562,7 +588,7 @@
             <div class="sale-step">
               <div class="sale-step-header"><i class="fa-solid fa-file-invoice-dollar"></i> Abzüge vom Erlös</div>
               <div class="detail-row">
-                <span class="detail-label">Kapitalertragsteuer <span class="tooltip-trigger" data-tooltip="Abgeltungsteuer auf den Kursgewinn: 25% + 5,5% Soli = 26,375%. Mit Kirchensteuer ggf. höher.">i</span></span>
+                <span class="detail-label">Abgeltungsteuer <span class="tooltip-trigger" data-tooltip="Steuer auf den Kursgewinn: 25% + 5,5% Soli = 26,375%. Mit Kirchensteuer ggf. höher.">i</span></span>
                 <span class="detail-val value-negative" id="rowCapGainsTaxSale">0,00 €</span>
               </div>
               <div class="detail-row">
@@ -578,7 +604,7 @@
             <!-- Step 4: Endergebnis -->
             <div class="sale-step sale-result-step">
               <div class="detail-row">
-                <span class="detail-label"><strong>Netto-Verkaufserlös</strong> <span class="tooltip-trigger" data-tooltip="Brutto-Verkaufserlös abzüglich Kapitalertragsteuer und Broker-Gebühren. Das ist der Betrag, der auf Deinem Konto landet.">i</span></span>
+                <span class="detail-label"><strong>Netto-Verkaufserlös</strong> <span class="tooltip-trigger" data-tooltip="Brutto-Verkaufserlös abzüglich Abgeltungsteuer und Broker-Gebühren. Das ist der Betrag, der auf Deinem Konto landet.">i</span></span>
                 <span class="detail-val value-positive" id="rowNetSaleProceeds" style="font-weight: 700;">0,00 €</span>
               </div>
               <div class="detail-row">
@@ -597,14 +623,6 @@
             </div>
           </details>
 
-          <div class="divider"></div>
-
-          <div class="alert alert-info">
-            <i class="fa-solid fa-triangle-exclamation"></i>
-            <div>
-              <strong>Lohnabrechnung-Effekt:</strong> Für <span class="calc-highlight" id="lblGross500">500 €</span> Brutto-Beitrag fehlen Dir bei <span id="lblTax35">35%</span> Steuersatz netto nur ca. <span class="calc-highlight" id="lblNet276">276 €</span>. Dein Gewinn im Moment des Kaufs beträgt dadurch bereits <strong>satte <span id="lblInstantGain">81%</span>!</strong>
-            </div>
-          </div>
           </div><!-- /calcResultsContent -->
         </div>
       </div>
@@ -979,7 +997,7 @@
                 <span class="sim-metric-val" id="simValTaxableGain" style="font-size: 1.25rem; font-weight: 700; display: block;">0,00 €</span>
               </div>
               <div class="sim-metric-box">
-                <span class="sim-metric-label" style="font-size: 0.75rem; color: var(--text-muted);">Kapitalertragsteuer (Abgeltungsteuer)</span>
+                <span class="sim-metric-label" style="font-size: 0.75rem; color: var(--text-muted);">Abgeltungsteuer</span>
                 <span class="sim-metric-val" id="simValTax" style="font-size: 1.25rem; font-weight: 700; display: block; color: var(--danger);">0,00 €</span>
               </div>
             </div>
@@ -1268,7 +1286,7 @@
     <section id="tab-guide" class="tab-content" role="tabpanel" aria-labelledby="navtab-guide">
       <div class="hero-section">
         <h2>Die ESPP-Anleitung</h2>
-        <p>Dein Wegweiser durch das IBM-Aktienprogramm – in vier kurzen Kapiteln.</p>
+        <p>Dein Wegweiser durch das IBM-Aktienprogramm – in fünf kurzen Kapiteln.</p>
       </div>
 
       <!-- Kapitel-Navigation -->
@@ -1277,6 +1295,7 @@
         <a href="#guide-strategy"><span class="toc-num">2</span> Strategie wählen</a>
         <a href="#guide-transfer"><span class="toc-num">3</span> Aktien übertragen</a>
         <a href="#guide-pitfalls"><span class="toc-num">4</span> Stolperfallen</a>
+        <a href="#guide-leave"><span class="toc-num">5</span> IBM verlassen</a>
       </nav>
 
       <!-- Kapitel 1: Über dieses Tool -->
@@ -1519,6 +1538,41 @@
           </div>
         </div>
       </div>
+
+      <!-- Kapitel 5: Und wenn ich die IBM verlasse? -->
+      <div class="guide-section" id="guide-leave">
+        <div class="guide-section-head">
+          <div class="guide-section-num">5</div>
+          <div>
+            <h3>Und wenn ich die IBM verlasse?</h3>
+            <p class="guide-section-sub">Dein EquatePlus-Zugang bleibt bestehen – aber ein paar Dinge solltest Du <strong>vor</strong> dem Abschied erledigen.</p>
+          </div>
+        </div>
+
+        <div class="glass-card">
+          <p>Der Login bei EquatePlus funktioniert nach dem Ausscheiden erfahrungsgemäß unverändert weiter. Damit Du aber erreichbar bleibst (Benachrichtigungen, Kennwort-Reset, Steuerdokumente), solltest Du die Kontaktdaten rechtzeitig auf Deine <strong>privaten</strong> umstellen:</p>
+
+          <h4 class="text-primary" style="margin-top: 18px;">Kontaktdaten auf privat umstellen</h4>
+          <ol class="styled-list" style="margin-top: 8px;">
+            <li>In der EquatePlus-WebUI das Menü mit <strong>Deinem Namen</strong> aufklappen und <strong>Personal details</strong> auswählen.</li>
+            <li>Bei <strong>Contact Details</strong> unter <strong>Home</strong> Deine private E-Mail-Adresse (und ggf. private Anschrift) eintragen.</li>
+            <li>Anschließend über <strong>Edit defaults</strong> die private E-Mail (und Anschrift) als <strong>Standard</strong> festlegen – sonst bleibt die IBM-Adresse die Default-Adresse.</li>
+          </ol>
+
+          <div class="alert alert-info" style="margin-top: 18px;">
+            <i class="fa-solid fa-circle-info"></i>
+            <div>
+              <strong>Was passiert mit Deinen Aktien?</strong> Mit dem Austritt enden die monatlichen ESPP-Käufe vom Gehalt – Deine Aktien bleiben aber Dein Eigentum. Du kannst sie weiterhin wie in <a href="#guide-transfer">Kapitel&nbsp;3</a> beschrieben kostenfrei zu CapTrader/IBKR übertragen oder verkaufen, und die Dividenden-Einstellung (Cash/Reinvest) gilt unverändert weiter.
+            </div>
+          </div>
+          <div class="alert alert-warning" style="margin-top: 12px;">
+            <i class="fa-solid fa-file-signature"></i>
+            <div>
+              <strong>W-8BEN im Blick behalten:</strong> Auch nach dem Austritt muss Dein W-8BEN gültig bleiben, sonst steigen die US-Quellensteuern auf Dividenden von 15&nbsp;% auf 30&nbsp;%. Den Ablauf kannst Du im Tab <strong>Steuern (DE)</strong> mit dem Ablauf-Tracker überwachen.
+            </div>
+          </div>
+        </div>
+      </div>
     </section>
     
     <!-- TAXES TAB -->
@@ -1695,6 +1749,24 @@ Steuer darauf (z. B. 35 %):   26,25 €</code>
               <h5><i class="fa-solid fa-circle-check" style="color: var(--success);"></i> Mit W-8BEN</h5>
               <p>Nur noch <strong>15&nbsp;%</strong> – und diese werden in Deutschland voll auf Deine Abgeltungsteuer angerechnet.</p>
             </div>
+          </div>
+
+          <!-- W-8BEN expiry tracker: signature year per account -> computed validity.
+               Stored only in localStorage (never uploaded); wired up in initW8benTracker(). -->
+          <div class="w8ben-tracker">
+            <h4 class="text-primary" style="margin-top: 22px;"><i class="fa-solid fa-hourglass-half"></i> Ablauf-Tracker: Wann musst Du erneuern?</h4>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 12px;">Ein W-8BEN gilt bis zum <strong>31. Dezember des dritten Jahres nach der Unterschrift</strong> (Beispiel: 2022 unterschrieben → gültig bis Ende 2025). Wähle das Unterschriftsjahr pro Konto – gespeichert wird nur lokal in Deinem Browser.</p>
+            <div class="w8ben-row">
+              <span class="w8ben-account"><i class="fa-solid fa-building-columns text-success"></i> EquatePlus</span>
+              <select id="w8benYearEq" aria-label="Unterschriftsjahr des W-8BEN bei EquatePlus"><option value="">Jahr wählen…</option></select>
+              <span class="w8ben-status" id="w8benStatusEq"></span>
+            </div>
+            <div class="w8ben-row">
+              <span class="w8ben-account"><i class="fa-solid fa-chart-line" style="color:#8b5cf6;"></i> CapTrader / IBKR</span>
+              <select id="w8benYearBroker" aria-label="Unterschriftsjahr des W-8BEN beim US-Broker"><option value="">Jahr wählen…</option></select>
+              <span class="w8ben-status" id="w8benStatusBroker"></span>
+            </div>
+            <p style="color: var(--text-muted); font-size: 0.78rem; margin-top: 10px;"><i class="fa-solid fa-circle-info"></i> Das offizielle Ablaufdatum findest Du bei EquatePlus unter <em>My Profile &gt; Tax Certification</em>. Achtung: Ändern sich Deine hinterlegten Daten (z.&nbsp;B. Adresse oder Bankverbindung), kann das Formular auch <strong>früher</strong> ungültig werden.</p>
           </div>
 
           <div class="alert alert-warning" style="margin-top: 18px;">

@@ -11,7 +11,8 @@ export const LS_KEYS = {
   simNoteDismissed: 'espp_sim_note_dismissed',
   theme: 'espp_theme',
   goal: 'espp_goal_v1',
-  histCache: 'espp_hist_cache'
+  histCache: 'espp_hist_cache',
+  w8ben: 'espp_w8ben_v1'
 };
 
 // German flat capital-gains tax (Abgeltungsteuer): 25% + 5.5% Soli, with the two

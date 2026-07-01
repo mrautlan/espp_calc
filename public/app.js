@@ -154,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initWelcome();
   initThemeToggle();
   initSaleProcessCollapsible();
+  initW8benTracker();
 
   // Trigger GSAP entrance timelines
   initGsapAnimations();
@@ -411,6 +412,60 @@ function initWelcome() {
   let seen = false;
   try { seen = !!localStorage.getItem(LS_KEYS.seenWelcome); } catch (e) { /* private mode */ }
   if (!seen) open();
+}
+
+// W-8BEN expiry tracker (Steuern tab). A W-8BEN stays valid until 31 December of the
+// third year after the signature year (e.g. signed 2022 -> valid through 2025). The
+// user picks the signature year per account; stored only in localStorage.
+function initW8benTracker() {
+  const rows = [
+    { select: document.getElementById('w8benYearEq'), status: document.getElementById('w8benStatusEq'), key: 'equateplus' },
+    { select: document.getElementById('w8benYearBroker'), status: document.getElementById('w8benStatusBroker'), key: 'broker' }
+  ].filter(r => r.select && r.status);
+  if (!rows.length) return;
+
+  let saved = {};
+  try { saved = JSON.parse(localStorage.getItem(LS_KEYS.w8ben) || '{}') || {}; } catch (e) { /* corrupt entry */ }
+
+  const renderStatus = (row) => {
+    const year = parseInt(row.select.value, 10);
+    const el = row.status;
+    el.classList.remove('ok', 'warn', 'expired');
+    if (!isFinite(year)) {
+      el.innerHTML = '<i class="fa-solid fa-circle-question"></i> Status unbekannt';
+      return;
+    }
+    const expiryYear = year + 3;
+    const daysLeft = Math.ceil((new Date(expiryYear, 11, 31, 23, 59, 59) - Date.now()) / 86400000);
+    if (daysLeft < 0) {
+      el.classList.add('expired');
+      el.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> Abgelaufen am 31.12.${expiryYear} – erneuern, sonst 30&nbsp;% statt 15&nbsp;% Quellensteuer!`;
+    } else if (daysLeft <= 92) {
+      el.classList.add('warn');
+      el.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Läuft am 31.12.${expiryYear} ab (noch ${daysLeft} Tage) – jetzt erneuern`;
+    } else {
+      el.classList.add('ok');
+      el.innerHTML = `<i class="fa-solid fa-circle-check"></i> Gültig bis 31.12.${expiryYear}`;
+    }
+  };
+
+  const currentYear = new Date().getFullYear();
+  rows.forEach(row => {
+    for (let y = currentYear; y >= currentYear - 10; y--) {
+      const opt = document.createElement('option');
+      opt.value = String(y);
+      opt.textContent = String(y);
+      row.select.appendChild(opt);
+    }
+    if (Number.isInteger(saved[row.key])) row.select.value = String(saved[row.key]);
+    row.select.addEventListener('change', () => {
+      const val = parseInt(row.select.value, 10);
+      if (isFinite(val)) saved[row.key] = val; else delete saved[row.key];
+      try { localStorage.setItem(LS_KEYS.w8ben, JSON.stringify(saved)); } catch (e) { /* private mode */ }
+      renderStatus(row);
+    });
+    renderStatus(row);
+  });
 }
 
 // Tab Navigation
@@ -1577,16 +1632,16 @@ function calculateESPP() {
     el.textContent = accumulatedMonths;
   });
   
-  // Update paycheck warning info
+  // "Sofort-Hebel" tile: instant gain at purchase from the gross-salary effect + discount.
   elements.lblGross500.textContent = `${monthlyGrossContribution.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
-  elements.lblTax35.textContent = `${(effectiveTaxRate*100).toFixed(1)}%`;
-  
+  if (elements.lblTax35) elements.lblTax35.textContent = `${(effectiveTaxRate*100).toFixed(1)}%`;
+
   const monthlyNetDeduction = monthlyGrossContribution * (1 - effectiveTaxRate);
   elements.lblNet276.textContent = `${monthlyNetDeduction.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
-  
+
   // Calculate instant profit margin: (Market Value - Net Deduction) / Net Deduction
   const instantGain = ((monthlyMarketValueEUR - monthlyNetDeduction) / monthlyNetDeduction) * 100;
-  elements.lblInstantGain.textContent = `${instantGain.toFixed(0)}%`;
+  elements.lblInstantGain.textContent = `+${instantGain.toFixed(0)} %`;
 
   // Mirror the headline figure into the donut center and fill the summary-banner extras
   const chartCenterProfit = document.getElementById('chartCenterProfit');
@@ -1745,6 +1800,19 @@ function calculateESPP() {
     isPlaceholder
   });
 
+  // Break-even sell price: how far the price may fall before the net profit turns negative.
+  updateBreakEven({
+    isPlaceholder,
+    totalShares,
+    exchangeRate,
+    costBasisEUR,
+    broker,
+    abgeltungRate,
+    capGainsTaxRate,
+    totalEmployeeCost,
+    sellPriceUSD
+  });
+
   // Draw or update Chart.js visualization (skipped while the results are hidden behind the
   // empty state — the chart is created on the first calculation with real data instead)
   if (!isPlaceholder) {
@@ -1840,6 +1908,58 @@ function updateScenarioUI({ historical, histMonths, accumulatedMonths, sharePric
   }
 }
 
+// Break-even Verkaufskurs: the USD sell price at which the net profit is exactly zero.
+// Uses the same sale-side model as calculateESPP (Abgeltungsteuer with Günstigerprüfung,
+// broker fees, German-broker Ersatzbemessungsgrundlage). The purchase side (net
+// contribution + GwV tax = totalEmployeeCost) is fixed, and the net profit rises
+// monotonically with the sell price, so a simple bisection finds the zero.
+function updateBreakEven({ isPlaceholder, totalShares, exchangeRate, costBasisEUR, broker, abgeltungRate, capGainsTaxRate, totalEmployeeCost, sellPriceUSD }) {
+  const note = document.getElementById('breakEvenNote');
+  if (!note) return;
+  if (isPlaceholder || !(totalShares > 0) || !(exchangeRate > 0) || !(sellPriceUSD > 0)) {
+    note.style.display = 'none';
+    return;
+  }
+
+  const netAt = (priceUSD) => {
+    const grossEUR = totalShares * priceUSD * exchangeRate;
+    const gainEUR = Math.max(0, grossEUR - costBasisEUR);
+    const tax = broker === 'german'
+      ? Math.max(grossEUR * 0.30 * abgeltungRate, gainEUR * capGainsTaxRate)
+      : gainEUR * capGainsTaxRate;
+    return grossEUR - tax - computeBrokerFees(broker, grossEUR, exchangeRate) - totalEmployeeCost;
+  };
+
+  // Bracket the zero: at $0 the net is negative (fees + paid-in capital), then it
+  // only grows. If even a generous upper bound stays negative, hide the note.
+  let lo = 0;
+  let hi = Math.max(sellPriceUSD, costBasisEUR / (totalShares * exchangeRate)) * 4 + 100;
+  if (netAt(hi) < 0) { note.style.display = 'none'; return; }
+  for (let i = 0; i < 60; i++) {
+    const mid = (lo + hi) / 2;
+    if (netAt(mid) < 0) lo = mid; else hi = mid;
+  }
+  const breakEvenUSD = hi;
+
+  // Render into the "Sicherheitspuffer" KPI tile: one percentage + one short line.
+  const fmtUSD = (v) => `$${v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const inProfit = breakEvenUSD < sellPriceUSD;
+  const diffPct = ((breakEvenUSD - sellPriceUSD) / sellPriceUSD) * 100;
+
+  note.style.display = '';
+  note.classList.toggle('negative', !inProfit);
+  document.getElementById('beLabel').textContent = inProfit ? 'Sicherheitspuffer' : 'Bis zum Gewinn';
+
+  const val = document.getElementById('beValue');
+  val.textContent = inProfit ? `${Math.abs(diffPct).toFixed(0)} %` : `+${diffPct.toFixed(0)} %`;
+  val.classList.toggle('positive', inProfit);
+  val.classList.toggle('negative', !inProfit);
+
+  document.getElementById('beSub').textContent = inProfit
+    ? `Verlust erst, wenn der Kurs unter ${fmtUSD(breakEvenUSD)} fällt`
+    : `Gewinn erst ab einem Verkaufskurs von ${fmtUSD(breakEvenUSD)}`;
+}
+
 // Theme-dependent canvas colors for Chart.js (canvas can't resolve CSS variables).
 // Charts are destroyed and re-created on theme toggle so these get re-read.
 function chartThemeColors() {
@@ -1890,7 +2010,7 @@ function updateChart(netInvest, payrollTax, sellCosts, netProfit) {
     state.chart = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: ['Netto-Sparrate', 'Lohnsteuer (AKP GwV)', 'Gebühren & KSt.', 'Netto-Gewinn'],
+        labels: ['Netto-Sparrate', 'Lohnsteuer (AKP GwV)', 'Gebühren & Abgeltungsteuer', 'Netto-Gewinn'],
         datasets: [{
           data: dataValues,
           backgroundColor: chartPalette(),
@@ -5389,7 +5509,8 @@ function initGsapAnimations() {
       '#guide-about .guide-fact-strip, ' +
       '#tab-guide #guide-strategy, ' +
       '#tab-guide #guide-transfer, ' +
-      '#tab-guide #guide-pitfalls'
+      '#tab-guide #guide-pitfalls, ' +
+      '#tab-guide #guide-leave'
     );
   } else if (activeTabId === 'taxes') {
     cards = document.querySelectorAll('#tab-taxes .guide-toc, #tab-taxes .tax-glance-grid .guide-feature-card, #tab-taxes .guide-section');
@@ -5431,17 +5552,20 @@ function initSaleProcessCollapsible() {
     const chevron = collapsible.querySelector('.chevron');
     if (!summary || !body) return;
 
-    // Initial layout configuration
-    body.style.overflow = 'hidden';
+    // Initial layout configuration. Overflow is only hidden while COLLAPSED or
+    // animating — an open body must stay overflow-visible, otherwise the CSS
+    // tooltips of rows near its top edge get clipped.
     body.style.willChange = 'height, opacity';
-    
+
     if (collapsible.hasAttribute('open')) {
       body.style.height = 'auto';
       body.style.opacity = '1';
+      body.style.overflow = 'visible';
       if (chevron) gsap.set(chevron, { rotation: 180 });
     } else {
       body.style.height = '0px';
       body.style.opacity = '0';
+      body.style.overflow = 'hidden';
       if (chevron) gsap.set(chevron, { rotation: 0 });
     }
 
@@ -5454,6 +5578,7 @@ function initSaleProcessCollapsible() {
       if (isOpen) {
         // Collapse: Animate height to 0 and opacity to 0
         body.style.height = `${body.scrollHeight}px`;
+        body.style.overflow = 'hidden';
 
         gsap.to(body, {
           height: 0,
@@ -5477,6 +5602,7 @@ function initSaleProcessCollapsible() {
         collapsible.setAttribute('open', '');
         body.style.height = '0px';
         body.style.opacity = '0';
+        body.style.overflow = 'hidden';
 
         const targetHeight = body.scrollHeight;
 
@@ -5487,6 +5613,7 @@ function initSaleProcessCollapsible() {
           ease: "power1.out",
           onComplete: () => {
             body.style.height = 'auto';
+            body.style.overflow = 'visible'; // tooltips may escape the open body
           }
         });
 
@@ -5544,8 +5671,7 @@ function revealCalcResults(emptyState, resultsContent, netProfitEUR) {
 
   const legendItems = resultsContent.querySelectorAll('.chart-legend .cl-item');
   const rest = resultsContent.querySelectorAll(
-    '.result-breakdown-heading, .calc-composition-bar, .breakdown-details .detail-row, ' +
-    '.breakdown-details .detail-note, .sale-process-collapsible, .alert-info'
+    '.kpi-grid .kpi-card, .sale-process-collapsible'
   );
 
   if (donut) gsap.killTweensOf(donut);

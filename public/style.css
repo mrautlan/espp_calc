@@ -993,16 +993,20 @@ input[type="range"]::-webkit-slider-thumb:hover {
 
 .donut-wrap {
   position: relative;
-  width: 270px;
-  max-width: 82%;
+  width: 340px;
+  max-width: 100%;
   aspect-ratio: 1 / 1;
   margin: 0 auto;
 }
-.donut-wrap canvas { position: absolute; inset: 0; }
+/* Canvas ABOVE the center overlay: Chart.js paints its hover tooltip onto the
+   canvas, which would otherwise be hidden behind the big net-profit text. The
+   center text stays visible through the transparent donut cutout. */
+.donut-wrap canvas { position: absolute; inset: 0; z-index: 2; }
 
 .chart-center {
   position: absolute;
   inset: 0;
+  z-index: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1018,7 +1022,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
   color: var(--text-muted);
 }
 .chart-center h4 {
-  font-size: 1.75rem;
+  font-size: 2.1rem;
   line-height: 1.05;
   font-family: var(--font-header);
   background: linear-gradient(135deg, var(--grad-text-hi) 35%, var(--accent) 100%);
@@ -1069,28 +1073,41 @@ input[type="range"]::-webkit-slider-thumb:hover {
   box-shadow: -1.5px 0 0 0 var(--panel-bg);
 }
 
-/* At-a-glance KPI tiles under the chart */
+/* At-a-glance KPI tiles under the chart (Sofort-Hebel + Sicherheitspuffer) */
 .kpi-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 12px;
-  margin-bottom: 24px;
+  gap: 14px;
+  margin: 22px 0 24px;
 }
 .kpi-card {
   background: var(--surface-soft);
   border: 1px solid var(--panel-border);
   border-radius: 14px;
-  padding: 14px 16px;
+  padding: 16px 18px;
   display: flex;
   flex-direction: column;
-  gap: 5px;
+  gap: 6px;
 }
-.kpi-label { font-size: 0.75rem; color: var(--text-muted); }
+.kpi-label { font-size: 0.78rem; font-weight: 600; color: var(--text-muted); }
+.kpi-label > i { color: var(--success); margin-right: 4px; }
+.kpi-card.negative .kpi-label > i { color: #f87171; }
 .kpi-card strong {
-  font-size: 1.45rem;
+  font-size: 1.55rem;
   font-family: var(--font-header);
   color: var(--text-strong);
   white-space: nowrap;
+}
+.kpi-card strong.positive { color: var(--success); }
+.kpi-card strong.negative { color: #f87171; }
+.kpi-sub {
+  font-size: 0.76rem;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+.kpi-sub span { color: var(--text-strong); font-weight: 600; white-space: nowrap; }
+@media (max-width: 560px) {
+  .kpi-grid { grid-template-columns: 1fr; }
 }
 
 .result-breakdown-heading {
@@ -4676,3 +4693,33 @@ input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
 
 /* (Manual goals show no preview card — the photo card only appears for fetched
    goals with a real product image; see renderGoal.) */
+
+/* ===== W-8BEN expiry tracker (Steuern tab) ===== */
+.w8ben-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--panel-border);
+}
+.w8ben-row:first-of-type { border-top: 1px solid var(--panel-border); }
+.w8ben-account {
+  min-width: 160px;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+.w8ben-row select {
+  width: auto;
+  min-width: 150px;
+  flex: 0 0 auto;
+}
+.w8ben-status {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  flex: 1 1 220px;
+}
+.w8ben-status.ok { color: var(--success); }
+.w8ben-status.warn { color: var(--warning); }
+.w8ben-status.expired { color: #f87171; }

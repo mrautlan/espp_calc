@@ -833,6 +833,11 @@ input[type="range"]::-webkit-slider-thumb:hover {
   gap: 8px;
   min-width: 0; /* allow the label to wrap so it never squeezes the value */
 }
+/* Variable numbers injected mid-sentence (e.g. "Gesamt über 12 Monate"): inside a
+   flex label the span would become its own flex item and pick up the 8px gap on
+   both sides — reading like doubled spaces. display:contents merges the number
+   back into the surrounding text run (the span stays in the DOM for JS updates). */
+.months-count { display: contents; }
 
 .detail-label i {
   font-size: 0.6rem;

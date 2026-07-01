@@ -2765,33 +2765,13 @@ footer {
   -webkit-backdrop-filter: blur(8px);
 }
 
-/* Color thematic left borders */
-.input-group-card.group-stocks-savings {
-  border-left: 3.5px solid var(--accent);
-}
-.input-group-card.group-taxes {
-  border-left: 3.5px solid var(--primary);
-}
-.input-group-card.group-selling {
-  border-left: 3.5px solid var(--success);
-}
-
+/* Steps are distinguished by their number chip and colored header icon — no
+   colored card edges: the cards share the site's uniform glass look. */
 .input-group-card:hover {
   background: var(--group-card-bg-hover);
   border-color: var(--panel-border);
   box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
   transform: translateY(-1px);
-}
-
-/* Hover glow effect transitions based on active color */
-.input-group-card.group-stocks-savings:hover {
-  box-shadow: 0 8px 25px rgba(0, 242, 254, 0.06), inset 0 0 10px rgba(0, 242, 254, 0.02);
-}
-.input-group-card.group-taxes:hover {
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.06), inset 0 0 10px rgba(59, 130, 246, 0.02);
-}
-.input-group-card.group-selling:hover {
-  box-shadow: 0 8px 25px rgba(34, 197, 94, 0.06), inset 0 0 10px rgba(34, 197, 94, 0.02);
 }
 
 .input-group-header {
@@ -3816,9 +3796,6 @@ footer {
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
 }
-:root[data-theme="light"] .input-group-card.group-stocks-savings { border-left: 3.5px solid var(--accent); }
-:root[data-theme="light"] .input-group-card.group-taxes { border-left: 3.5px solid var(--primary); }
-:root[data-theme="light"] .input-group-card.group-selling { border-left: 3.5px solid var(--success); }
 :root[data-theme="light"] .input-group-card:hover {
   border-color: rgba(15, 23, 42, 0.16);
   box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
@@ -4207,24 +4184,15 @@ input[type="range"] {
   position: relative;
 }
 
-/* Connection indicator */
+/* Open/closed state: the expanded step gets a slightly stronger uniform border —
+   no glowing colored edge (the chevron + expanded body already signal the state). */
 .input-group-card {
   position: relative;
-  border-left: 3px solid rgba(255, 255, 255, 0.05);
-  transition: border-color 0.4s ease;
   margin-left: 0;
 }
 
 .input-group-card.open {
-  border-left-color: #00f2fe;
-}
-
-:root[data-theme="light"] .input-group-card {
-  border-left: 3px solid rgba(15, 23, 42, 0.05);
-}
-
-:root[data-theme="light"] .input-group-card.open {
-  border-left-color: #0891b2;
+  border-color: var(--panel-border);
 }
 
 /* ============================================================

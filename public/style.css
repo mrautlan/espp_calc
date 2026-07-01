@@ -163,10 +163,14 @@ body {
   100% { transform: translate(100px, 80px) scale(1.2); }
 }
 
+/* Wide layout: the app tabs (Rechner, Portfolio, Ziel-Tracker) profit from every
+   pixel — tables, sliders and the results panel get room to breathe. Fluid side
+   padding: ~36px on laptops, up to 48px on large monitors (mobile media queries
+   below override with 16px/12px). Prose-heavy tabs are re-capped further down. */
 .container {
-  max-width: 1400px;
+  max-width: 1720px;
   margin: 0 auto;
-  padding: 0 40px;
+  padding: 0 clamp(28px, 2.5vw, 48px);
 }
 
 /* Typography */
@@ -198,9 +202,9 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 1400px;
+  max-width: 1720px; /* keep the header aligned with the widened .container */
   margin: 0 auto;
-  padding: 20px 40px;
+  padding: 20px clamp(28px, 2.5vw, 48px);
 }
 
 .logo {
@@ -342,12 +346,13 @@ main {
 .hero-section p {
   color: var(--text-muted);
   font-size: 1.1rem;
+  max-width: 920px; /* keep the intro line length readable on the wide layout */
 }
 
 .grid-2col {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 30px;
+  gap: clamp(24px, 2vw, 38px);
   align-items: start; /* Prevents vertical stretching and empty spaces inside card panels */
 }
 
@@ -3338,6 +3343,21 @@ footer {
 .guide-section {
   margin-bottom: 64px;
   scroll-margin-top: 95px; /* anchor jumps clear the sticky header */
+}
+
+/* Readability cap for the prose tabs: the widened container is right for the
+   data-heavy app tabs, but chapter text must keep a readable line length —
+   Anleitung & Steuern content centers itself at its previous comfortable width. */
+#tab-guide > .hero-section,
+#tab-guide > .guide-toc,
+#tab-guide > .guide-section,
+#tab-taxes > .hero-section,
+#tab-taxes > .guide-toc,
+#tab-taxes > .tax-glance-grid,
+#tab-taxes > .guide-section,
+#tab-taxes > .detail-note {
+  max-width: 1280px;
+  margin-inline: auto;
 }
 .guide-section-head {
   display: flex;

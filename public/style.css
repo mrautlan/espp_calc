@@ -163,14 +163,10 @@ body {
   100% { transform: translate(100px, 80px) scale(1.2); }
 }
 
-/* Wide layout: the app tabs (Rechner, Portfolio, Ziel-Tracker) profit from every
-   pixel — tables, sliders and the results panel get room to breathe. Fluid side
-   padding: ~36px on laptops, up to 48px on large monitors (mobile media queries
-   below override with 16px/12px). Prose-heavy tabs are re-capped further down. */
 .container {
-  max-width: 1720px;
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 0 clamp(28px, 2.5vw, 48px);
+  padding: 0 40px;
 }
 
 /* Typography */
@@ -202,9 +198,9 @@ header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  max-width: 1720px; /* keep the header aligned with the widened .container */
+  max-width: 1400px;
   margin: 0 auto;
-  padding: 20px clamp(28px, 2.5vw, 48px);
+  padding: 20px 40px;
 }
 
 .logo {
@@ -346,13 +342,12 @@ main {
 .hero-section p {
   color: var(--text-muted);
   font-size: 1.1rem;
-  max-width: 920px; /* keep the intro line length readable on the wide layout */
 }
 
 .grid-2col {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: clamp(24px, 2vw, 38px);
+  gap: 30px;
   align-items: start; /* Prevents vertical stretching and empty spaces inside card panels */
 }
 
@@ -3344,21 +3339,6 @@ footer {
   margin-bottom: 64px;
   scroll-margin-top: 95px; /* anchor jumps clear the sticky header */
 }
-
-/* Readability cap for the prose tabs: the widened container is right for the
-   data-heavy app tabs, but chapter text must keep a readable line length —
-   Anleitung & Steuern content centers itself at its previous comfortable width. */
-#tab-guide > .hero-section,
-#tab-guide > .guide-toc,
-#tab-guide > .guide-section,
-#tab-taxes > .hero-section,
-#tab-taxes > .guide-toc,
-#tab-taxes > .tax-glance-grid,
-#tab-taxes > .guide-section,
-#tab-taxes > .detail-note {
-  max-width: 1280px;
-  margin-inline: auto;
-}
 .guide-section-head {
   display: flex;
   align-items: flex-start;
@@ -3513,50 +3493,49 @@ footer {
 }
 
 /* ===== Rechner tab: results banner & stepped input panel ===== */
+/* Slim result strip: one row with the four headline numbers. The donut in the
+   output panel is the big statement — this stays out of the way. */
 .calc-summary-banner {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(225px, 1fr));
-  gap: 16px;
-  margin-bottom: 30px;
-}
-.calc-kpi {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 26px;
   background: var(--panel-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 16px;
-  padding: 18px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 5px;
+  border-radius: 14px;
+  padding: 13px 22px;
+  margin-bottom: 26px;
 }
-.calc-kpi.primary {
-  border-color: rgba(0, 242, 254, 0.35);
-  box-shadow: 0 0 22px var(--accent-glow);
+.csb-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 9px;
+  white-space: nowrap;
 }
-.calc-kpi-label {
-  font-size: 0.72rem;
+.csb-item > i {
+  color: var(--accent);
+  font-size: 0.85rem;
+  align-self: center;
+}
+.csb-label {
+  font-size: 0.7rem;
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 7px;
 }
-.calc-kpi-label i { color: var(--accent); }
-.calc-kpi strong {
+.csb-item strong {
   font-family: var(--font-header);
-  font-size: 1.5rem;
+  font-size: 1.05rem;
   font-weight: 800;
-  letter-spacing: -0.02em;
-  line-height: 1.15;
+  letter-spacing: -0.01em;
+  color: var(--text-strong);
 }
-.calc-kpi-sub {
-  font-size: 0.76rem;
-  color: var(--text-muted);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
+.csb-item.primary strong { font-size: 1.25rem; }
+.csb-sep {
+  width: 1px;
+  height: 22px;
+  background: var(--panel-border);
 }
 
 .calc-step-num {
@@ -3595,9 +3574,8 @@ footer {
 }
 
 @media (max-width: 640px) {
-  .calc-summary-banner { gap: 12px; margin-bottom: 22px; }
-  .calc-kpi { padding: 14px 16px; }
-  .calc-kpi strong { font-size: 1.3rem; }
+  .calc-summary-banner { gap: 8px 18px; margin-bottom: 22px; padding: 12px 16px; }
+  .csb-sep { display: none; } /* wrapped rows make the dividers meaningless */
 }
 
 /* ===== Rechner: collapsible input steps with live value summaries ===== */
@@ -4095,10 +4073,6 @@ select:hover {
   h2 { font-size: 1.5rem; }
   .hero-section p { font-size: 0.92rem; }
 
-  /* Result banner & KPI figures */
-  .calc-kpi strong { font-size: 1.3rem; }
-  .calc-kpi-label { font-size: 0.68rem; }
-
   /* Panel headers: let title + badge wrap instead of squeezing */
   .panel-header { flex-wrap: wrap; gap: 8px 10px; }
   .panel-header h3 { font-size: 1.05rem; }
@@ -4290,20 +4264,6 @@ input[type="range"] {
   }
   .css-desktop-only { display: none; }
   .css-go { display: inline; }
-}
-
-/* --- Mobile KPI banner: 2x2 grid instead of four stacked cards --- */
-@media (max-width: 640px) {
-  .calc-summary-banner {
-    grid-template-columns: 1fr 1fr;
-  }
-  .calc-summary-banner .calc-kpi.primary {
-    grid-column: 1 / -1;
-  }
-  /* Keep the explainer line only on the primary card so the grid stays compact. */
-  .calc-summary-banner .calc-kpi:not(.primary) .calc-kpi-sub {
-    display: none;
-  }
 }
 
 /* ============================================================
@@ -4535,29 +4495,6 @@ input[type="range"] {
 .scenario-switch:hover { text-decoration: underline; }
 .scenario-switch i { font-size: 0.65rem; }
 
-/* First-time "this is a simulation" explainer */
-.sim-explainer {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 14px 16px;
-  margin-bottom: 18px;
-  border-radius: 12px;
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.15);
-  color: #93c5fd;
-  font-size: 0.85rem;
-  line-height: 1.45;
-}
-
-.sim-explainer > i {
-  font-size: 1.2rem;
-  margin-top: 2px;
-  color: #60a5fa;
-}
-
-.sim-explainer .btn { flex-shrink: 0; align-self: center; }
-
 /* Mode tag in the condensed sticky KPI strip */
 .css-mode-tag {
   align-self: center;
@@ -4591,15 +4528,11 @@ input[type="range"] {
 :root[data-theme="light"] .scenario-chip:not(:disabled):hover { background: rgba(37, 99, 235, 0.14); border-color: rgba(37, 99, 235, 0.45); }
 :root[data-theme="light"] .scenario-strip.historical .scenario-chip { background: rgba(21, 128, 61, 0.07); border-color: rgba(21, 128, 61, 0.25); }
 :root[data-theme="light"] .scenario-strip.historical .scenario-chip:not(:disabled):hover { background: rgba(21, 128, 61, 0.14); border-color: rgba(21, 128, 61, 0.45); }
-:root[data-theme="light"] .sim-explainer { color: #1e3a8a; background: rgba(37, 99, 235, 0.07); border-color: rgba(37, 99, 235, 0.2); }
-:root[data-theme="light"] .sim-explainer > i { color: #2563eb; }
 :root[data-theme="light"] .css-mode-tag { background: rgba(37, 99, 235, 0.1); color: #1d4ed8; border-color: rgba(37, 99, 235, 0.3); }
 :root[data-theme="light"] .css-mode-tag.historical { background: rgba(21, 128, 61, 0.1); color: #15803d; border-color: rgba(21, 128, 61, 0.3); }
 
-/* Mobile: explainer stacks, switch link drops below the chips */
+/* Mobile: the mode-switch link drops below the chips */
 @media (max-width: 768px) {
-  .sim-explainer { flex-wrap: wrap; }
-  .sim-explainer .btn { width: 100%; }
   .scenario-switch { margin-left: 0; }
 }
 

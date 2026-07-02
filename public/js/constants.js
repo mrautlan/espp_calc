@@ -8,7 +8,6 @@ export const LS_KEYS = {
   calculatorState: 'espp_calculator_state',
   portfolioState: 'espp_portfolio_state',
   seenWelcome: 'espp_seen_welcome',
-  simNoteDismissed: 'espp_sim_note_dismissed',
   theme: 'espp_theme',
   goal: 'espp_goal_v1',
   histCache: 'espp_hist_cache',

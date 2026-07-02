@@ -1282,15 +1282,6 @@ function initCalculator() {
     });
   }
 
-  // First-time simulation explainer: "Verstanden" hides it for good.
-  const simExplainerClose = document.getElementById('simExplainerClose');
-  if (simExplainerClose) {
-    simExplainerClose.addEventListener('click', () => {
-      const note = document.getElementById('simExplainer');
-      if (note) note.style.display = 'none';
-      try { localStorage.setItem(LS_KEYS.simNoteDismissed, '1'); } catch (e) { /* private mode */ }
-    });
-  }
   if (elements.inputJoinDate) {
     // Render the initial label from the data-value attribute
     setJoinDateValue(elements.inputJoinDate.dataset.value || '2022-01');
@@ -1576,7 +1567,7 @@ function calculateESPP() {
     const profitPositive = netProfitEUR >= 0;
     if (state.lastProfitSign !== undefined && state.lastProfitSign !== profitPositive) {
       pulseElement(document.querySelector('#tab-calculator .chart-center'));
-      pulseElement(document.querySelector('.calc-summary-banner .calc-kpi.primary'));
+      pulseElement(document.querySelector('.calc-summary-banner .csb-item.primary'));
     }
     state.lastProfitSign = profitPositive;
   } else {
@@ -1699,12 +1690,8 @@ function calculateESPP() {
   }
 
   // Placeholder mode: until a real salary is set, show no computed numbers at all.
-  // The banner shows dashes, the analysis panel shows an inviting empty state, and the
-  // user is prompted to set their salary or upload a payslip.
-  const exampleNote = document.getElementById('exampleDataNote');
-  if (exampleNote) {
-    exampleNote.style.display = isPlaceholder ? 'flex' : 'none';
-  }
+  // The banner stays hidden and the analysis panel shows an inviting empty state
+  // that prompts for the salary (or a payslip upload).
   const calcEmptyState = document.getElementById('calcEmptyState');
   const calcResultsContent = document.getElementById('calcResultsContent');
   if (calcEmptyState && calcResultsContent) {
@@ -1737,7 +1724,7 @@ function calculateESPP() {
       state.revealAnimationPlaying = false;
     } else {
       summaryBanner.style.display = '';
-      const kpis = summaryBanner.querySelectorAll('.calc-kpi');
+      const kpis = summaryBanner.querySelectorAll('.csb-item');
       if (kpis.length >= 4) {
         if (wasHidden || !state.firstCalculationRevealDone) {
           if (!state.revealAnimationPlaying && !prefersReducedMotion()) {
@@ -1929,13 +1916,6 @@ function updateScenarioUI({ historical, histMonths, accumulatedMonths, sharePric
     stickyTag.classList.toggle('historical', historical);
   }
 
-  // First-time explainer: only while in forecast mode, with results visible, until dismissed.
-  const simExplainer = document.getElementById('simExplainer');
-  if (simExplainer) {
-    let dismissed = false;
-    try { dismissed = localStorage.getItem(LS_KEYS.simNoteDismissed) === '1'; } catch (e) { /* private mode */ }
-    simExplainer.style.display = (!historical && !isPlaceholder && !dismissed) ? '' : 'none';
-  }
 }
 
 // Break-even Verkaufskurs: the USD sell price at which the net profit is exactly zero.

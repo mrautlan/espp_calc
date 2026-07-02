@@ -156,43 +156,30 @@
         live berechnet. Auf Wunsch mit echten historischen Kursen seit Deinem Beitritt.</p>
       </div>
 
-      <!-- Hinweis, solange noch kein echtes Gehalt eingestellt wurde -->
-      <div class="alert alert-warning" id="exampleDataNote" style="margin-bottom: 20px;">
-        <i class="fa-solid fa-circle-info"></i>
-        <div>
-          <strong>Hier fehlen noch Deine Daten:</strong> Stelle in <strong>Schritt 1</strong> Dein
-          Brutto-Gehalt ein oder lade dort Deine <strong>Gehaltsabrechnung (PDF)</strong> hoch –
-          Deine persönliche Gewinn-Analyse erscheint dann sofort.
-          <div style="margin-top: 12px;">
-            <button class="btn btn-outline btn-sm goto-step1" type="button">
-              <i class="fa-solid fa-arrow-down"></i> Zur Eingabe in Schritt 1
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- Ergebnis auf einen Blick -->
+      <!-- Ergebnis auf einen Blick: ONE slim strip instead of four padded cards —
+           the donut below is the big statement, this is just the numbers row.
+           (The per-value explanations live in the Aufschlüsselung.) -->
       <div class="calc-summary-banner" style="display: none;">
-        <div class="calc-kpi primary">
-          <span class="calc-kpi-label"><i class="fa-solid fa-sack-dollar"></i> Netto-Gewinn</span>
+        <span class="csb-item primary">
+          <i class="fa-solid fa-sack-dollar"></i>
+          <span class="csb-label">Netto-Gewinn</span>
           <strong id="netProfitEuro">0,00 €</strong>
-          <span class="calc-kpi-sub" id="netProfitSub">nach Steuern &amp; Gebühren, wenn Du alle Aktien verkaufst</span>
-        </div>
-        <div class="calc-kpi">
-          <span class="calc-kpi-label"><i class="fa-solid fa-wallet"></i> Dein Einsatz (netto)</span>
-          <strong id="netInvestment">0,00 €</strong>
-          <span class="calc-kpi-sub">echter Netto-Gehaltsverzicht über <span class="months-count">12</span> Monate</span>
-        </div>
-        <div class="calc-kpi">
-          <span class="calc-kpi-label"><i class="fa-solid fa-percent"></i> Rendite aufs Netto</span>
+        </span>
+        <span class="csb-sep" aria-hidden="true"></span>
+        <span class="csb-item">
+          <span class="csb-label">Rendite aufs Netto</span>
           <strong id="netProfitPercent" style="color: var(--success);">+0,0%</strong>
-          <span class="calc-kpi-sub">Netto-Gewinn beim Verkauf im Verhältnis zu Deinem Einsatz</span>
-        </div>
-        <div class="calc-kpi">
-          <span class="calc-kpi-label"><i class="fa-solid fa-coins"></i> Erworbene Aktien</span>
+        </span>
+        <span class="csb-sep" aria-hidden="true"></span>
+        <span class="csb-item">
+          <span class="csb-label">Einsatz (netto)</span>
+          <strong id="netInvestment">0,00 €</strong>
+        </span>
+        <span class="csb-sep" aria-hidden="true"></span>
+        <span class="csb-item">
+          <span class="csb-label">Aktien</span>
           <strong id="bannerShares">0,00 Stk.</strong>
-          <span class="calc-kpi-sub" id="bannerSharesSub">Marktwert: 0,00 €</span>
-        </div>
+        </span>
       </div>
 
       <div class="grid-2col">
@@ -213,7 +200,7 @@
               <div class="form-row">
                 <div class="form-group col">
                   <div class="label-with-value">
-                    <label for="inputMonthlySalary"><i class="fa-solid fa-money-check-dollar"></i> <span class="label-text">Bruttogehalt (mtl.)</span></label>
+                    <label for="inputMonthlySalary"><i class="fa-solid fa-money-check-dollar"></i> <span class="label-text">Bruttogehalt (mtl.)</span> <span class="tooltip-trigger" data-tooltip="Es zählt nur das monatliche Grundgehalt – variable Vergütungen (wie Provisionen) bleiben ausgeklammert.">i</span></label>
                     <!-- The value chip is a real input: click (or tab) and type the salary directly -->
                     <input type="text" class="slider-val" id="valMonthlySalary" value="5.000 €"
                            inputmode="numeric" autocomplete="off" enterkeyhint="done"
@@ -234,10 +221,6 @@
                 </div>
               </div>
 
-              <div class="input-helper" style="margin-top: 14px;">
-                <i class="fa-solid fa-circle-info"></i> <strong>Hinweis:</strong> Es zählt nur das monatliche <strong>Grundgehalt</strong> – variable Vergütungen (wie Provisionen) bleiben ausgeklammert.
-              </div>
-
               <div class="upload-divider"><span>oder automatisch ausfüllen</span></div>
 
               <!-- PDF Auto-Fill Zone (optional) -->
@@ -250,8 +233,7 @@
                 <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
               </div>
               <div class="upload-privacy-note">
-                <span class="privacy-line"><i class="fa-solid fa-shield-halved text-success"></i><span><strong>100% Datenschutz:</strong> Dein PDF wird nur <strong>lokal in Deinem Browser</strong> gelesen – es findet <strong>kein Upload</strong> auf einen Server statt, nichts wird gespeichert.</span></span>
-                <span class="privacy-line"><i class="fa-solid fa-plane text-success"></i><span><strong>Funktioniert sogar offline:</strong> Probier's aus – trenne die Internetverbindung (Flugmodus) und das Auslesen klappt trotzdem, weil Deine Daten den Rechner nie verlassen.</span></span>
+                <span class="privacy-line"><i class="fa-solid fa-shield-halved text-success"></i><span><strong>100 % lokal im Browser</strong> – kein Upload, funktioniert sogar offline <span class="tooltip-trigger" data-tooltip="Dein PDF wird ausschließlich in Deinem Browser gelesen – es findet kein Upload auf einen Server statt und nichts wird gespeichert. Probier's aus: Selbst im Flugmodus funktioniert das Auslesen.">i</span></span></span>
               </div>
               <div id="uploadStatus" class="upload-status-message hidden-status"></div>
               <button id="btnClearCalculator" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
@@ -325,10 +307,6 @@
                   <option value="forecast" selected>Prognose – Du wählst Kurse &amp; Haltedauer (Was wäre wenn?)</option>
                   <option value="historical">Historisch – echte IBM-Kurse seit Deinem Beitritt (Was wäre gewesen?)</option>
                 </select>
-                <div class="input-subtitle">
-                  Bestimmt, womit gerechnet wird: <strong>Prognose</strong> simuliert mit Deinen
-                  Annahmen, <strong>Historisch</strong> nutzt reale Kursdaten.
-                </div>
               </div>
 
               <!-- Historical mode: ESPP join month -->
@@ -359,9 +337,6 @@
                 <div class="form-group col">
                   <label for="inputSellPrice"><i class="fa-solid fa-money-bill-trend-up"></i> Verkaufskurs (USD)</label>
                   <input type="number" id="inputSellPrice" step="0.01" value="180.00">
-                  <div class="input-subtitle">
-                    Annahme für Gewinnberechnung beim Verkauf.
-                  </div>
                 </div>
               </div>
 
@@ -376,14 +351,13 @@
 
               <div class="form-group" id="holdingGroup">
                 <div class="label-with-value">
-                  <label for="inputAccumulatedMonths"><i class="fa-solid fa-clock"></i> <span class="label-text">Haltedauer (Monate)</span></label>
+                  <label for="inputAccumulatedMonths"><i class="fa-solid fa-clock"></i> <span class="label-text">Haltedauer (Monate)</span> <span class="tooltip-trigger" data-tooltip="Wie viele Monate Du ansparst, bevor Du alle Aktien verkaufst. Berechnet den kumulierten Gewinn und prüft die Ausschöpfung des Freibetrags pro Jahr.">i</span></label>
                   <input type="text" class="slider-val" id="valAccumulatedMonths" value="12 Monate"
                          inputmode="numeric" autocomplete="off" enterkeyhint="done"
                          title="Klicken und Anzahl Monate direkt eintippen"
                          aria-label="Haltedauer in Monaten – direkt eintippen oder Schieberegler nutzen">
                 </div>
                 <input type="range" id="inputAccumulatedMonths" min="1" max="120" step="1" value="12">
-                <div class="input-helper">Berechnet den kumulierten Gewinn und prüft die Ausschöpfung des Freibetrags über das Jahr.</div>
               </div>
             </div>
           </div>
@@ -410,25 +384,14 @@
           <div class="calc-empty-state" id="calcEmptyState">
             <div class="empty-state-icon"><i class="fa-solid fa-chart-pie"></i></div>
             <h4>Noch keine Berechnung</h4>
-            <p>Deine Gewinn-Analyse erscheint hier, sobald Du die Parameter anpasst oder Deine
-            Gehaltsabrechnung (PDF) hochlädst.</p>
+            <p>Stelle in Schritt 1 Dein Bruttogehalt ein oder lade Deine Gehaltsabrechnung (PDF)
+            hoch – Deine Gewinn-Analyse erscheint dann sofort.</p>
+            <button class="btn btn-outline btn-sm goto-step1" type="button" style="margin-top: 14px;">
+              <i class="fa-solid fa-arrow-left"></i> Zur Eingabe in Schritt 1
+            </button>
           </div>
 
           <div id="calcResultsContent" style="display: none;">
-
-          <!-- One-time explainer (dismiss persists): educates first-time users that the
-               numbers below are a simulation with default assumptions, not real data. -->
-          <div class="sim-explainer" id="simExplainer" style="display: none;">
-            <i class="fa-solid fa-lightbulb"></i>
-            <div>
-              <strong>Gut zu wissen:</strong> Diese Zahlen sind eine <strong>Simulation</strong> mit
-              Standard-Annahmen: Du sparst <strong>12 Monate</strong> lang und verkaufst dann alle
-              Aktien zum angenommenen Kurs. Passe Haltedauer &amp; Kurse in
-              <strong>Schritt&nbsp;3</strong> an – oder schalte oben auf
-              <strong>Historisch</strong>, um mit echten IBM-Kursen seit Deinem Beitritt zu rechnen.
-            </div>
-            <button type="button" class="btn btn-outline btn-sm" id="simExplainerClose">Verstanden</button>
-          </div>
 
           <!-- Scenario strip: always names the assumptions that produce the numbers below.
                Chips jump to the matching control in step 3; content is filled by
@@ -710,8 +673,7 @@
                 <input type="file" id="csvFileInput" accept=".pdf" style="display: none;" multiple>
               </div>
               <div class="upload-privacy-note">
-                <span class="privacy-line"><i class="fa-solid fa-shield-halved text-success"></i><span><strong>100% Datenschutz:</strong> Dein PDF wird nur <strong>lokal in Deinem Browser</strong> gelesen – es findet <strong>kein Upload</strong> auf einen Server statt, nichts wird gespeichert.</span></span>
-                <span class="privacy-line"><i class="fa-solid fa-plane text-success"></i><span><strong>Funktioniert sogar offline:</strong> Probier's aus – trenne die Internetverbindung (Flugmodus) und das Auslesen klappt trotzdem, weil Deine Daten den Rechner nie verlassen.</span></span>
+                <span class="privacy-line"><i class="fa-solid fa-shield-halved text-success"></i><span><strong>100 % lokal im Browser</strong> – kein Upload, funktioniert sogar offline <span class="tooltip-trigger" data-tooltip="Deine Statements werden ausschließlich in Deinem Browser gelesen – es findet kein Upload auf einen Server statt und nichts wird gespeichert. Probier's aus: Selbst im Flugmodus funktioniert das Auslesen.">i</span></span></span>
               </div>
               <details class="formats-details">
                 <summary><i class="fa-solid fa-circle-question"></i> Welche PDFs werden unterstützt?</summary>
@@ -743,9 +705,8 @@
               </details>
               <div id="csvUploadStatus" class="upload-status-message hidden-status"></div>
               <div class="input-helper" style="margin-top: 10px;">
-                <i class="fa-solid fa-wand-magic-sparkles"></i> Die Analyse startet <strong>automatisch</strong> nach dem Upload
-                und bewertet Deinen Bestand zum <strong>Live-Kurs</strong> – Ergebnisse erscheinen rechts und weiter
-                unten (inkl. Verkaufs-Simulator, in dem Du einen eigenen Verkaufskurs simulieren kannst).
+                <i class="fa-solid fa-wand-magic-sparkles"></i> Die Analyse startet <strong>automatisch</strong> nach dem
+                Upload – Ergebnisse erscheinen rechts und weiter unten, bewertet zum Live-Kurs.
               </div>
               <button id="btnClearPortfolio" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
                 <i class="fa-solid fa-trash-can"></i> Portfolio-Daten zurücksetzen
@@ -1130,8 +1091,7 @@
 
           <div class="input-group-card group-stocks-savings">
             <div class="input-group-header">
-              <span class="calc-step-num">1</span>
-              <h4>Ziel festlegen</h4>
+              <h4><i class="fa-solid fa-flag-checkered"></i> Ziel festlegen</h4>
             </div>
             <div class="input-group-body">
               <!-- ONE entry point: the goal field takes a name, a search term or a shop
@@ -1154,6 +1114,17 @@
                 <input type="text" id="goalPrice" inputmode="decimal" placeholder="z. B. 50.000">
               </div>
 
+              <div class="form-group">
+                <div class="label-with-value">
+                  <label for="inputStockGrowth"><i class="fa-solid fa-chart-line"></i> <span class="label-text">Erwartetes Wachstum (p.a.)</span> <span class="tooltip-trigger" data-tooltip="Der angenommene jährliche Kurszuwachs der IBM-Aktie – er verkürzt Deine Sparzeit durch Zinseszins-Effekte.">i</span></label>
+                  <input type="text" class="slider-val" id="valStockGrowth" value="7 %"
+                         inputmode="numeric" autocomplete="off" enterkeyhint="done"
+                         title="Klicken und Wert direkt eintippen"
+                         aria-label="Erwartetes Wachstum in Prozent pro Jahr – direkt eintippen oder Schieberegler nutzen">
+                </div>
+                <input type="range" id="inputStockGrowth" min="0" max="25" step="1" value="7">
+              </div>
+
               <!-- Product photo card: only shown when a fetched goal actually has an image -->
               <div id="goalImageWrap" class="goal-image-wrap" style="display: none;">
                 <img id="goalImage" src="" alt="Ziel" class="goal-product-img-lg">
@@ -1162,26 +1133,6 @@
               <button id="btnClearGoal" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 15px; display: none;">
                 <i class="fa-solid fa-trash-can"></i> Sparziel zurücksetzen
               </button>
-            </div>
-          </div>
-
-          <div class="input-group-card group-taxes">
-            <div class="input-group-header">
-              <span class="calc-step-num">2</span>
-              <h4>Annahme: Aktienwachstum</h4>
-            </div>
-            <div class="input-group-body">
-              <div class="form-group">
-                <div class="label-with-value">
-                  <label for="inputStockGrowth"><i class="fa-solid fa-chart-line"></i> <span class="label-text">Erwartetes Wachstum (p.a.)</span></label>
-                  <input type="text" class="slider-val" id="valStockGrowth" value="7 %"
-                         inputmode="numeric" autocomplete="off" enterkeyhint="done"
-                         title="Klicken und Wert direkt eintippen"
-                         aria-label="Erwartetes Wachstum in Prozent pro Jahr – direkt eintippen oder Schieberegler nutzen">
-                </div>
-                <input type="range" id="inputStockGrowth" min="0" max="25" step="1" value="7">
-                <div class="input-helper">Der jährliche Kurszuwachs der IBM-Aktie verkürzt Deine Sparzeit durch Zinseszins-Effekte.</div>
-              </div>
             </div>
           </div>
         </div>
@@ -1193,9 +1144,9 @@
             <div class="calc-empty-state">
               <div class="empty-state-icon"><i class="fa-solid fa-bullseye"></i></div>
               <h4>Noch kein Ziel festgelegt</h4>
-              <p>Gib links in <strong>Schritt 1</strong> ein, <strong>was Du Dir wünschst</strong> – plus
-              Zielbetrag, oder lass Preis &amp; Bild automatisch laden. Hier erscheinen dann Dein
-              Spar-Fortschritt, die Projektion und wie viele IBM-Aktien Du für das Ziel verkaufen müsstest.</p>
+              <p>Gib links ein, <strong>was Du Dir wünschst</strong> – plus Zielbetrag, oder lass Preis
+              &amp; Bild automatisch laden. Hier erscheinen dann Dein Spar-Fortschritt, die Projektion
+              und wie viele IBM-Aktien Du für das Ziel verkaufen müsstest.</p>
             </div>
           </div>
 

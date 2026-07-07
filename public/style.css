@@ -336,25 +336,25 @@ main {
 }
 
 /* ---------------------------------------------------------------------------
-   Site-wide IBM ESPP announcement banner (Juli 2026, Lohnsteuer auf den
-   Umwandlungsbetrag). Sits above the tab sections so it shows on every tab;
-   <details> keeps the headline always visible and the full text expandable.
+   Site-wide IBM ESPP announcement (Juli 2026, Lohnsteuer auf den
+   Umwandlungsbetrag). Deliberately compact: a slim one-line bar above the tab
+   sections; expands to a short summary + before/after example, with the full
+   official text in a nested <details>.
    --------------------------------------------------------------------------- */
 .espp-notice {
-  margin-bottom: 28px;
-  border: 1px solid hsla(var(--warning-hsl), 0.35);
-  border-left: 4px solid var(--warning);
-  border-radius: 14px;
-  background: hsla(var(--warning-hsl), 0.08);
-  backdrop-filter: blur(10px);
+  margin-bottom: 20px;
+  border: 1px solid hsla(var(--warning-hsl), 0.25);
+  border-left: 3px solid var(--warning);
+  border-radius: 10px;
+  background: hsla(var(--warning-hsl), 0.05);
   overflow: hidden;
 }
 
 .espp-notice-summary {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
+  gap: 12px;
+  padding: 9px 16px;
   cursor: pointer;
   list-style: none;
   user-select: none;
@@ -365,7 +365,7 @@ main {
 .espp-notice-summary:hover { background: hsla(var(--warning-hsl), 0.06); }
 
 .espp-notice-icon {
-  font-size: 1.5rem;
+  font-size: 0.95rem;
   color: var(--warning);
   flex-shrink: 0;
 }
@@ -373,41 +373,19 @@ main {
 .espp-notice-headline {
   flex: 1;
   min-width: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  font-size: 0.92rem;
-  line-height: 1.5;
+  font-size: 0.86rem;
+  line-height: 1.45;
   color: var(--text-main);
 }
 
-.espp-notice-headline > strong {
-  font-family: var(--font-header);
-  font-size: 1.02rem;
-  color: var(--text-strong);
-}
-
-.espp-notice-date {
-  font-family: var(--font-body);
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--warning);
-  border: 1px solid hsla(var(--warning-hsl), 0.4);
-  border-radius: 999px;
-  padding: 2px 9px;
-  margin-left: 8px;
-  vertical-align: 2px;
-  white-space: nowrap;
-}
+.espp-notice-headline strong { color: var(--text-strong); }
 
 .espp-notice-toggle {
   display: flex;
   align-items: center;
-  gap: 7px;
+  gap: 6px;
   flex-shrink: 0;
-  font-size: 0.82rem;
+  font-size: 0.8rem;
   font-weight: 600;
   color: var(--warning);
   white-space: nowrap;
@@ -417,37 +395,136 @@ main {
 .espp-notice[open] .espp-notice-toggle i { transform: rotate(180deg); }
 
 .espp-notice-body {
-  padding: 4px 20px 20px 58px;
-  border-top: 1px solid hsla(var(--warning-hsl), 0.2);
-  font-size: 0.92rem;
-  line-height: 1.65;
+  padding: 14px 18px 16px;
+  border-top: 1px solid hsla(var(--warning-hsl), 0.18);
+  font-size: 0.88rem;
+  line-height: 1.6;
   color: var(--text-main);
 }
 
-.espp-notice-body p { margin: 12px 0 0; }
+.espp-notice-points {
+  margin: 0;
+  padding-left: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
 
-.espp-notice-body h4 {
-  margin: 20px 0 0;
-  font-size: 1rem;
+.espp-notice-points strong { color: var(--text-strong); }
+
+/* Worked before/after example */
+.espp-example {
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  background: var(--surface-soft);
+}
+
+.espp-example-title {
+  font-family: var(--font-header);
+  font-weight: 700;
+  font-size: 0.92rem;
+  color: var(--text-strong);
+  margin-bottom: 10px;
+}
+
+.espp-example-title i { color: var(--warning); margin-right: 6px; }
+
+.espp-example-title span {
+  font-family: var(--font-body);
+  font-weight: 400;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.espp-example-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.espp-example-col p { margin: 6px 0 0; font-size: 0.85rem; }
+
+.espp-example-tag {
+  display: inline-block;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  border-radius: 999px;
+  padding: 2px 10px;
+}
+
+.espp-example-tag.old {
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+  background: var(--surface-soft);
+}
+
+.espp-example-tag.new {
   color: var(--warning);
+  border: 1px solid hsla(var(--warning-hsl), 0.4);
+  background: hsla(var(--warning-hsl), 0.1);
+}
+
+.espp-example-note {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px dashed var(--panel-border);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* Nested collapsible with the verbatim announcement */
+.espp-notice-original { margin-top: 12px; }
+
+.espp-notice-original > summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.espp-notice-original > summary::-webkit-details-marker { display: none; }
+.espp-notice-original > summary:hover { color: var(--text-main); }
+.espp-notice-original > summary .chevron { transition: transform var(--transition-fast); font-size: 0.7rem; }
+.espp-notice-original[open] > summary .chevron { transform: rotate(180deg); }
+
+.espp-notice-original-body {
+  margin-top: 8px;
+  padding: 4px 14px 14px;
+  border-left: 2px solid var(--panel-border);
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.espp-notice-original-body p { margin: 10px 0 0; }
+
+.espp-notice-original-body h4 {
+  margin: 16px 0 0;
+  font-size: 0.92rem;
+  color: var(--text-main);
 }
 
 .espp-notice-footnote {
-  margin-top: 20px !important;
-  padding-top: 14px;
-  border-top: 1px dashed hsla(var(--warning-hsl), 0.3);
-  font-size: 0.82rem;
+  margin: 14px 0 0;
+  font-size: 0.8rem;
   color: var(--text-muted);
 }
 
 .espp-notice-footnote i { color: var(--warning); margin-right: 4px; }
 
 @media (max-width: 640px) {
-  .espp-notice-summary { padding: 14px 16px; gap: 12px; }
+  .espp-notice-summary { padding: 9px 12px; gap: 10px; }
   .espp-notice-toggle-text { display: none; }
-  .espp-notice-date { display: inline-block; margin-left: 0; margin-top: 2px; width: fit-content; }
-  .espp-notice-headline > strong { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-  .espp-notice-body { padding-left: 16px; padding-right: 16px; }
+  .espp-notice-body { padding: 12px 14px 14px; }
+  .espp-example-grid { grid-template-columns: 1fr; }
 }
 
 .hero-section {
@@ -4785,8 +4862,9 @@ input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
   padding: 4px 0;
 }
 
-/* ---- Design switch (new 1c ⇄ classic): small ghost button, top-right ---- */
-.calc-design-switch { display: flex; justify-content: flex-end; padding: 10px 12px 0; }
+/* ---- Design switch (new 1c ⇄ classic): small ghost button, centered BELOW
+   the calculator content (sits on the page background in both designs) ---- */
+.calc-design-switch { display: flex; justify-content: center; padding: 22px 0 4px; }
 .calc-design-switch button {
   display: inline-flex;
   align-items: center;
@@ -4801,9 +4879,6 @@ input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
   transition: color .15s ease, border-color .15s ease;
 }
 .calc-design-switch button:hover { color: var(--text-main); }
-/* The new design sits on a fixed dark board (also in light mode) — fixed colors there. */
-#tab-calculator:not(.is-classic) .calc-design-switch button { color: #8b949e; border-color: rgba(255,255,255,.15); }
-#tab-calculator:not(.is-classic) .calc-design-switch button:hover { color: #e6edf3; border-color: rgba(255,255,255,.3); }
 .calc1c input[type=range] { accent-color: #4ade80; width: 100%; }
 .calc1c select { appearance: auto; }
 

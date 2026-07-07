@@ -1591,7 +1591,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 .transfer-details-card {
-  animation: slideDown var(--transition-normal) forwards;
+  /* Reveal/collapse is GSAP-driven (gsapSlide in app.js) */
 }
 
 .card-header-with-close {
@@ -3815,8 +3815,12 @@ footer {
   display: none;
 }
 .collapsible-step.open .input-group-body {
-  display: block;
-  animation: slideDown var(--transition-normal) forwards;
+  display: block; /* GSAP (gsapSlide) animates the reveal */
+}
+/* While the GSAP collapse runs, .open stays on until the tween finishes;
+   .closing flips the chevron back immediately so it doesn't lag behind. */
+.collapsible-step.closing .step-chevron {
+  transform: rotate(0deg);
 }
 .collapsible-step:not(.open) .input-group-header {
   border-bottom: none;

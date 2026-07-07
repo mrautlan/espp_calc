@@ -148,6 +148,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initWelcome();
   initThemeToggle();
   initSaleProcessCollapsible();
+  initDetailsAnimations();
   initW8benTracker();
 
   // Trigger GSAP entrance timelines
@@ -157,26 +158,37 @@ document.addEventListener('DOMContentLoaded', () => {
   initStickySummary();
   if (state.activeTab === 'calculator') setupCalcScrollReveals();
 
-  // Details Toggle in Aktientransfer
+  // Details Toggle in Aktientransfer (GSAP slide instead of a hard show/hide)
+  const collapseTransferCard = (card) => {
+    if (!card || card.classList.contains('hidden-details')) return;
+    gsapSlide(card, false, { onDone: () => card.classList.add('hidden-details') });
+  };
   document.querySelectorAll('.btn-show-details').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const targetId = e.target.getAttribute('data-target');
       const targetEl = document.getElementById(targetId);
-      
+      if (!targetEl) return;
+
       // Close all others
       document.querySelectorAll('.transfer-details-card').forEach(card => {
-        if (card.id !== targetId) card.classList.add('hidden-details');
+        if (card.id !== targetId) collapseTransferCard(card);
       });
-      
+
       // Toggle current
-      targetEl.classList.toggle('hidden-details');
-      targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      if (targetEl.classList.contains('hidden-details')) {
+        targetEl.classList.remove('hidden-details');
+        gsapSlide(targetEl, true, {
+          onDone: () => targetEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+        });
+      } else {
+        collapseTransferCard(targetEl);
+      }
     });
   });
-  
+
   document.querySelectorAll('.btn-close-details').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      e.target.closest('.transfer-details-card').classList.add('hidden-details');
+      collapseTransferCard(e.target.closest('.transfer-details-card'));
     });
   });
 
@@ -1138,18 +1150,39 @@ function initCollapsibleSteps(containerSelector, storageKey, defaultOpen = null)
   const stepCards = document.querySelectorAll(`${containerSelector} .collapsible-step`);
   if (!stepCards.length) return;
 
-  const applyOpen = (card, open) => {
-    card.classList.toggle('open', open);
+  // The intended state lives in aria-expanded (set synchronously); the 'open'
+  // class can lag behind it while the GSAP collapse animation finishes.
+  const isOpen = (card) =>
+    card.querySelector('.input-group-header')?.getAttribute('aria-expanded') === 'true';
+
+  const applyOpen = (card, open, animate = false) => {
     const head = card.querySelector('.input-group-header');
+    const body = card.querySelector('.input-group-body');
     if (head) head.setAttribute('aria-expanded', open ? 'true' : 'false');
+    if (!animate || !body) {
+      card.classList.toggle('open', open);
+      card.classList.remove('closing');
+      return;
+    }
+    if (open) {
+      card.classList.remove('closing');
+      card.classList.add('open'); // CSS switches the body to display:block…
+      gsapSlide(body, true);      // …then GSAP slides it in
+    } else {
+      card.classList.add('closing'); // rotates the chevron back right away (CSS)
+      gsapSlide(body, false, { onDone: () => card.classList.remove('open', 'closing') });
+    }
   };
   const save = () => {
     try {
       localStorage.setItem(storageKey,
-        JSON.stringify([...stepCards].map(card => card.classList.contains('open'))));
+        JSON.stringify([...stepCards].map(isOpen)));
     } catch (e) { /* private mode */ }
   };
 
+  // Normalise aria-expanded to the DOM defaults, then let saved/default
+  // states override (all without animation — this runs on load).
+  stepCards.forEach(card => applyOpen(card, card.classList.contains('open')));
   let saved = null;
   try { saved = JSON.parse(localStorage.getItem(storageKey) || 'null'); } catch (e) { /* corrupt entry */ }
   if (Array.isArray(saved)) {
@@ -1162,7 +1195,7 @@ function initCollapsibleSteps(containerSelector, storageKey, defaultOpen = null)
     const head = card.querySelector('.input-group-header');
     if (!head) return;
     const toggle = () => {
-      applyOpen(card, !card.classList.contains('open'));
+      applyOpen(card, !isOpen(card), true);
       save();
     };
     head.addEventListener('click', toggle);
@@ -1351,8 +1384,13 @@ function initCalculator() {
   if (btnSettingsToggle && settingsPanel) {
     btnSettingsToggle.addEventListener('click', () => {
       const open = settingsPanel.style.display === 'none';
-      settingsPanel.style.display = open ? '' : 'none';
       btnSettingsToggle.textContent = open ? 'schließen' : 'anpassen';
+      if (open) {
+        settingsPanel.style.display = '';
+        gsapSlide(settingsPanel, true);
+      } else {
+        gsapSlide(settingsPanel, false, { onDone: () => { settingsPanel.style.display = 'none'; } });
+      }
     });
   }
 
@@ -1362,8 +1400,13 @@ function initCalculator() {
   if (btnDetails && detailsPanel) {
     btnDetails.addEventListener('click', () => {
       const open = detailsPanel.style.display === 'none';
-      detailsPanel.style.display = open ? '' : 'none';
       btnDetails.textContent = open ? 'Aufschlüsselung ausblenden' : 'Detaillierte Aufschlüsselung ansehen';
+      if (open) {
+        detailsPanel.style.display = '';
+        gsapSlide(detailsPanel, true);
+      } else {
+        gsapSlide(detailsPanel, false, { onDone: () => { detailsPanel.style.display = 'none'; } });
+      }
     });
   }
 
@@ -5883,6 +5926,74 @@ function initGsapAnimations() {
       state.initAnimationsDone = true;
     }
   });
+}
+
+// --- Shared GSAP expand/collapse primitive -----------------------------------
+// Slides a block open/closed by animating height/opacity (+ vertical padding
+// and margins, so bordered cards shrink smoothly instead of snapping their
+// spacing). The caller owns the display/none or <details open> bookkeeping:
+// make the element renderable BEFORE sliding open; hide it in onDone after
+// sliding closed. Respects prefers-reduced-motion (duration 0).
+function gsapSlide(el, open, { onDone, duration } = {}) {
+  const reduced = prefersReducedMotion();
+  gsap.killTweensOf(el);
+  const clear = () => {
+    gsap.set(el, { clearProps: 'height,opacity,overflow,marginTop,marginBottom,paddingTop,paddingBottom' });
+    if (onDone) onDone();
+  };
+  gsap.set(el, { overflow: 'hidden' });
+  if (open) {
+    gsap.from(el, {
+      height: 0, opacity: 0, marginTop: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0,
+      duration: reduced ? 0 : (duration ?? 0.32),
+      ease: 'power2.out',
+      onComplete: clear
+    });
+  } else {
+    gsap.to(el, {
+      height: 0, opacity: 0, marginTop: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0,
+      duration: reduced ? 0 : (duration ?? 0.26),
+      ease: 'power1.inOut',
+      onComplete: clear
+    });
+  }
+}
+
+// Generic GSAP open/close wiring for native <details> elements whose content
+// sits in a single wrapper right after the <summary>. Used by the IBM-notice
+// banner (+ its nested original-text block) and the upload-help FAQ cards.
+// The .sale-process-collapsible elements keep their own richer wiring below
+// (child stagger); don't double-wire them here.
+function wireDetailsAnimation(details, bodySel, chevronSel = null) {
+  const summary = details.querySelector(':scope > summary');
+  const body = details.querySelector(bodySel);
+  if (!summary || !body) return;
+  const chevron = chevronSel ? details.querySelector(chevronSel) : null;
+  if (chevron) {
+    chevron.style.transition = 'none'; // GSAP drives it; a CSS transition would smear
+    gsap.set(chevron, { rotation: details.open ? 180 : 0 });
+  }
+  summary.addEventListener('click', (e) => {
+    e.preventDefault();
+    const chevDur = prefersReducedMotion() ? 0 : 0.2;
+    if (details.open) {
+      if (chevron) gsap.to(chevron, { rotation: 0, duration: chevDur, ease: 'power1.out' });
+      gsapSlide(body, false, { onDone: () => details.removeAttribute('open') });
+    } else {
+      details.setAttribute('open', '');
+      if (chevron) gsap.to(chevron, { rotation: 180, duration: chevDur, ease: 'power1.out' });
+      gsapSlide(body, true);
+    }
+  });
+}
+
+function initDetailsAnimations() {
+  document.querySelectorAll('.espp-notice').forEach(d =>
+    wireDetailsAnimation(d, '.espp-notice-body', '.espp-notice-toggle i'));
+  document.querySelectorAll('.espp-notice-original').forEach(d =>
+    wireDetailsAnimation(d, '.espp-notice-original-body', ':scope > summary .chevron'));
+  document.querySelectorAll('.formats-details').forEach(d =>
+    wireDetailsAnimation(d, '.formats-body'));
 }
 
 function initSaleProcessCollapsible() {

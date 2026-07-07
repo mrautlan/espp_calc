@@ -11,6 +11,11 @@ export const LS_KEYS = {
   theme: 'espp_theme',
   goal: 'espp_goal_v1',
   histCache: 'espp_hist_cache',
+  calcHintSeen: 'espp_calc_hint_seen',
+  // Rechner design choice ('modern' = new 1c design | anything else = classic,
+  // the default). Also read by the inline stamping script in index.html
+  // (hardcoded string there).
+  calcDesign: 'espp_calc_design',
   w8ben: 'espp_w8ben_v1'
 };
 

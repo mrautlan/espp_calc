@@ -38,67 +38,61 @@ let state = {
   goal: { name: '', image: null, price: 0, url: null }
 };
 
+// Which Rechner design is active. Classic (pre-1c, chart-first) is the DEFAULT;
+// only an explicit 'modern' keeps the new 1c layout. When classic, an inline
+// script in index.html stamps the classic markup into #tab-calculator BEFORE this
+// module evaluates — so the elements map below only ever sees ONE design's ids.
+// Switching designs persists the choice and reloads the page. If storage throws,
+// both here and the inline script fall back to the 1c design.
+const CALC_CLASSIC = (() => {
+  try { return localStorage.getItem(LS_KEYS.calcDesign) !== 'modern'; } catch (e) { return false; }
+})();
+
 // DOM Elements
 const elements = {
   navTabs: document.querySelectorAll('.nav-tab'),
   tabContents: document.querySelectorAll('.tab-content'),
   liveTicker: document.getElementById('liveTicker'),
+
+  // Calculator Inputs (1c design: sliders live in popovers, mirrored by number fields)
   inputStockPrice: document.getElementById('inputStockPrice'),
+  inputFX: document.getElementById('inputFX'),
   btnFetchStock: document.getElementById('btnFetchStock'),
   valStockPriceEUR: document.getElementById('valStockPriceEUR'),
   valExchangeRate: document.getElementById('valExchangeRate'),
-  
-  // Calculator Inputs
   inputMonthlySalary: document.getElementById('inputMonthlySalary'),
-  valMonthlySalary: document.getElementById('valMonthlySalary'),
+  numSalary: document.getElementById('numSalary'),
   inputSavingsRate: document.getElementById('inputSavingsRate'),
-  valSavingsRate: document.getElementById('valSavingsRate'),
+  numRate: document.getElementById('numRate'),
   selectTaxYear: document.getElementById('selectTaxYear'),
   inputTaxRate: document.getElementById('inputTaxRate'),
-  valTaxRate: document.getElementById('valTaxRate'),
   selectChurchTax: document.getElementById('selectChurchTax'),
   selectSoli: document.getElementById('selectSoli'),
   selectBroker: document.getElementById('selectBroker'),
   selectCalcMode: document.getElementById('selectCalcMode'),
   inputJoinDate: document.getElementById('inputJoinDate'),
+  rangeJoinYear: document.getElementById('rangeJoinYear'),
+  rangeJoinMonth: document.getElementById('rangeJoinMonth'),
   inputSellPrice: document.getElementById('inputSellPrice'),
+  rangeSell: document.getElementById('rangeSell'),
   inputAccumulatedMonths: document.getElementById('inputAccumulatedMonths'),
+  numMonths: document.getElementById('numMonths'),
+
+  // Classic-design elements (null while the new 1c design is stamped; the classic
+  // render/wiring paths only run when CALC_CLASSIC is true)
+  valMonthlySalary: document.getElementById('valMonthlySalary'),
+  valSavingsRate: document.getElementById('valSavingsRate'),
+  valTaxRate: document.getElementById('valTaxRate'),
   valAccumulatedMonths: document.getElementById('valAccumulatedMonths'),
-  
-  // Calculator Outputs
   germanBrokerNote: document.getElementById('germanBrokerNote'),
   netProfitEuro: document.getElementById('netProfitEuro'),
   netProfitPercent: document.getElementById('netProfitPercent'),
   netInvestment: document.getElementById('netInvestment'),
-  rowGrossContribution: document.getElementById('rowGrossContribution'),
-  rowNetContribution: document.getElementById('rowNetContribution'),
-  rowDiscountBenefit: document.getElementById('rowDiscountBenefit'),
-  rowDiscountTax: document.getElementById('rowDiscountTax'),
-  rowCapitalGainsTax: document.getElementById('rowCapitalGainsTax'),
-  rowFees: document.getElementById('rowFees'),
-  
-  // Sale Process Detail Elements
-  rowShareCount: document.getElementById('rowShareCount'),
-  rowBuyPriceEUR: document.getElementById('rowBuyPriceEUR'),
-  rowDiscountedPrice: document.getElementById('rowDiscountedPrice'),
-  rowTotalMarketValue: document.getElementById('rowTotalMarketValue'),
-  rowSellPriceEUR: document.getElementById('rowSellPriceEUR'),
-  rowGrossSaleRevenue: document.getElementById('rowGrossSaleRevenue'),
-  rowCapitalGainsAmount: document.getElementById('rowCapitalGainsAmount'),
-  rowCapGainsTaxSale: document.getElementById('rowCapGainsTaxSale'),
-  rowDiscountTaxSale: document.getElementById('rowDiscountTaxSale'),
-  rowBrokerFeesSale: document.getElementById('rowBrokerFeesSale'),
-  rowNetSaleProceeds: document.getElementById('rowNetSaleProceeds'),
-  rowNetCostsSale: document.getElementById('rowNetCostsSale'),
-  rowDiscountTaxSale2: document.getElementById('rowDiscountTaxSale2'),
-  rowFinalNetProfit: document.getElementById('rowFinalNetProfit'),
-  
-  // Alerts / Highlights
   lblGross500: document.getElementById('lblGross500'),
   lblTax35: document.getElementById('lblTax35'),
   lblNet276: document.getElementById('lblNet276'),
   lblInstantGain: document.getElementById('lblInstantGain'),
-  
+
   // Guide Strategies
   strategyCards: document.querySelectorAll('.strategy-card'),
   pathDetails: document.getElementById('path-details'),
@@ -186,13 +180,13 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   });
 
-  // "Zum Rechner / Zur Analyse / ..." shortcuts in the Reiseführer feature cards
+  // "Zum Rechner / Zur Analyse / ..." shortcuts in the Reiseführer feature cards.
+  // Targets map to top-level sections directly, so 'taxes' opens the Steuern sub of Wissen.
   document.querySelectorAll('[data-goto-tab]').forEach(btn => {
     btn.addEventListener('click', () => {
       const target = btn.getAttribute('data-goto-tab');
-      const tab = [...elements.navTabs].find(t => t.getAttribute('data-tab') === target);
-      if (tab) {
-        tab.click();
+      if (document.getElementById(`tab-${target}`)) {
+        goToTab(target);
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     });
@@ -474,6 +468,80 @@ function initW8benTracker() {
 }
 
 // Tab Navigation
+// "Wissen" merges the former Anleitung + Steuern tabs behind one nav button. Both
+// remain separate .tab-content sections (#tab-guide / #tab-taxes) switched by a
+// sub-navigation; the single "Wissen" nav button stays highlighted for either.
+function navTabMatches(btn, tabId) {
+  const d = btn.getAttribute('data-tab');
+  if (d === tabId) return true;
+  return btn.dataset.tabGroup === 'wissen' && (tabId === 'guide' || tabId === 'taxes');
+}
+
+function setActiveNav(tabId) {
+  elements.navTabs.forEach(t => {
+    const on = navTabMatches(t, tabId);
+    t.classList.toggle('active', on);
+    t.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
+}
+
+function syncWissenSubnav(tabId) {
+  const sub = tabId === 'taxes' ? 'taxes' : 'guide';
+  document.querySelectorAll('.wissen-subtab').forEach(b => {
+    b.classList.toggle('active', b.dataset.subtab === sub);
+  });
+}
+
+// Switch to a top-level section by id ('calculator' | 'portfolio' | 'porsche' |
+// 'guide' | 'taxes'). Shared by the nav buttons, the Wissen sub-nav and the
+// [data-goto-tab] shortcuts.
+function goToTab(tabId) {
+  if (state.activeTab === tabId) { syncWissenSubnav(tabId); return; }
+  const currentTabId = state.activeTab;
+  state.activeTab = tabId;
+  try { localStorage.setItem(LS_KEYS.activeTab, tabId); } catch (e) { /* private mode */ }
+
+  setActiveNav(tabId);
+  syncWissenSubnav(tabId);
+
+  const currentContent = document.getElementById(`tab-${currentTabId}`);
+  const nextContent = document.getElementById(`tab-${tabId}`);
+  const afterSwap = () => {
+    if (tabId === 'calculator' && state.chart) state.chart.resize();
+    if (tabId === 'porsche' && state.porscheChart) state.porscheChart.resize();
+  };
+
+  if (currentContent && nextContent) {
+    currentContent.classList.remove('active');
+    nextContent.classList.add('active');
+    if (!prefersReducedMotion()) {
+      gsap.fromTo(nextContent, { opacity: 0 },
+        { opacity: 1, duration: 0.15, ease: 'power1.out', onComplete: afterSwap });
+    } else {
+      afterSwap();
+    }
+  } else {
+    elements.tabContents.forEach(c => c.classList.remove('active'));
+    if (nextContent) nextContent.classList.add('active');
+    afterSwap();
+  }
+
+  if (tabId === 'portfolio') triggerPortfolioKpisAnimation(0.1);
+  if (tabId === 'calculator') setupCalcScrollReveals();
+  if (tabId === 'guide' || tabId === 'taxes') setupContentScrollReveals(tabId);
+  if (tabId === 'porsche') {
+    animateGoalCardsIn();
+    if (state.goalCelebrationPending) celebrateGoalReached();
+  }
+
+  applyStickyKpis(tabId);
+  updateStickySummaryVisibility();
+  if (window.ScrollTrigger) ScrollTrigger.refresh();
+
+  const navEl = [...elements.navTabs].find(t => navTabMatches(t, tabId));
+  if (navEl) navEl.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
+}
+
 function initTabs() {
   let savedTab = localStorage.getItem(LS_KEYS.activeTab);
   // Guard against a saved tab that no longer exists (e.g. the removed "transfer" tab).
@@ -483,94 +551,20 @@ function initTabs() {
   }
   if (savedTab) {
     state.activeTab = savedTab;
-    elements.navTabs.forEach(t => {
-      const isActive = t.getAttribute('data-tab') === savedTab;
-      t.classList.toggle('active', isActive);
-      t.setAttribute('aria-selected', isActive ? 'true' : 'false');
-    });
-    elements.tabContents.forEach(c => {
-      if (c.id === `tab-${savedTab}`) {
-        c.classList.add('active');
-      } else {
-        c.classList.remove('active');
-      }
-    });
+    setActiveNav(savedTab);
+    syncWissenSubnav(savedTab);
+    elements.tabContents.forEach(c => c.classList.toggle('active', c.id === `tab-${savedTab}`));
     // Bring the restored active tab into view in the scrollable mobile nav.
-    const activeTabEl = [...elements.navTabs].find(t => t.getAttribute('data-tab') === savedTab);
+    const activeTabEl = [...elements.navTabs].find(t => navTabMatches(t, savedTab));
     if (activeTabEl) activeTabEl.scrollIntoView({ inline: 'center', block: 'nearest' });
   }
 
   elements.navTabs.forEach(tab => {
-    tab.addEventListener('click', () => {
-      const tabId = tab.getAttribute('data-tab');
-      if (state.activeTab === tabId) return;
-
-      const currentTabId = state.activeTab;
-      state.activeTab = tabId;
-      localStorage.setItem(LS_KEYS.activeTab, tabId);
-      
-      elements.navTabs.forEach(t => {
-        t.classList.remove('active');
-        t.setAttribute('aria-selected', 'false');
-      });
-      tab.classList.add('active');
-      tab.setAttribute('aria-selected', 'true');
-
-      const currentContent = document.getElementById(`tab-${currentTabId}`);
-      const nextContent = document.getElementById(`tab-${tabId}`);
-      
-      if (currentContent && nextContent) {
-        // Instant tab-content display swap, followed by a very fast, snappy fade-in
-        currentContent.classList.remove('active');
-        nextContent.classList.add('active');
-        
-        // Fast, hardware-accelerated fade-in (takes 0.15s, feels instant but smooth)
-        gsap.fromTo(nextContent, 
-          { opacity: 0 },
-          { 
-            opacity: 1, 
-            duration: 0.15, 
-            ease: "power1.out",
-            onComplete: () => {
-              // Re-render chart if switching tabs
-              if (tabId === 'calculator' && state.chart) {
-                state.chart.resize();
-              }
-              if (tabId === 'porsche' && state.porscheChart) {
-                state.porscheChart.resize();
-              }
-            }
-          }
-        );
-      } else {
-        elements.tabContents.forEach(c => c.classList.remove('active'));
-        if (nextContent) nextContent.classList.add('active');
-        if (tabId === 'calculator' && state.chart) state.chart.resize();
-        if (tabId === 'porsche' && state.porscheChart) state.porscheChart.resize();
-      }
-
-      if (tabId === 'portfolio') {
-        triggerPortfolioKpisAnimation(0.1);
-      }
-      if (tabId === 'calculator') {
-        setupCalcScrollReveals();
-      }
-      if (tabId === 'guide' || tabId === 'taxes') {
-        setupContentScrollReveals(tabId);
-      }
-      if (tabId === 'porsche') {
-        animateGoalCardsIn();
-        if (state.goalCelebrationPending) celebrateGoalReached();
-      }
-
-      // Sticky KPI strip + scroll-trigger positions depend on which tab is laid out.
-      applyStickyKpis(tabId);
-      updateStickySummaryVisibility();
-      if (window.ScrollTrigger) ScrollTrigger.refresh();
-
-      // Keep the active tab visible in the horizontally-scrollable mobile nav bar.
-      tab.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'smooth' });
-    });
+    tab.addEventListener('click', () => goToTab(tab.getAttribute('data-tab')));
+  });
+  // Wissen sub-navigation: Anleitung (#tab-guide) ⇄ Steuern (#tab-taxes).
+  document.querySelectorAll('.wissen-subtab').forEach(btn => {
+    btn.addEventListener('click', () => goToTab(btn.dataset.subtab === 'taxes' ? 'taxes' : 'guide'));
   });
 }
 
@@ -798,7 +792,7 @@ function loadCalculatorState() {
 
     if (parsed.monthlySalary !== undefined) {
       elements.inputMonthlySalary.value = parsed.monthlySalary;
-      elements.valMonthlySalary.value = `${parseInt(parsed.monthlySalary).toLocaleString('de-DE')} €`;
+      if (elements.valMonthlySalary) elements.valMonthlySalary.value = `${parseInt(parsed.monthlySalary).toLocaleString('de-DE')} €`;
     }
     // Restore the "real salary entered" flag; older saved states (without the flag) count as
     // user-provided only if the stored salary differs from the 5.000 € example default.
@@ -806,14 +800,14 @@ function loadCalculatorState() {
       (parsed.salaryProvided === undefined && parsed.monthlySalary !== undefined && String(parsed.monthlySalary) !== '5000');
     if (parsed.savingsRate !== undefined) {
       elements.inputSavingsRate.value = parsed.savingsRate;
-      elements.valSavingsRate.value = `${parsed.savingsRate} %`;
+      if (elements.valSavingsRate) elements.valSavingsRate.value = `${parsed.savingsRate} %`;
     }
     if (parsed.taxYear !== undefined) {
       elements.selectTaxYear.value = parsed.taxYear;
     }
     if (parsed.taxRate !== undefined) {
       elements.inputTaxRate.value = parsed.taxRate;
-      elements.valTaxRate.value = `${parsed.taxRate} %`;
+      if (elements.valTaxRate) elements.valTaxRate.value = `${parsed.taxRate} %`;
     }
     if (parsed.churchTax !== undefined) {
       elements.selectChurchTax.value = parsed.churchTax;
@@ -840,13 +834,13 @@ function loadCalculatorState() {
         state.eurPrice = state.usdPrice * state.exchangeRate;
         const savedLive = parseFloat(parsed.lastLiveUSD);
         state.lastLiveUSD = isFinite(savedLive) ? savedLive : null;
-        elements.valStockPriceEUR.textContent = `${state.eurPrice.toFixed(2)} €`;
-        elements.valExchangeRate.textContent = state.exchangeRate.toFixed(4);
+        if (elements.valStockPriceEUR) elements.valStockPriceEUR.textContent = `${state.eurPrice.toFixed(2)} €`;
+        if (elements.valExchangeRate) elements.valExchangeRate.textContent = state.exchangeRate.toFixed(4);
       }
     }
     if (parsed.accumulatedMonths !== undefined) {
       elements.inputAccumulatedMonths.value = parsed.accumulatedMonths;
-      elements.valAccumulatedMonths.value = formatMonthsLabel(parseInt(parsed.accumulatedMonths));
+      if (elements.valAccumulatedMonths) elements.valAccumulatedMonths.value = formatMonthsLabel(parseInt(parsed.accumulatedMonths));
     }
 
     if (parsed.calcMode && elements.selectCalcMode) {
@@ -878,26 +872,61 @@ let histState = { key: null, months: null, loading: false, error: null };
 function setHistStatus(html, type) {
   const el = document.getElementById('histStatus');
   if (!el) return;
-  if (!html) { el.className = 'upload-status-message hidden-status'; el.innerHTML = ''; return; }
-  el.className = 'upload-status-message ' + (type || '');
+  if (!html) { el.className = 'c1c-hist-status hidden-status'; el.innerHTML = ''; return; }
+  el.className = 'c1c-hist-status ' + (type || '');
   el.innerHTML = type === 'loading' ? `<span class="loading-spinner"></span> ${html}` : html;
+}
+
+// 'YYYY-MM' → 'Jan. 2021' (same short form as the sentence token).
+function fmtMonthDE(ym) {
+  const m = parseInt(ym.slice(5, 7), 10);
+  return `${MONTH_NAMES_DE[m - 1].slice(0, 3)}. ${ym.slice(0, 4)}`;
 }
 
 // Show/hide the mode-dependent inputs (join date vs. buy price + holding period).
 function applyCalcModeUI() {
   const historical = elements.selectCalcMode && elements.selectCalcMode.value === 'historical';
+
+  // Swap the mode-specific sentence clauses (forecast: "verkaufe nach 12 Monaten";
+  // historical: "seit Jan. 2022 … verkaufe heute alle N Aktien") and recolor the
+  // tokens from green (forecast) to blue (historical) via the .is-hist class.
+  const root = document.getElementById('calc1c');
+  if (root) root.classList.toggle('is-hist', historical);
+  document.querySelectorAll('.calc1c [data-mode]').forEach(el => {
+    const forThis = el.dataset.mode === (historical ? 'hist' : 'forecast');
+    el.style.display = forThis ? '' : 'none';
+  });
+
+  // Classic design: swap the mode-dependent input groups (join date vs. buy price +
+  // holding period) and sync the segmented toggle in the output panel.
   const joinGroup = document.getElementById('joinDateGroup');
   const buyGroup = document.getElementById('buyPriceGroup');
   const holdGroup = document.getElementById('holdingGroup');
   if (joinGroup) joinGroup.style.display = historical ? '' : 'none';
   if (buyGroup) buyGroup.style.display = historical ? 'none' : '';
   if (holdGroup) holdGroup.style.display = historical ? 'none' : '';
-
-  // Keep the segmented toggle in the output panel in sync with the select
-  // (covers both user changes and the restored state on page load).
   document.querySelectorAll('#calcModeToggle .mode-btn').forEach(btn => {
     btn.classList.toggle('active', (btn.dataset.mode === 'historical') === historical);
   });
+
+  // Mode switch lives in the subline: a plain-language text link plus a
+  // HISTORISCH badge while the historical mode is active.
+  const modeLink = document.getElementById('btnModeToggle');
+  if (modeLink) {
+    modeLink.textContent = historical
+      ? 'Zurück zur Prognose'
+      : 'Mit echten IBM-Kursen seit meinem Beitritt rechnen';
+    modeLink.classList.toggle('c1c-link-blue', !historical);
+  }
+  const histBadge = document.getElementById('histBadge');
+  if (histBadge) histBadge.style.display = historical ? '' : 'none';
+
+  // Close any open popover — a token may have just been hidden by the swap.
+  closeAllCalcPops();
+
+  // The historical loading/success status line only matters in historical mode.
+  const hs = document.getElementById('histStatus');
+  if (hs && !historical) { hs.className = 'c1c-hist-status hidden-status'; hs.innerHTML = ''; }
 }
 
 // Persisted copy of the last fetched series. Monthly averages barely change
@@ -932,7 +961,7 @@ async function ensureHistoricalData() {
   const cachedMonths = readHistCache(key);
   histState = { key, months: cachedMonths, loading: true, error: null };
   if (cachedMonths) {
-    setHistStatus(`✓ ${cachedMonths.length} Monatskäufe simuliert (zwischengespeichert) – aktualisiere im Hintergrund…`, 'success');
+    setHistStatus(`<span class="ok">✓</span> ${cachedMonths.length} Monatskäufe simuliert (zwischengespeichert) – aktualisiere im Hintergrund…`, 'success');
   } else {
     setHistStatus('Lade historische IBM-Kurse & Wechselkurse…', 'loading');
   }
@@ -983,17 +1012,17 @@ async function ensureHistoricalData() {
 
     let note = '';
     if (months[0].month > joinVal) {
-      note += ` · Kursdaten erst ab ${months[0].month} verfügbar`;
+      note += ` · Kursdaten erst ab ${fmtMonthDE(months[0].month)} verfügbar`;
     }
     if (fxKeys.length > 0 && months[0].month < fxKeys[0]) {
-      note += ` · USD/EUR-Kurse erst ab ${fxKeys[0]} – frühere Käufe nutzen den ältesten Kurs`;
+      note += ` · USD/EUR-Kurse erst ab ${fmtMonthDE(fxKeys[0])} – frühere Käufe nutzen den ältesten Kurs`;
     }
-    setHistStatus(`✓ ${months.length} Monatskäufe simuliert (${months[0].month} bis ${months[months.length - 1].month}, Quelle: Yahoo Finance)${note}`, 'success');
+    setHistStatus(`<span class="ok">✓</span> ${months.length} Monatskäufe mit echten Kursen simuliert — ${fmtMonthDE(months[0].month)} bis ${fmtMonthDE(months[months.length - 1].month)}${note}`, 'success');
   } catch (e) {
     // Keep the cached series usable when the refresh fails — stale beats empty.
     histState = { key, months: cachedMonths, loading: false, error: e.message };
     if (cachedMonths) {
-      setHistStatus(`✓ ${cachedMonths.length} Monatskäufe simuliert (zwischengespeicherte Kurse – Aktualisierung fehlgeschlagen)`, 'warning');
+      setHistStatus(`<span class="ok">✓</span> ${cachedMonths.length} Monatskäufe simuliert (zwischengespeicherte Kurse – Aktualisierung fehlgeschlagen)`, 'warning');
     } else {
       setHistStatus('Historische Kurse konnten nicht geladen werden: ' + e.message, 'error');
     }
@@ -1143,6 +1172,18 @@ function initCollapsibleSteps(containerSelector, storageKey, defaultOpen = null)
   });
 }
 
+// Close every open value-token popover in the guided sentence.
+function closeAllCalcPops() {
+  document.querySelectorAll('.calc1c .tok-wrap.open').forEach(w => w.classList.remove('open'));
+}
+
+// Small trailing debounce used to avoid hammering the historical-price fetch while
+// the year/month join sliders are being dragged.
+function debounce(fn, ms) {
+  let t = null;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
+}
+
 function initCalculator() {
   const btnClearCalculator = document.getElementById('btnClearCalculator');
   if (btnClearCalculator) {
@@ -1152,6 +1193,205 @@ function initCalculator() {
     });
   }
 
+  // First-visit hint under the sentence ("tap the values") — shown until the
+  // user has opened a token popover once, then dismissed for good.
+  const calcHint = document.getElementById('c1cHint');
+  if (calcHint && !localStorage.getItem(LS_KEYS.calcHintSeen)) calcHint.style.display = '';
+  const dismissCalcHint = () => {
+    if (!calcHint || calcHint.style.display === 'none') return;
+    calcHint.style.display = 'none';
+    localStorage.setItem(LS_KEYS.calcHintSeen, '1');
+  };
+
+  // ---- Value-token popovers: click a token to open its slider/field popover.
+  // Only one popover is open at a time; a mousedown anywhere outside closes it.
+  document.querySelectorAll('.calc1c .c1c-tok').forEach(tok => {
+    tok.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wrap = tok.closest('.tok-wrap');
+      const wasOpen = wrap.classList.contains('open');
+      closeAllCalcPops();
+      if (!wasOpen) wrap.classList.add('open');
+      dismissCalcHint();
+    });
+  });
+  document.addEventListener('mousedown', (e) => {
+    if (!e.target.closest('.tok-wrap')) closeAllCalcPops();
+  });
+
+  // ---- Couple a range slider with its number field (shared min/max, range canonical).
+  const coupleRangeNumber = (rangeEl, numEl, onChange) => {
+    if (!rangeEl || !numEl) return;
+    const min = parseFloat(rangeEl.min), max = parseFloat(rangeEl.max);
+    rangeEl.addEventListener('input', () => {
+      numEl.value = rangeEl.value;
+      if (onChange) onChange();
+      calculateESPP();
+    });
+    numEl.addEventListener('input', () => {
+      const v = parseFloat(numEl.value);
+      if (!isFinite(v) || v < min) return; // apply only once a valid in-range number is typed
+      rangeEl.value = Math.min(max, v);
+      if (onChange) onChange();
+      calculateESPP();
+    });
+    numEl.addEventListener('blur', () => { numEl.value = rangeEl.value; });
+  };
+
+  coupleRangeNumber(elements.inputMonthlySalary, elements.numSalary, () => { state.salaryProvided = true; });
+  coupleRangeNumber(elements.inputSavingsRate, elements.numRate);
+  coupleRangeNumber(elements.inputAccumulatedMonths, elements.numMonths);
+
+  // Grenzsteuersatz slider — live value next to the label (classic: value chip).
+  if (elements.inputTaxRate) {
+    elements.inputTaxRate.addEventListener('input', (e) => {
+      if (elements.valTaxRate) elements.valTaxRate.value = `${e.target.value} %`;
+      calculateESPP();
+    });
+  }
+
+  // Verkaufskurs: number field is canonical (calculateESPP reads inputSellPrice);
+  // the 1c range slider just mirrors it within its 50–600 window.
+  if (elements.inputSellPrice) {
+    elements.inputSellPrice.addEventListener('input', () => {
+      const v = parseFloat(elements.inputSellPrice.value);
+      if (elements.rangeSell && isFinite(v)) {
+        const lo = parseFloat(elements.rangeSell.min), hi = parseFloat(elements.rangeSell.max);
+        elements.rangeSell.value = Math.min(hi, Math.max(lo, v));
+      }
+      calculateESPP();
+    });
+  }
+  if (elements.rangeSell && elements.inputSellPrice) {
+    elements.rangeSell.addEventListener('input', () => {
+      elements.inputSellPrice.value = elements.rangeSell.value;
+      calculateESPP();
+    });
+  }
+  // "Auf Live-Kurs setzen" — snap the sell price to the current live IBM quote.
+  const btnSellLive = document.getElementById('btnSellLive');
+  if (btnSellLive) {
+    btnSellLive.addEventListener('click', () => {
+      const live = state.lastLiveUSD || state.usdPrice;
+      if (live > 0) {
+        elements.inputSellPrice.value = live.toFixed(2);
+        if (elements.rangeSell) {
+          const lo = parseFloat(elements.rangeSell.min), hi = parseFloat(elements.rangeSell.max);
+          elements.rangeSell.value = Math.min(hi, Math.max(lo, live));
+        }
+        calculateESPP();
+      }
+    });
+  }
+
+  // Buy price + FX (settings panel) and the LIVE badges.
+  elements.inputStockPrice.addEventListener('input', (e) => {
+    state.usdPrice = parseFloat(e.target.value) || 0;
+    state.eurPrice = state.usdPrice * state.exchangeRate;
+    if (elements.valStockPriceEUR) elements.valStockPriceEUR.textContent = `${state.eurPrice.toFixed(2)} €`;
+    calculateESPP();
+  });
+  if (elements.inputFX) {
+    elements.inputFX.addEventListener('input', (e) => {
+      const fx = parseFloat(e.target.value);
+      if (isFinite(fx) && fx > 0) {
+        state.exchangeRate = fx;
+        state.eurPrice = state.usdPrice * state.exchangeRate;
+        calculateESPP();
+      }
+    });
+  }
+  // Both LIVE controls pull the current quote + FX (force overwrites a custom buy price).
+  if (elements.btnFetchStock) elements.btnFetchStock.addEventListener('click', () => fetchLiveStockPrice({ force: true }));
+  const btnBuyLive = document.getElementById('btnBuyLive');
+  if (btnBuyLive) btnBuyLive.addEventListener('click', () => fetchLiveStockPrice({ force: true }));
+
+  // Tax-profile selects.
+  elements.selectTaxYear.addEventListener('change', calculateESPP);
+  elements.selectChurchTax.addEventListener('change', calculateESPP);
+  elements.selectSoli.addEventListener('change', calculateESPP);
+  elements.selectBroker.addEventListener('change', calculateESPP);
+
+  // ---- Mode switch (Prognose ⇄ Historisch) via the text link in the subline.
+  if (elements.selectCalcMode) {
+    elements.selectCalcMode.addEventListener('change', () => {
+      applyCalcModeUI();
+      if (elements.selectCalcMode.value === 'historical') ensureHistoricalData();
+      calculateESPP();
+    });
+  }
+  const btnModeToggle = document.getElementById('btnModeToggle');
+  if (btnModeToggle && elements.selectCalcMode) {
+    btnModeToggle.addEventListener('click', () => {
+      elements.selectCalcMode.value = elements.selectCalcMode.value === 'historical' ? 'forecast' : 'historical';
+      elements.selectCalcMode.dispatchEvent(new Event('change'));
+    });
+  }
+
+  // ---- ESPP join date (historical): two sliders write the 'YYYY-MM' machine value.
+  const debouncedHist = debounce(() => ensureHistoricalData(), 400);
+  const onJoinSlider = () => {
+    const y = parseInt(elements.rangeJoinYear.value, 10);
+    const m = parseInt(elements.rangeJoinMonth.value, 10);
+    setJoinDateValue(`${y}-${String(m).padStart(2, '0')}`);
+    const yl = document.getElementById('joinYearLabel');
+    const ml = document.getElementById('joinMonthLabel');
+    if (yl) yl.textContent = y;
+    if (ml) ml.textContent = MONTH_NAMES_DE[m - 1];
+    calculateESPP();       // instant feedback with the currently-loaded series
+    debouncedHist();       // fetch the real series for the new range shortly after
+  };
+  if (elements.rangeJoinYear) elements.rangeJoinYear.addEventListener('input', onJoinSlider);
+  if (elements.rangeJoinMonth) elements.rangeJoinMonth.addEventListener('input', onJoinSlider);
+  setJoinDateValue(elements.inputJoinDate ? (elements.inputJoinDate.dataset.value || '2022-01') : '2022-01');
+
+  // ---- Settings panel toggle ("anpassen" / "schließen").
+  const btnSettingsToggle = document.getElementById('btnSettingsToggle');
+  const settingsPanel = document.getElementById('c1cSettings');
+  if (btnSettingsToggle && settingsPanel) {
+    btnSettingsToggle.addEventListener('click', () => {
+      const open = settingsPanel.style.display === 'none';
+      settingsPanel.style.display = open ? '' : 'none';
+      btnSettingsToggle.textContent = open ? 'schließen' : 'anpassen';
+    });
+  }
+
+  // ---- Breakdown details toggle.
+  const btnDetails = document.getElementById('btnDetails');
+  const detailsPanel = document.getElementById('calcDetails');
+  if (btnDetails && detailsPanel) {
+    btnDetails.addEventListener('click', () => {
+      const open = detailsPanel.style.display === 'none';
+      detailsPanel.style.display = open ? '' : 'none';
+      btnDetails.textContent = open ? 'Aufschlüsselung ausblenden' : 'Detaillierte Aufschlüsselung ansehen';
+    });
+  }
+
+  // ---- Design switch (new 1c ⇄ classic chart-first): persist + reload, so the
+  // inline stamping script in index.html swaps the markup before app.js re-inits.
+  const btnDesignSwitch = document.getElementById('btnDesignSwitch');
+  if (btnDesignSwitch) {
+    const lbl = document.getElementById('designSwitchLabel');
+    if (lbl) lbl.textContent = CALC_CLASSIC ? 'Neues Design' : 'Klassisches Design';
+    btnDesignSwitch.addEventListener('click', () => {
+      try { localStorage.setItem(LS_KEYS.calcDesign, CALC_CLASSIC ? 'modern' : 'classic'); } catch (e) { /* no storage */ }
+      window.location.reload();
+    });
+  }
+
+  // Classic design: its own controls (value chips, segmented mode toggle,
+  // collapsible steps, month picker) — the 1c popover wiring above no-ops there.
+  if (CALC_CLASSIC) initCalculatorClassicUI();
+
+  // Load saved state if any, then run the first calculation.
+  loadCalculatorState();
+  applyCalcModeUI(); // sync the mode toggle + description on a fresh visit too
+  calculateESPP();
+}
+
+// Wiring for the classic (pre-1c) Rechner design. Runs only when the classic
+// markup is stamped, so element access here may assume the classic ids exist.
+function initCalculatorClassicUI() {
   // "Zur Eingabe in Schritt 1" shortcuts (results empty state + the data notice): scroll
   // to step 1 and briefly highlight the upload zone instead of duplicating inputs elsewhere.
   const gotoStep1 = () => {
@@ -1175,25 +1415,21 @@ function initCalculator() {
   };
   document.querySelectorAll('.goto-step1').forEach(btn => btn.addEventListener('click', gotoStep1));
 
-  // Collapsible step cards: click (or Enter/Space on) a header to expand/collapse the step.
-  // The header keeps showing a live summary of the step's values while collapsed.
-  // Which steps are expanded is persisted, so a reload restores the same layout.
+  // Collapsible step cards with persisted open/closed state.
   initCollapsibleSteps('#tab-calculator', 'espp_open_steps');
 
-  // Input Listeners
-  elements.inputStockPrice.addEventListener('input', (e) => {
-    state.usdPrice = parseFloat(e.target.value) || 0;
-    state.eurPrice = state.usdPrice * state.exchangeRate;
-    elements.valStockPriceEUR.textContent = `${state.eurPrice.toFixed(2)} €`;
-    calculateESPP();
-  });
-  
-  // Explicit click on "Live-Kurs laden" = the user WANTS the live price in the field.
-  elements.btnFetchStock.addEventListener('click', () => fetchLiveStockPrice({ force: true }));
-  
+  // Sliders update their value chips live.
   elements.inputMonthlySalary.addEventListener('input', (e) => {
     state.salaryProvided = true; // user set a real salary
     elements.valMonthlySalary.value = `${parseInt(e.target.value).toLocaleString('de-DE')} €`;
+    calculateESPP();
+  });
+  elements.inputSavingsRate.addEventListener('input', (e) => {
+    elements.valSavingsRate.value = `${e.target.value} %`;
+    calculateESPP();
+  });
+  elements.inputAccumulatedMonths.addEventListener('input', (e) => {
+    elements.valAccumulatedMonths.value = formatMonthsLabel(parseInt(e.target.value));
     calculateESPP();
   });
 
@@ -1217,30 +1453,6 @@ function initCalculator() {
   fitAllSliderChips();
   // Re-measure once the webfont (Outfit) is in — fallback-font metrics differ slightly.
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(fitAllSliderChips);
-
-  elements.inputSavingsRate.addEventListener('input', (e) => {
-    elements.valSavingsRate.value = `${e.target.value} %`;
-    calculateESPP();
-  });
-  
-  elements.selectTaxYear.addEventListener('change', calculateESPP);
-  elements.selectChurchTax.addEventListener('change', calculateESPP);
-  elements.selectSoli.addEventListener('change', calculateESPP);
-  
-  elements.inputTaxRate.addEventListener('input', (e) => {
-    elements.valTaxRate.value = `${e.target.value} %`;
-    calculateESPP();
-  });
-  
-  elements.selectBroker.addEventListener('change', calculateESPP);
-
-  if (elements.selectCalcMode) {
-    elements.selectCalcMode.addEventListener('change', () => {
-      applyCalcModeUI();
-      if (elements.selectCalcMode.value === 'historical') ensureHistoricalData();
-      calculateESPP();
-    });
-  }
 
   // Mode controls in the output panel (segmented toggle + scenario-strip switch link):
   // both just drive the Berechnungsmodus select so all existing wiring applies.
@@ -1282,29 +1494,14 @@ function initCalculator() {
     });
   }
 
+  // ESPP join date: custom month-picker popover on the readonly text input.
   if (elements.inputJoinDate) {
-    // Render the initial label from the data-value attribute
-    setJoinDateValue(elements.inputJoinDate.dataset.value || '2022-01');
     elements.inputJoinDate.addEventListener('change', () => {
       ensureHistoricalData();
       calculateESPP();
     });
-    // Custom month-picker popover (the native one can't be styled to match the app).
     initMonthPicker(elements.inputJoinDate);
   }
-
-  elements.inputSellPrice.addEventListener('input', calculateESPP);
-  
-  elements.inputAccumulatedMonths.addEventListener('input', (e) => {
-    elements.valAccumulatedMonths.value = formatMonthsLabel(parseInt(e.target.value));
-    calculateESPP();
-  });
-  
-  // Load saved state if any
-  loadCalculatorState();
-  
-  // Initial calculation
-  calculateESPP();
 }
 
 
@@ -1538,7 +1735,207 @@ function calculateESPP() {
   
   // Return percentages
   const netReturnOnNetCapital = totalEmployeeCost > 0 ? (netProfitEUR / totalEmployeeCost) * 100 : 0;
-  
+
+  // ===== Classic design: render the chart-first UI from the same economics.
+  // The 1c setters further below are all id-guarded, so they no-op while the
+  // classic markup is stamped (their target elements don't exist). =====
+  if (CALC_CLASSIC) {
+    renderClassicCalc({
+      monthlySalary, savingsRate, monthlyGrossContribution, monthlyMarketValueEUR,
+      effectiveTaxRate, baseTaxRate, soliRate, broker, exchangeRate, calcMode,
+      histMonths, accumulatedMonths,
+      totalGrossContribution, totalNetContribution, totalDiscountBenefitEUR, purchaseTaxPaid,
+      totalShares, sharePriceUSD, sharePriceEUR, totalMarketValueEUR,
+      sellPriceUSD, sellPriceEUR, grossSaleRevenueEUR, costBasisEUR, capitalGainsEUR,
+      abgeltungRate, capGainsTaxRate, capitalGainsTaxPaid, brokerFeesEUR,
+      netCashReceived, totalEmployeeCost, netProfitEUR, netReturnOnNetCapital
+    });
+  }
+
+  // ===== Render the guided "1c" UI from the freshly computed economics =====
+  const isHist = !!histMonths;
+  const profitPos = netProfitEUR >= 0;
+
+  // Formatting helpers (flow cards: whole €, breakdown: 2 decimals, de-DE)
+  const NBSP = ' ';
+  const eur0 = (v) => `${Math.round(v).toLocaleString('de-DE')}${NBSP}€`;
+  const eur2 = (v) => `${v.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}${NBSP}€`;
+  const usd = (v) => `$${v.toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
+  const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+  const setHtml = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+  const setIfBlur = (el, val) => { if (el && document.activeElement !== el) el.value = val; };
+
+  const brokerNames = { captrader: 'CapTrader / IBKR', equateplus: 'EquatePlus / Computershare', german: 'Deutscher Broker' };
+  const brokerName = brokerNames[broker] || broker;
+  const churchPct = parseFloat(elements.selectChurchTax.value) || 0;
+
+  // ---- Sync the input mirrors (number fields ⇄ sliders, FX field, tax %) ----
+  setIfBlur(elements.numSalary, Math.round(monthlySalary));
+  setIfBlur(elements.numRate, savingsRate);
+  setIfBlur(elements.numMonths, accumulatedMonths);
+  if (elements.rangeSell) {
+    const lo = parseFloat(elements.rangeSell.min), hi = parseFloat(elements.rangeSell.max);
+    elements.rangeSell.value = Math.min(hi, Math.max(lo, sellPriceUSD));
+  }
+  setIfBlur(elements.inputFX, exchangeRate.toFixed(4));
+  setText('valTaxRatePct', `${Math.round(baseTaxRate * 100)}${NBSP}%`);
+
+  // Historical join sliders + labels mirror the machine value.
+  const joinVal = getJoinDateValue();
+  const jY = parseInt(joinVal.slice(0, 4), 10), jM = parseInt(joinVal.slice(5, 7), 10);
+  if (elements.rangeJoinYear && document.activeElement !== elements.rangeJoinYear) elements.rangeJoinYear.value = jY;
+  if (elements.rangeJoinMonth && document.activeElement !== elements.rangeJoinMonth) elements.rangeJoinMonth.value = jM;
+  setText('joinYearLabel', jY);
+  setText('joinMonthLabel', MONTH_NAMES_DE[jM - 1]);
+
+  // ---- Token labels in the guided sentence ----
+  setHtml('tokSalary', `${Math.round(monthlySalary).toLocaleString('de-DE')}${NBSP}€`);
+  setHtml('tokRate', `${savingsRate}${NBSP}%`);
+  setHtml('tokMonths', `${accumulatedMonths}${NBSP}Monaten`);
+  setHtml('tokSell', usd(sellPriceUSD));
+  const monShort = MONTH_NAMES_DE[jM - 1].slice(0, 3);
+  setHtml('tokJoin', `${monShort}.${NBSP}${jY}`);
+  setText('tokShares', totalShares.toFixed(1).replace('.', ','));
+
+  // ---- Sub-line summary + settings note ----
+  const churchLabel = churchPct === 0 ? 'keine Kirche' : `Kirche ${churchPct}${NBSP}%`;
+  const soliLabel = soliRate > 0 ? ` · Soli` : '';
+  setHtml('taxSummary', `${Math.round(baseTaxRate * 100)}${NBSP}% · ${churchLabel}${soliLabel} · ${brokerName}`);
+  setHtml('buyEurNote', `${eur2(state.usdPrice * exchangeRate)} je Aktie`);
+  setHtml('rateMonthly', `= ${eur0(monthlyGrossContribution)} / Monat`);
+  const live = state.lastLiveUSD || state.usdPrice;
+  setText('sellLivePrice', usd(live));
+
+  // ---- Money-flow cards ----
+  const maxV = Math.max(totalEmployeeCost, totalMarketValueEUR, netCashReceived, 1);
+  const barPct = (v) => `${Math.max(2, Math.min(100, (v / maxV) * 100)).toFixed(1)}%`;
+  const setBar = (id, v) => { const el = document.getElementById(id); if (el) el.style.width = barPct(v); };
+
+  setText('f1Val', eur0(totalEmployeeCost));
+  setHtml('f1Sub', `${eur0(totalGrossContribution)} vom Brutto — Dein Netto sinkt nur um ${eur0(totalNetContribution)}` +
+    (purchaseTaxPaid > 0.005 ? ` · inkl. ${eur0(purchaseTaxPaid)} Lohnsteuer auf den Rabatt` : ''));
+  setBar('f1Bar', totalEmployeeCost);
+
+  setText('f2Val', eur0(totalMarketValueEUR));
+  const sharesDe = totalShares.toFixed(2).replace('.', ',');
+  setHtml('f2Sub', isHist
+    ? `${sharesDe} Stk. zu echten Monatskursen (Ø ${usd(sharePriceUSD)})`
+    : `${sharesDe} Stk. — 15${NBSP}% Rabatt + Kauf vom Brutto`);
+  setBar('f2Bar', totalMarketValueEUR);
+
+  setText('f3Val', eur0(netCashReceived));
+  setHtml('f3Sub', `${eur0(grossSaleRevenueEUR)} Erlös − ${eur0(capitalGainsTaxPaid)} Steuer − ${eur0(brokerFeesEUR)} Gebühren`);
+  setBar('f3Bar', netCashReceived);
+
+  const profitCard = document.getElementById('flowProfit');
+  if (profitCard) profitCard.classList.toggle('is-loss', !profitPos);
+  setText('f4Label', profitPos ? 'Dein Gewinn' : 'Dein Verlust');
+  setText('f4Val', `${profitPos ? '+' : '−'}${eur0(Math.abs(netProfitEUR))}`);
+  setHtml('f4Sub', `${netReturnOnNetCapital >= 0 ? '+' : ''}${netReturnOnNetCapital.toFixed(0)}${NBSP}% auf Deinen Netto-Einsatz — nach allen Steuern & Gebühren`);
+  setBar('f4Bar', Math.abs(netProfitEUR));
+
+  // ---- Stats line: Sofort-Hebel · Break-even · Freibetrag ----
+  const hebel = effectiveTaxRate < 1 ? ((1 / 0.85) / (1 - effectiveTaxRate) - 1) * 100 : 0;
+  setText('statHebel', `+${hebel.toFixed(0)}${NBSP}%`);
+
+  const netAt = (priceUSD) => {
+    const grossEUR = totalShares * priceUSD * exchangeRate;
+    const gainEUR = Math.max(0, grossEUR - costBasisEUR);
+    const tax = broker === 'german'
+      ? Math.max(grossEUR * 0.30 * abgeltungRate, gainEUR * capGainsTaxRate)
+      : gainEUR * capGainsTaxRate;
+    return grossEUR - tax - computeBrokerFees(broker, grossEUR, exchangeRate) - totalEmployeeCost;
+  };
+  let beStr = '';
+  if (totalShares > 0 && exchangeRate > 0 && sellPriceUSD > 0) {
+    let lo = 0, hi = Math.max(sellPriceUSD, costBasisEUR / (totalShares * exchangeRate)) * 4 + 100;
+    if (netAt(hi) < 0) {
+      beStr = 'Break-even: nicht erreichbar';
+    } else {
+      for (let i = 0; i < 60; i++) { const mid = (lo + hi) / 2; if (netAt(mid) < 0) lo = mid; else hi = mid; }
+      const be = hi;
+      beStr = sellPriceUSD > be
+        ? `Break-even bei ${usd(be)} — Kurs darf ${Math.round((1 - be / sellPriceUSD) * 100)}${NBSP}% fallen`
+        : `Break-even erst bei ${usd(be)} — aktuell Verlustzone`;
+    }
+  }
+  setText('statBE', beStr);
+
+  const freiCap = isHist ? 2000 : ((taxYear === '2026' || taxYear === '2024') ? 2000 : 1440);
+  const firstYearMonths = Math.min(12, accumulatedMonths);
+  const firstYearDisc = firstYearMonths * monthlyDiscountBenefitEUR;
+  const freiOver = firstYearDisc - freiCap;
+  setText('statFrei', freiOver > 0
+    ? `Freibetrag überschritten: Rabatt ${eur0(freiOver)} über ${eur0(freiCap)}/Jahr`
+    : `Freibetrag genutzt: ${eur0(Math.min(firstYearDisc, freiCap))} von ${eur0(freiCap)}`);
+
+  // ---- Detailed breakdown tables ----
+  const sharesLabel = `${totalShares.toFixed(2).replace('.', ',')} Stk.`;
+  setText('dCard1H', `1 · Kauf — ${accumulatedMonths} Monatskäufe`);
+  setText('dGross', eur2(totalGrossContribution));
+  setText('dNet', eur2(totalNetContribution));
+  setText('dDisc', `+${eur2(totalDiscountBenefitEUR)}`);
+  setText('dPurchTax', `−${eur2(purchaseTaxPaid)}`);
+  setText('dShares', sharesLabel);
+  setText('dBuyPriceLabel', isHist ? 'Ø Kaufkurs (gewichtet)' : 'Kaufkurs je Aktie');
+  setText('dBuyPrice', `${eur2(sharePriceEUR)} (${usd(sharePriceUSD)})`);
+  setText('dDiscPrice', eur2(sharePriceEUR * 0.85));
+
+  setText('dCard2H', `2 · Verkauf & Steuern — ${brokerName}`);
+  setHtml('dRevLabel', `Verkaufserlös (${sharesLabel} × ${usd(sellPriceUSD)})`);
+  setText('dRevenue', eur2(grossSaleRevenueEUR));
+  setText('dCost', eur2(costBasisEUR));
+  setText('dGain', eur2(capitalGainsEUR));
+  setText('dCapRate', `${(capGainsTaxRate * 100).toFixed(2).replace('.', ',')}${NBSP}%`);
+  setText('dCapTax', `−${eur2(capitalGainsTaxPaid)}`);
+  setText('dFees', `−${eur2(brokerFeesEUR)}`);
+  setText('dNetCash', eur2(netCashReceived));
+  const dProfitEl = document.getElementById('dProfit');
+  if (dProfitEl) {
+    dProfitEl.textContent = `${profitPos ? '+' : '−'}${eur2(Math.abs(netProfitEUR))}`;
+    dProfitEl.classList.toggle('neg', !profitPos);
+  }
+
+  // ---- Situational info boxes ----
+  const showBox = (id, show) => { const el = document.getElementById(id); if (el) el.style.display = show ? '' : 'none'; };
+  showBox('boxGuenstiger', effectiveTaxRate < abgeltungRate);
+  showBox('boxGerman', broker === 'german');
+  showBox('boxHist', isHist);
+
+  // ---- Feed the goal tracker (hypothetical future shares) and persist state ----
+  rechnerEconomics = {
+    shares: totalShares,
+    netProfitEUR,
+    netCashReceived,
+    sharePriceEUR,
+    sellPriceEUR,
+    monthlyGrossContribution,
+    effectiveTaxRate,
+    capGainsTaxRate,
+    brokerFeesEUR,
+    totalEmployeeCost,
+    accumulatedMonths
+  };
+  updateGoalTracker();
+
+  // Save calculator state to localStorage
+  saveCalculatorState();
+}
+
+// ===== Classic (pre-1c) Rechner design: chart-first output panel. =====
+// Faithful port of the original render tail of calculateESPP — donut + KPI banner,
+// counter-animated breakdown rows, empty state, scenario strip and break-even tile.
+// Runs only while the classic markup is stamped (see CALC_CLASSIC).
+function renderClassicCalc({
+  monthlySalary, savingsRate, monthlyGrossContribution, monthlyMarketValueEUR,
+  effectiveTaxRate, baseTaxRate, soliRate, broker, exchangeRate, calcMode,
+  histMonths, accumulatedMonths,
+  totalGrossContribution, totalNetContribution, totalDiscountBenefitEUR, purchaseTaxPaid,
+  totalShares, sharePriceUSD, sharePriceEUR, totalMarketValueEUR,
+  sellPriceUSD, sellPriceEUR, grossSaleRevenueEUR, costBasisEUR, capitalGainsEUR,
+  abgeltungRate, capGainsTaxRate, capitalGainsTaxPaid, brokerFeesEUR,
+  netCashReceived, totalEmployeeCost, netProfitEUR, netReturnOnNetCapital
+}) {
   // Show the German-broker 30% withholding warning only when that broker is selected.
   if (elements.germanBrokerNote) {
     elements.germanBrokerNote.style.display = broker === 'german' ? 'block' : 'none';
@@ -1638,12 +2035,12 @@ function calculateESPP() {
   setRow('rowDiscountTaxSale2', purchaseTaxPaid, (v) => `− ${fmtEUR(v)} €`);
 
   setRow('rowFinalNetProfit', netProfitEUR, fmtRowEuro);
-  
+
   // Update dynamic months labels in breakdown
   document.querySelectorAll('.months-count').forEach(el => {
     el.textContent = accumulatedMonths;
   });
-  
+
   // "Sofort-Hebel" tile: instant gain at purchase from the gross-salary effect + discount.
   elements.lblGross500.textContent = `${monthlyGrossContribution.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €`;
   if (elements.lblTax35) elements.lblTax35.textContent = `${(effectiveTaxRate*100).toFixed(1)}%`;
@@ -1670,12 +2067,12 @@ function calculateESPP() {
   const bannerSharesSub = document.getElementById('bannerSharesSub');
 
   if (!isPlaceholder) {
-    const fmtEUR = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+    const fmtEUR2 = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
     const fmtShares = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Stk.`;
     const fmtMarketVal = (val) => `Marktwert: ${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 
     if (chartCenterProfit) {
-      animateNumberValue('chartCenterProfit', netProfitEUR, fmtEUR);
+      animateNumberValue('chartCenterProfit', netProfitEUR, fmtEUR2);
     }
     if (bannerShares) {
       animateNumberValue('bannerShares', totalShares, fmtShares);
@@ -1828,27 +2225,7 @@ function calculateESPP() {
     updateChart(totalNetContribution, purchaseTaxPaid, capitalGainsTaxPaid + brokerFeesEUR, netProfitEUR);
   }
 
-  // Remember the Rechner economics (hypothetical future shares) for the goal tracker,
-  // then update it. The goal tracker prefers REAL portfolio holdings when available.
-  rechnerEconomics = {
-    shares: totalShares,
-    netProfitEUR,
-    netCashReceived,
-    sharePriceEUR,
-    sellPriceEUR,
-    monthlyGrossContribution,
-    effectiveTaxRate,
-    capGainsTaxRate,
-    brokerFeesEUR,
-    totalEmployeeCost,
-    accumulatedMonths
-  };
-  updateGoalTracker();
-
   fitAllSliderChips();
-
-  // Save calculator state to localStorage
-  saveCalculatorState();
 }
 
 // Scenario-context UI in the output panel: names the assumptions that produce the
@@ -1977,27 +2354,6 @@ function updateBreakEven({ isPlaceholder, totalShares, exchangeRate, costBasisEU
     : `Gewinn erst ab einem Verkaufskurs von ${fmtUSD(breakEvenUSD)}`;
 }
 
-// Theme-dependent canvas colors for Chart.js (canvas can't resolve CSS variables).
-// Charts are destroyed and re-created on theme toggle so these get re-read.
-function chartThemeColors() {
-  const light = document.documentElement.getAttribute('data-theme') === 'light';
-  return {
-    donutBorder: light ? '#ffffff' : '#10162e',
-    grid: light ? 'rgba(15, 23, 42, 0.09)' : 'rgba(255, 255, 255, 0.05)',
-    tick: light ? '#5b6573' : '#9ca3af',
-    accentLine: light ? '#0891b2' : '#00f2fe',
-    accentFill: light ? 'rgba(8, 145, 178, 0.06)' : 'rgba(0, 242, 254, 0.04)'
-  };
-}
-
-// Donut/legend/composition palette from the CSS design system, so the canvas
-// follows the active theme (charts are re-created on theme toggle).
-function chartPalette() {
-  const styles = getComputedStyle(document.documentElement);
-  return ['--chart-savings', '--chart-tax', '--chart-fees', '--chart-profit']
-    .map(name => styles.getPropertyValue(name).trim());
-}
-
 // Stacked horizontal bar above the breakdown — same data & order as the donut.
 function updateCompositionBar(dataValues) {
   const segmentIds = ['compSavings', 'compTax', 'compFees', 'compProfit'];
@@ -2008,6 +2364,7 @@ function updateCompositionBar(dataValues) {
   });
 }
 
+// Donut chart of the classic output panel (net invest / taxes / fees / profit).
 function updateChart(netInvest, payrollTax, sellCosts, netProfit) {
   const ctx = document.getElementById('profitChart').getContext('2d');
 
@@ -2054,6 +2411,27 @@ function updateChart(netInvest, payrollTax, sellCosts, netProfit) {
       }
     });
   }
+}
+
+// Theme-dependent canvas colors for Chart.js (canvas can't resolve CSS variables).
+// Charts are destroyed and re-created on theme toggle so these get re-read.
+function chartThemeColors() {
+  const light = document.documentElement.getAttribute('data-theme') === 'light';
+  return {
+    donutBorder: light ? '#ffffff' : '#10162e',
+    grid: light ? 'rgba(15, 23, 42, 0.09)' : 'rgba(255, 255, 255, 0.05)',
+    tick: light ? '#5b6573' : '#9ca3af',
+    accentLine: light ? '#0891b2' : '#00f2fe',
+    accentFill: light ? 'rgba(8, 145, 178, 0.06)' : 'rgba(0, 242, 254, 0.04)'
+  };
+}
+
+// Donut/legend/composition palette from the CSS design system, so the canvas
+// follows the active theme (charts are re-created on theme toggle).
+function chartPalette() {
+  const styles = getComputedStyle(document.documentElement);
+  return ['--chart-savings', '--chart-tax', '--chart-fees', '--chart-profit']
+    .map(name => styles.getPropertyValue(name).trim());
 }
 
 // 100% Client-Side PDF Upload and Extraction (Data Privacy Guaranteed)
@@ -2216,17 +2594,18 @@ function initPdfUploader() {
       return;
     }
 
-    // Apply values to inputs
+    // Apply values to inputs (the guided-sentence tokens + number mirrors are
+    // refreshed by calculateESPP() below; the classic value chips are set here).
     state.salaryProvided = true; // real salary from the uploaded payslip
     elements.inputMonthlySalary.value = extractedSalary;
-    elements.valMonthlySalary.value = `${parseInt(extractedSalary).toLocaleString('de-DE')} €`;
+    if (elements.valMonthlySalary) elements.valMonthlySalary.value = `${parseInt(extractedSalary).toLocaleString('de-DE')} €`;
 
     if (extractedSavingsRate !== null) {
       elements.inputSavingsRate.value = extractedSavingsRate;
-      elements.valSavingsRate.value = `${extractedSavingsRate} %`;
+      if (elements.valSavingsRate) elements.valSavingsRate.value = `${extractedSavingsRate} %`;
     } else {
       elements.inputSavingsRate.value = 10;
-      elements.valSavingsRate.value = '10 %';
+      if (elements.valSavingsRate) elements.valSavingsRate.value = '10 %';
     }
 
     elements.selectChurchTax.value = extractedChurchTax.toString();
@@ -2267,7 +2646,7 @@ function initPdfUploader() {
     // Estimate marginal tax rate based on German linear tax progression formula
     const estimatedMarginalRate = estimateGrenzsteuersatz(extractedSalary, extractedTaxClass, elements.selectTaxYear.value);
     elements.inputTaxRate.value = estimatedMarginalRate;
-    elements.valTaxRate.value = `${estimatedMarginalRate} %`;
+    if (elements.valTaxRate) elements.valTaxRate.value = `${estimatedMarginalRate} %`;
 
     // Recalculate everything
     calculateESPP();

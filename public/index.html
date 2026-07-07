@@ -52,10 +52,9 @@
       
       <nav role="tablist" aria-label="Bereiche">
         <button class="nav-tab active" id="navtab-calculator" role="tab" aria-selected="true" aria-controls="tab-calculator" data-tab="calculator"><i class="fa-solid fa-calculator"></i> Rechner</button>
-        <button class="nav-tab" id="navtab-portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio" data-tab="portfolio"><i class="fa-solid fa-chart-line"></i> Portfolio-Analyse</button>
-        <button class="nav-tab" id="navtab-porsche" role="tab" aria-selected="false" aria-controls="tab-porsche" data-tab="porsche"><i class="fa-solid fa-bullseye"></i> Ziel-Tracker</button>
-        <button class="nav-tab" id="navtab-guide" role="tab" aria-selected="false" aria-controls="tab-guide" data-tab="guide"><i class="fa-solid fa-route"></i> Anleitung</button>
-        <button class="nav-tab" id="navtab-taxes" role="tab" aria-selected="false" aria-controls="tab-taxes" data-tab="taxes"><i class="fa-solid fa-receipt"></i> Steuern (DE)</button>
+        <button class="nav-tab" id="navtab-portfolio" role="tab" aria-selected="false" aria-controls="tab-portfolio" data-tab="portfolio"><i class="fa-solid fa-chart-line"></i> Portfolio</button>
+        <button class="nav-tab" id="navtab-porsche" role="tab" aria-selected="false" aria-controls="tab-porsche" data-tab="porsche"><i class="fa-solid fa-bullseye"></i> Ziel</button>
+        <button class="nav-tab" id="navtab-guide" role="tab" aria-selected="false" aria-controls="tab-guide" data-tab="guide" data-tab-group="wissen"><i class="fa-solid fa-graduation-cap"></i> Wissen</button>
       </nav>
       
       <div class="header-right">
@@ -125,13 +124,8 @@
           <i class="fa-solid fa-chevron-right wf-chevron"></i>
         </button>
         <button type="button" class="welcome-feature" data-goto-tab="guide">
-          <i class="fa-solid fa-route"></i>
-          <div><strong>Anleitung</strong><span>Schritt für Schritt durchs ESPP – vom Beitritt bis zum Austritt.</span></div>
-          <i class="fa-solid fa-chevron-right wf-chevron"></i>
-        </button>
-        <button type="button" class="welcome-feature" data-goto-tab="taxes">
-          <i class="fa-solid fa-receipt"></i>
-          <div><strong>Steuern (DE)</strong><span>Geldwerter Vorteil, Freibetrag &amp; Abgeltungsteuer erklärt.</span></div>
+          <i class="fa-solid fa-graduation-cap"></i>
+          <div><strong>Wissen</strong><span>Anleitung Schritt für Schritt &amp; deutsche Steuern – Freibetrag, GwV &amp; Abgeltungsteuer erklärt.</span></div>
           <i class="fa-solid fa-chevron-right wf-chevron"></i>
         </button>
       </div>
@@ -148,8 +142,308 @@
   </div>
   
   <main class="container">
+
+    <!-- Site-wide IBM announcement (Juli 2026): ESPP-Umwandlungsbetrag war bisher
+         nicht lohnversteuert. Always visible on every tab; full official text
+         expandable below the headline. -->
+    <details class="espp-notice" id="esppNotice">
+      <summary class="espp-notice-summary">
+        <i class="fa-solid fa-triangle-exclamation espp-notice-icon"></i>
+        <span class="espp-notice-headline">
+          <strong>Wichtige IBM-Mitteilung zum ESPP <span class="espp-notice-date">Stand: Juli 2026</span></strong>
+          <span>Der f&uuml;r den Aktienkauf umgewandelte Entgeltbetrag wurde bisher <strong>nicht dem Lohnsteuerabzug unterworfen</strong>. Ab dem 1.&nbsp;Juli 2026 beh&auml;lt IBM darauf Lohnsteuer ein; die Behandlung fr&uuml;herer Zeitr&auml;ume wird mit den Steuerbeh&ouml;rden gekl&auml;rt.</span>
+        </span>
+        <span class="espp-notice-toggle"><span class="espp-notice-toggle-text">Ganze Mitteilung</span> <i class="fa-solid fa-chevron-down"></i></span>
+      </summary>
+      <div class="espp-notice-body">
+        <p>IBM hat im Rahmen einer &Uuml;berpr&uuml;fung festgestellt, dass in der Vergangenheit der Aktienkaufplan IBM Employee Stock Purchase Plan (ESPP) in Deutschland nicht korrekt angewandt wurde. Nach unserem derzeitigen Kenntnisstand wurde der Discount des ESPP korrekt berechnet und versteuert. Der f&uuml;r den Aktienerwerb umgewandelte Entgeltbetrag wurde jedoch im Rahmen der Gehaltsabrechnung nicht dem Lohnsteuerabzug unterworfen.</p>
+        <p>Wir gehen davon aus, dass diese steuerliche Behandlung inkorrekt war. Derzeit arbeiten wir bereits daran, die Auswirkungen davon zu analysieren und die n&auml;chsten n&ouml;tigen Schritte zu definieren.</p>
+        <p>Wir sind uns bewusst, dass diese Nachricht Fragen aufwirft und Euch m&ouml;glicherweise beunruhigt. Wir m&ouml;chten Euch jedoch versichern, dass wir die Angelegenheit sehr ernst nehmen und unser Bestes tun werden, um betroffene Mitarbeitende zu unterst&uuml;tzen. Gleichzeitig sind wir daran, daf&uuml;r die n&auml;chsten Schritte zu erarbeiten.</p>
+        <p>Einige Aspekte befinden sich derzeit noch in der Pr&uuml;fung. Sobald uns weitere Informationen vorliegen, werden wir Euch dar&uuml;ber informieren.</p>
+        <h4>Bereits eingeleitete Ma&szlig;nahmen</h4>
+        <p>IBM hat die zust&auml;ndigen Steuerbeh&ouml;rden proaktiv &uuml;ber diesen Sachverhalt informiert. Wir werden eng mit externen Beratern, Steuerspezialisten und den Beh&ouml;rden zusammenarbeiten, um die Situation vollst&auml;ndig zu analysieren und eine geeignete L&ouml;sung zu erarbeiten.</p>
+        <p><strong>Was bedeutet das f&uuml;r Euch als Teilnehmende des Aktienkaufprogramms ESPP:</strong></p>
+        <h4>F&uuml;r die Zukunft</h4>
+        <p>Mit Wirkung zum 1. Juli 2026 wird der zum Kauf von Mitarbeiter-Aktien verwendete Umwandlungsbetrag nun nicht mehr von der steuerlichen Bemessungsgrundlage (dem &bdquo;Steuer-Brutto&ldquo;) abgezogen. Der Umwandlungsbetrag, der f&uuml;r den Erwerb von Mitarbeiter-Aktien verwendet wird, unterliegt der Lohnsteuer, und IBM wird diese Steuer einbehalten. Die steuerliche Behandlung des ESPP Discounts bleibt unver&auml;ndert, und das Aktienkaufprogramm wird wie gewohnt weitergef&uuml;hrt.</p>
+        <h4>F&uuml;r Steuerperioden vor dem 1. Juli 2026</h4>
+        <p>Wir werden uns zeitnah mit den Steuerbeh&ouml;rden austauschen, wie die steuerliche Behandlung des Umwandlungsbetrages zu handhaben ist. Eine Entscheidung dar&uuml;ber steht noch aus.</p>
+        <p>Zum jetzigen Zeitpunkt k&ouml;nnen wir weder individuelle Auswirkungen beurteilen noch best&auml;tigen, wie mit allf&auml;lligen Steuerverbindlichkeiten aus fr&uuml;heren Jahren umgegangen wird. Wir sind uns der Unannehmlichkeiten bewusst, die mit dieser Aufarbeitung verbunden sind. Es ist jedoch wichtig, zun&auml;chst in Abstimmung mit den zust&auml;ndigen Beh&ouml;rden den ad&auml;quaten Vorgehensweg zu definieren.</p>
+        <p>Wichtig ist in diesem Zusammenhang zu verstehen, dass nach deutschem Steuerrecht zwar IBM f&uuml;r den Einbehalt und die Abf&uuml;hrung der Lohnsteuer verantwortlich ist, die zugrunde liegende Steuerschuld jedoch bei der/dem jeweiligen Mitarbeitenden liegt. Wie die Korrektur f&uuml;r die ESPP-Teilnehmenden konkret umgesetzt wird, werden wir im Austausch mit den Steuerbeh&ouml;rden kl&auml;ren.</p>
+        <p>Wir werden auf jeden Fall versuchen, die Auswirkungen f&uuml;r Euch so vertr&auml;glich wie m&ouml;glich zu gestalten.</p>
+        <h4>Was m&uuml;sst Ihr jetzt tun?</h4>
+        <p>Zum jetzigen Zeitpunkt ben&ouml;tigt IBM keine Ma&szlig;nahmen oder Informationen von Eurer Seite.</p>
+        <p>Wir arbeiten bereits daran, Fragen in einem FAQ zu beantworten, welches wir laufend erg&auml;nzen werden.</p>
+        <p>Sobald uns neue Informationen vorliegen, werden wir Euch entsprechend informieren.</p>
+        <p>Vielen Dank f&uuml;r Eure Geduld und Euer Verst&auml;ndnis.</p>
+        <p class="espp-notice-footnote"><i class="fa-solid fa-circle-info"></i> Interne IBM-Mitteilung an die ESPP-Teilnehmenden in Deutschland, hier im Wortlaut wiedergegeben. Dieses Tool bildet die neue Lohnsteuer-Behandlung des Umwandlungsbetrags derzeit noch nicht ab.</p>
+      </div>
+    </details>
+
     <!-- CALCULATOR TAB -->
     <section id="tab-calculator" class="tab-content active" role="tabpanel" aria-labelledby="navtab-calculator">
+      <!-- Design switch: toggles between the new "1c" sentence layout and the
+           classic chart-first layout (choice persisted, applied via reload). -->
+      <div class="calc-design-switch">
+        <button type="button" id="btnDesignSwitch" title="Zwischen neuem und klassischem Rechner-Design wechseln">
+          <i class="fa-solid fa-repeat"></i> <span id="designSwitchLabel">Klassisches Design</span>
+        </button>
+      </div>
+      <div class="calc1c" id="calc1c">
+
+        <!-- Mode state holder (hidden): drives all existing calcMode logic -->
+        <select id="selectCalcMode" hidden aria-hidden="true" tabindex="-1">
+          <option value="forecast" selected>forecast</option>
+          <option value="historical">historical</option>
+        </select>
+        <!-- Historical join-date holder (hidden): machine value in data-value -->
+        <input type="text" id="inputJoinDate" data-value="2022-01" data-min="1962-01" hidden aria-hidden="true" tabindex="-1">
+
+        <!-- ===== Guided sentence with clickable value tokens ===== -->
+        <div class="c1c-sentence" id="c1cSentence">
+          Ich verdiene
+          <span class="tok-wrap" data-pop="salary">
+            <button type="button" class="c1c-tok" id="tokSalary" data-tok="salary">5.000&nbsp;€</button>
+            <span class="c1c-pop" data-pop-body="salary">
+              <span class="pop-row">
+                <span class="pop-label">Bruttogehalt (mtl.)</span>
+                <input type="number" class="pop-num" id="numSalary" step="100" min="1000" max="20000" value="5000">
+              </span>
+              <input type="range" class="pop-range" id="inputMonthlySalary" min="1000" max="20000" step="100" value="5000">
+              <span class="pop-minmax"><span>1.000&nbsp;€</span><span>20.000&nbsp;€</span></span>
+              <span class="pop-hint">Nur das Grundgehalt — variable Vergütung zählt nicht.</span>
+            </span>
+          </span>
+          brutto, spare
+          <span class="tok-wrap" data-pop="rate">
+            <button type="button" class="c1c-tok" id="tokRate" data-tok="rate">10&nbsp;%</button>
+            <span class="c1c-pop" data-pop-body="rate">
+              <span class="pop-row">
+                <span class="pop-label">Sparquote (% vom Brutto)</span>
+                <input type="number" class="pop-num" id="numRate" step="1" min="1" max="10" value="10">
+              </span>
+              <input type="range" class="pop-range" id="inputSavingsRate" min="1" max="10" step="1" value="10">
+              <span class="pop-minmax"><span>1&nbsp;%</span><span>10&nbsp;% (Maximum)</span></span>
+              <span class="pop-hint pop-hint-accent" id="rateMonthly">= 500&nbsp;€ / Monat</span>
+            </span>
+          </span>
+          <!-- Forecast-only clause -->
+          <span class="c1c-clause" data-mode="forecast">
+            ins ESPP und verkaufe nach
+            <span class="tok-wrap" data-pop="months">
+              <button type="button" class="c1c-tok" id="tokMonths" data-tok="months">12&nbsp;Monaten</button>
+              <span class="c1c-pop" data-pop-body="months">
+                <span class="pop-row">
+                  <span class="pop-label">Haltedauer (Monate ansparen)</span>
+                  <input type="number" class="pop-num" id="numMonths" step="1" min="1" max="120" value="12">
+                </span>
+                <input type="range" class="pop-range" id="inputAccumulatedMonths" min="1" max="120" step="1" value="12">
+                <span class="pop-minmax"><span>1 Monat</span><span>10 Jahre</span></span>
+                <span class="pop-hint">Du sparst monatlich an und verkaufst dann alle Aktien auf einmal. Der Freibetrag (§&nbsp;3 Nr.&nbsp;39 EStG) wird pro Jahr geprüft.</span>
+              </span>
+            </span>
+          </span>
+          <!-- Historical-only clause -->
+          <span class="c1c-clause" data-mode="hist" style="display:none">
+            seit
+            <span class="tok-wrap" data-pop="join">
+              <button type="button" class="c1c-tok" id="tokJoin" data-tok="join">Jan.&nbsp;2022</button>
+              <span class="c1c-pop c1c-pop-wide" data-pop-body="join">
+                <span class="pop-row">
+                  <span class="pop-label">ESPP-Beitritt — Jahr</span>
+                  <span class="pop-strong" id="joinYearLabel">2022</span>
+                </span>
+                <input type="range" class="pop-range" id="rangeJoinYear" min="1962" max="2026" step="1" value="2022">
+                <span class="pop-row" style="margin-top:12px">
+                  <span class="pop-label">Monat</span>
+                  <span class="pop-strong" id="joinMonthLabel">Januar</span>
+                </span>
+                <input type="range" class="pop-range" id="rangeJoinMonth" min="1" max="12" step="1" value="1">
+                <span class="pop-hint" id="joinNote">Jeder Monatskauf wird mit dem historischen IBM-Monatskurs und dem damaligen USD/EUR-Kurs simuliert — Kursdaten zurück bis Januar 1962.</span>
+              </span>
+            </span>
+            ins ESPP und verkaufe heute alle <span class="c1c-static" id="tokShares">12,3</span>&nbsp;Aktien
+          </span>
+          zu
+          <span class="tok-wrap" data-pop="sell">
+            <button type="button" class="c1c-tok" id="tokSell" data-tok="sell">$180</button>
+            <span class="c1c-pop" data-pop-body="sell">
+              <span class="pop-row">
+                <span class="pop-label">Verkaufskurs (USD)</span>
+                <input type="number" class="pop-num" id="inputSellPrice" step="1" min="10" max="2000" value="180">
+              </span>
+              <input type="range" class="pop-range" id="rangeSell" min="50" max="600" step="1" value="180">
+              <span class="pop-minmax"><span>$50</span><span>$600</span></span>
+              <button type="button" class="pop-live" id="btnSellLive">Auf Live-Kurs setzen (<span id="sellLivePrice">$180</span>)</button>
+            </span>
+          </span>.
+        </div>
+
+        <!-- First-visit hint: shown until the user opens a token popover once -->
+        <div class="c1c-hint" id="c1cHint" style="display:none"><i class="fa-solid fa-hand-pointer"></i> Tippe auf die markierten Werte, um sie anzupassen</div>
+
+        <!-- ===== Sub-line: tax profile + settings link + mode switch ===== -->
+        <div class="c1c-subline">
+          <span>Steuerprofil: <span id="taxSummary">35&nbsp;% · Kirche 9&nbsp;% · CapTrader</span></span>
+          <span class="c1c-dot">·</span>
+          <button type="button" class="c1c-link" id="btnSettingsToggle">anpassen</button>
+          <span class="c1c-dot">·</span>
+          <span class="c1c-mode-tag" id="histBadge" style="display:none">HISTORISCH</span>
+          <button type="button" class="c1c-link c1c-link-blue" id="btnModeToggle">Mit echten IBM-Kursen seit meinem Beitritt rechnen</button>
+        </div>
+        <div id="histStatus" class="c1c-hist-status hidden-status"></div>
+
+        <!-- ===== Settings panel (collapsed by default) ===== -->
+        <div class="c1c-settings" id="c1cSettings" style="display:none">
+          <div class="settings-grid">
+            <div class="settings-field">
+              <span class="settings-label">Steuerjahr / Gesetz</span>
+              <select class="settings-input" id="selectTaxYear">
+                <option value="2026" selected>2026 — 2.000&nbsp;€ Freibetrag</option>
+                <option value="2024">2024 / 2025 — 2.000&nbsp;€ Freibetrag</option>
+                <option value="2023">bis 2023 — 1.440&nbsp;€ Freibetrag</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <span class="settings-label settings-label-row">Grenzsteuersatz <span class="settings-val" id="valTaxRatePct">35&nbsp;%</span></span>
+              <input type="range" class="settings-range" id="inputTaxRate" min="14" max="45" step="1" value="35">
+              <span class="settings-hint">Am genauesten: Wert aus dem Steuerbescheid</span>
+            </div>
+            <div class="settings-field">
+              <span class="settings-label">Kirchensteuer</span>
+              <select class="settings-input" id="selectChurchTax">
+                <option value="0">Keine</option>
+                <option value="8">8&nbsp;% (BY, BW)</option>
+                <option value="9" selected>9&nbsp;% (andere Bundesländer)</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <span class="settings-label">Soli (auf Lohnsteuer)</span>
+              <select class="settings-input" id="selectSoli">
+                <option value="0" selected>Kein Soli (unter Freigrenze)</option>
+                <option value="5.5">5,5&nbsp;% (Zahler)</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <span class="settings-label">Verkaufsweg &amp; Broker</span>
+              <select class="settings-input" id="selectBroker">
+                <option value="captrader" selected>CapTrader / IBKR — empfohlen, ca. 4&nbsp;€</option>
+                <option value="equateplus">EquatePlus / CS direkt — teuer, ca. $55+</option>
+                <option value="german">Deutscher Broker — Steuer-Falle (30&nbsp;%)</option>
+              </select>
+            </div>
+            <div class="settings-field">
+              <span class="settings-label settings-label-row">Kaufkurs IBM (USD) <button type="button" class="live-badge" id="btnBuyLive" title="Live-Kurs &amp; Wechselkurs laden">LIVE</button></span>
+              <div class="settings-duo">
+                <input type="number" class="settings-input" id="inputStockPrice" step="0.01" value="180.00">
+                <input type="number" class="settings-input settings-input-fx" id="inputFX" step="0.0001" value="0.9200" title="USD→EUR Wechselkurs">
+              </div>
+              <span class="settings-hint"><span id="buyEurNote">0,00&nbsp;€ je Aktie</span> · rechts: USD→EUR</span>
+              <!-- Legacy mirrors kept in sync for the live-ticker + state code paths -->
+              <span id="valStockPriceEUR" hidden></span><span id="valExchangeRate" hidden></span>
+              <button type="button" id="btnFetchStock" hidden aria-hidden="true" tabindex="-1"></button>
+            </div>
+          </div>
+          <div class="settings-foot">
+            <button type="button" class="pdf-btn" id="uploadZone"><i class="fa-solid fa-file-arrow-up"></i> Gehaltsabrechnung (PDF) einlesen</button>
+            <input type="file" id="pdfFileInput" accept=".pdf" style="display:none">
+            <span class="settings-foot-text">Füllt Gehalt &amp; Steuersatz automatisch aus — 100&nbsp;% lokal im Browser, kein Upload, funktioniert offline.</span>
+            <button type="button" class="reset-btn" id="btnClearCalculator">Zurücksetzen</button>
+          </div>
+          <div id="uploadStatus" class="upload-status-message hidden-status"></div>
+        </div>
+
+        <!-- ===== Money-flow cards ===== -->
+        <div class="c1c-flow">
+          <div class="flow-card">
+            <span class="flow-label">Du zahlst netto</span>
+            <span class="flow-val" id="f1Val">0&nbsp;€</span>
+            <span class="flow-sub" id="f1Sub"></span>
+            <span class="flow-bar"><span class="flow-bar-fill flow-bar-grey" id="f1Bar"></span></span>
+          </div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-card">
+            <span class="flow-label">Du bekommst Aktien für</span>
+            <span class="flow-val" id="f2Val">0&nbsp;€</span>
+            <span class="flow-sub" id="f2Sub"></span>
+            <span class="flow-bar"><span class="flow-bar-fill flow-bar-blue" id="f2Bar"></span></span>
+          </div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-card">
+            <span class="flow-label">Verkauf bringt netto</span>
+            <span class="flow-val" id="f3Val">0&nbsp;€</span>
+            <span class="flow-sub" id="f3Sub"></span>
+            <span class="flow-bar"><span class="flow-bar-fill flow-bar-blue" id="f3Bar"></span></span>
+          </div>
+          <span class="flow-arrow">→</span>
+          <div class="flow-card flow-card-profit" id="flowProfit">
+            <span class="flow-label" id="f4Label">Dein Gewinn</span>
+            <span class="flow-val flow-val-profit" id="f4Val">0&nbsp;€</span>
+            <span class="flow-sub" id="f4Sub"></span>
+            <span class="flow-bar"><span class="flow-bar-fill" id="f4Bar"></span></span>
+          </div>
+        </div>
+
+        <!-- ===== Stats line ===== -->
+        <div class="c1c-stats">
+          <span title="Dein Papier-Gewinn im Moment des Kaufs: 15&nbsp;% Rabatt + Kauf vom Bruttogehalt">Sofort-Hebel beim Kauf: <strong id="statHebel">–</strong></span>
+          <span id="statBE" title="Verkaufskurs, bei dem Dein Netto-Gewinn genau 0&nbsp;€ beträgt"></span>
+          <span id="statFrei" title="§&nbsp;3 Nr.&nbsp;39 EStG — steuerfreier Rabatt pro Kalenderjahr"></span>
+        </div>
+
+        <!-- ===== Details toggle ===== -->
+        <div class="c1c-actions">
+          <button type="button" class="details-btn" id="btnDetails">Detaillierte Aufschlüsselung ansehen</button>
+        </div>
+
+        <!-- ===== Breakdown details ===== -->
+        <div class="c1c-details" id="calcDetails" style="display:none">
+          <div class="details-grid">
+            <div class="detail-card">
+              <div class="detail-card-h" id="dCard1H">1 · Kauf — 12 Monatskäufe</div>
+              <div class="detail-rows">
+                <div class="drow"><span>Brutto-Sparbeitrag gesamt</span><span class="drow-v" id="dGross">0,00&nbsp;€</span></div>
+                <div class="drow"><span>Reales Netto-Kapital (Kauf vom Brutto)</span><span class="drow-v drow-blue" id="dNet">0,00&nbsp;€</span></div>
+                <div class="drow"><span>ESPP-Rabatt (15&nbsp;% auf den Kurs)</span><span class="drow-v drow-green" id="dDisc">+0,00&nbsp;€</span></div>
+                <div class="drow"><span>Lohnsteuer auf Rabatt über Freibetrag</span><span class="drow-v drow-yellow" id="dPurchTax">−0,00&nbsp;€</span></div>
+                <div class="drow"><span>Erworbene Aktien</span><span class="drow-v" id="dShares">0,00 Stk.</span></div>
+                <div class="drow"><span id="dBuyPriceLabel">Kaufkurs je Aktie</span><span class="drow-v" id="dBuyPrice">0,00&nbsp;€</span></div>
+                <div class="drow"><span>Dein Vorzugskurs (−15&nbsp;%)</span><span class="drow-v drow-green" id="dDiscPrice">0,00&nbsp;€</span></div>
+              </div>
+            </div>
+            <div class="detail-card">
+              <div class="detail-card-h" id="dCard2H">2 · Verkauf &amp; Steuern — CapTrader / IBKR</div>
+              <div class="detail-rows">
+                <div class="drow"><span id="dRevLabel">Verkaufserlös</span><span class="drow-v" id="dRevenue">0,00&nbsp;€</span></div>
+                <div class="drow"><span>Kostenbasis (unrabattierter Kaufpreis)</span><span class="drow-v" id="dCost">0,00&nbsp;€</span></div>
+                <div class="drow"><span>Steuerpflichtiger Kursgewinn</span><span class="drow-v" id="dGain">0,00&nbsp;€</span></div>
+                <div class="drow"><span>Abgeltungsteuer (<span id="dCapRate">26,375&nbsp;%</span>)</span><span class="drow-v drow-yellow" id="dCapTax">−0,00&nbsp;€</span></div>
+                <div class="drow"><span>Broker-Gebühren</span><span class="drow-v drow-yellow" id="dFees">−0,00&nbsp;€</span></div>
+                <div class="drow"><span>Netto-Auszahlung</span><span class="drow-v" id="dNetCash">0,00&nbsp;€</span></div>
+                <div class="drow drow-total"><span>= Netto-Gewinn</span><span class="drow-v drow-profit" id="dProfit">0,00&nbsp;€</span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="info-box info-box-green" id="boxGuenstiger" style="display:none">
+            <strong>Günstigerprüfung aktiv:</strong> Dein Steuersatz liegt unter der Abgeltungsteuer — der Rechner nutzt automatisch den niedrigeren Satz.
+          </div>
+          <div class="info-box info-box-yellow" id="boxGerman" style="display:none">
+            <strong>Steuer-Falle deutscher Broker:</strong> Ohne bekannte Anschaffungskosten behält die Bank 26,375&nbsp;% auf 30&nbsp;% des Brutto-Erlöses ein (Ersatzbemessungsgrundlage, §&nbsp;43a Abs.&nbsp;2 EStG) — der Rechner zeigt den höheren der beiden Beträge. Zu viel Einbehaltenes ist nur über die Steuererklärung erstattbar.
+          </div>
+          <div class="info-box info-box-blue" id="boxHist" style="display:none">
+            <strong>Historische Berechnung:</strong> Jeder Monatskauf wird mit dem echten IBM-Monatsdurchschnittskurs und dem USD/EUR-Kurs des jeweiligen Kaufmonats simuliert (Quelle: Yahoo Finance, zurück bis 1962).
+          </div>
+          <div class="info-box info-box-neutral">
+            <strong>Empfohlener Verkaufsweg:</strong> Aktien kostenlos von EquatePlus zu CapTrader/IBKR übertragen (dauert ~2 Wochen) und dort für ~4&nbsp;€ verkaufen — statt $55+ beim Direktverkauf. Schritt-für-Schritt-Anleitung im Tab <em>Wissen</em>. · Ein offener <strong>Sparer-Pauschbetrag</strong> (1.000&nbsp;€ p.&nbsp;P.) ist nicht berücksichtigt und kann die Abgeltungsteuer zusätzlich senken.
+          </div>
+        </div>
+
+        <div class="c1c-foot">Simulation · keine Steuer- oder Anlageberatung · alle Daten bleiben in Deinem Browser</div>
+      </div>
+
+      <!-- ===== Classic Rechner design (pre-1c, chart-first). Inert inside the
+           template (no duplicate ids) until the stamping script below swaps it in. ===== -->
+      <template id="tplCalcClassic">
       <div class="hero-section">
         <h2>Lohnt sich das ESPP für Dich?</h2>
         <p>Dein Netto-Gewinn aus dem IBM-Aktienprogramm – nach deutschen Steuern, Freibetrag und Gebühren,
@@ -588,6 +882,22 @@
           </div><!-- /calcResultsContent -->
         </div>
       </div>
+      </template>
+      <script>
+        // Runs during parse, before the deferred app.js module evaluates its
+        // elements map — so getElementById only ever sees ONE design's ids.
+        (function () {
+          try {
+            // Classic is the default; only an explicit 'modern' keeps the 1c design.
+            if (localStorage.getItem('espp_calc_design') === 'modern') return;
+            var tpl = document.getElementById('tplCalcClassic');
+            var modern = document.getElementById('calc1c');
+            if (!tpl || !modern) return;
+            modern.replaceWith(tpl.content.cloneNode(true));
+            document.getElementById('tab-calculator').classList.add('is-classic');
+          } catch (e) { /* storage unavailable — falls back to the 1c markup (matches app.js CALC_CLASSIC=false) */ }
+        })();
+      </script>
     </section>
 
     <!-- PORTFOLIO ANALYSIS TAB -->
@@ -1233,6 +1543,10 @@
 
     <!-- GUIDE TAB -->
     <section id="tab-guide" class="tab-content" role="tabpanel" aria-labelledby="navtab-guide">
+      <nav class="wissen-subnav" aria-label="Wissen-Bereich">
+        <button type="button" class="wissen-subtab active" data-subtab="guide"><i class="fa-solid fa-route"></i> Anleitung</button>
+        <button type="button" class="wissen-subtab" data-subtab="taxes"><i class="fa-solid fa-receipt"></i> Steuern (DE)</button>
+      </nav>
       <div class="hero-section">
         <h2>Die ESPP-Anleitung</h2>
         <p>Dein Wegweiser durch das IBM-Aktienprogramm – in fünf kurzen Kapiteln.</p>
@@ -1525,7 +1839,11 @@
     </section>
     
     <!-- TAXES TAB -->
-    <section id="tab-taxes" class="tab-content" role="tabpanel" aria-labelledby="navtab-taxes">
+    <section id="tab-taxes" class="tab-content" role="tabpanel" aria-labelledby="navtab-guide">
+      <nav class="wissen-subnav" aria-label="Wissen-Bereich">
+        <button type="button" class="wissen-subtab" data-subtab="guide"><i class="fa-solid fa-route"></i> Anleitung</button>
+        <button type="button" class="wissen-subtab active" data-subtab="taxes"><i class="fa-solid fa-receipt"></i> Steuern (DE)</button>
+      </nav>
       <div class="hero-section">
         <h2>Steuern in Deutschland</h2>
         <p>Was beim Kauf, bei Dividenden und beim Verkauf steuerlich passiert – Schritt für Schritt erklärt.</p>

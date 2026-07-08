@@ -85,9 +85,6 @@ const elements = {
   valTaxRate: document.getElementById('valTaxRate'),
   valAccumulatedMonths: document.getElementById('valAccumulatedMonths'),
   germanBrokerNote: document.getElementById('germanBrokerNote'),
-  netProfitEuro: document.getElementById('netProfitEuro'),
-  netProfitPercent: document.getElementById('netProfitPercent'),
-  netInvestment: document.getElementById('netInvestment'),
   lblGross500: document.getElementById('lblGross500'),
   lblTax35: document.getElementById('lblTax35'),
   lblNet276: document.getElementById('lblNet276'),
@@ -1639,13 +1636,6 @@ function initCalculatorClassicUI() {
   document.querySelectorAll('#calcModeToggle .mode-btn').forEach(btn => {
     btn.addEventListener('click', () => setCalcMode(btn.dataset.mode));
   });
-  const scenarioSwitch = document.getElementById('scenarioSwitch');
-  if (scenarioSwitch && elements.selectCalcMode) {
-    scenarioSwitch.addEventListener('click', () => {
-      setCalcMode(elements.selectCalcMode.value === 'historical' ? 'forecast' : 'historical');
-    });
-  }
-
   // Scenario chips jump to the control in step 3 that defines the clicked assumption.
   const scenarioChips = document.getElementById('scenarioChips');
   if (scenarioChips) {
@@ -2126,38 +2116,21 @@ function renderClassicCalc({
   state.rapidRecalc = nowTs - (state.lastCalcTs || 0) < 250;
   state.lastCalcTs = nowTs;
 
-  // Color the banner figures: green return / default profit when positive, red when negative
-  if (netProfitEUR >= 0) {
-    elements.netProfitPercent.style.color = "var(--success)";
-    elements.netProfitEuro.style.color = "";
-  } else {
-    elements.netProfitPercent.style.color = "#f87171";
-    elements.netProfitEuro.style.color = "#f87171";
-  }
-
   // One quick pulse when the profit flips sign — the color swap alone is easy to
   // miss, and this is the most decision-relevant state change in the tab.
   if (!isPlaceholder) {
     const profitPositive = netProfitEUR >= 0;
     if (state.lastProfitSign !== undefined && state.lastProfitSign !== profitPositive) {
       pulseElement(document.querySelector('#tab-calculator .chart-center'));
-      pulseElement(document.querySelector('.calc-summary-banner .csb-item.primary'));
     }
     state.lastProfitSign = profitPositive;
   } else {
     state.lastProfitSign = undefined; // reset: the first real result must not pulse
   }
 
-  // Update Outputs in UI (animated if not placeholder)
+  // Mirror the headline figures into the condensed sticky strip (the donut center
+  // is the only on-page headline figure — the former static KPI banner is gone).
   if (!isPlaceholder) {
-    const fmtEUR = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-    const fmtPercent = (val) => `${val >= 0 ? '+' : ''}${val.toFixed(1)}%`;
-
-    animateNumberValue('netProfitEuro', netProfitEUR, fmtEUR);
-    animateNumberValue('netInvestment', totalEmployeeCost, fmtEUR);
-    animateNumberValue('netProfitPercent', netReturnOnNetCapital, fmtPercent);
-
-    // Mirror the headline figures into the condensed sticky strip
     state.stickyKpisCalculator = {
       netProfitEUR,
       returnPct: netReturnOnNetCapital,
@@ -2166,10 +2139,6 @@ function renderClassicCalc({
       investLabel: 'Einsatz'
     };
     if (state.activeTab === 'calculator') applyStickyKpis('calculator');
-  } else {
-    elements.netProfitEuro.textContent = '–';
-    elements.netProfitPercent.textContent = '–';
-    elements.netInvestment.textContent = '–';
   }
 
   // Breakdown + sale-process rows: counter-animated, with a soft highlight pulse
@@ -2230,37 +2199,16 @@ function renderClassicCalc({
   const instantGain = ((monthlyMarketValueEUR - monthlyNetDeduction) / monthlyNetDeduction) * 100;
   animateNumberValue('lblInstantGain', instantGain, (v) => `+${v.toFixed(0)} %`);
 
-  // Mirror the headline figure into the donut center and fill the summary-banner extras
+  // The donut center is THE headline figure: red when the result is a loss.
   const chartCenterProfit = document.getElementById('chartCenterProfit');
   if (chartCenterProfit) {
-    if (elements.netProfitEuro.style.color) {
-      chartCenterProfit.style.color = elements.netProfitEuro.style.color;
-    } else {
-      chartCenterProfit.style.color = "";
-    }
-  }
-
-  const bannerShares = document.getElementById('bannerShares');
-  const bannerSharesSub = document.getElementById('bannerSharesSub');
-
-  if (!isPlaceholder) {
-    const fmtEUR2 = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-    const fmtShares = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} Stk.`;
-    const fmtMarketVal = (val) => `Marktwert: ${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-
-    if (chartCenterProfit) {
+    chartCenterProfit.style.color = netProfitEUR >= 0 ? '' : '#f87171';
+    if (!isPlaceholder) {
+      const fmtEUR2 = (val) => `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
       animateNumberValue('chartCenterProfit', netProfitEUR, fmtEUR2);
+    } else {
+      chartCenterProfit.textContent = '–';
     }
-    if (bannerShares) {
-      animateNumberValue('bannerShares', totalShares, fmtShares);
-    }
-    if (bannerSharesSub) {
-      animateNumberValue('bannerSharesSub', totalMarketValueEUR, fmtMarketVal);
-    }
-  } else {
-    if (chartCenterProfit) chartCenterProfit.textContent = '–';
-    if (bannerShares) bannerShares.textContent = '–';
-    if (bannerSharesSub) bannerSharesSub.textContent = 'Warte auf Deine Daten…';
   }
 
   // Placeholder mode: until a real salary is set, show no computed numbers at all.
@@ -2287,66 +2235,13 @@ function renderClassicCalc({
       calcResultsContent.style.display = showResults ? 'block' : 'none';
     }
   }
-  // The KPI banner carries no information in placeholder mode (four dashes) — hide it
-  // entirely so a fresh visitor goes straight from the notice to step 1.
-  const summaryBanner = document.querySelector('.calc-summary-banner');
-  if (summaryBanner) {
-    const wasHidden = summaryBanner.style.display === 'none';
-    if (isPlaceholder) {
-      summaryBanner.style.display = 'none';
-      state.firstCalculationRevealDone = false;
-      state.revealAnimationPlaying = false;
-    } else {
-      summaryBanner.style.display = '';
-      const kpis = summaryBanner.querySelectorAll('.csb-item');
-      if (kpis.length >= 4) {
-        if (wasHidden || !state.firstCalculationRevealDone) {
-          if (!state.revealAnimationPlaying && !prefersReducedMotion()) {
-            state.revealAnimationPlaying = true;
-            state.firstCalculationRevealDone = true;
-
-            // Force clean initial state before launching GSAP staggered entrance
-            gsap.killTweensOf(kpis);
-            gsap.set(kpis, { opacity: 0, scale: 0.8, y: 30 });
-
-            gsap.to(kpis, {
-              opacity: 1,
-              scale: 1,
-              y: 0,
-              duration: 0.65,
-              stagger: 0.08,
-              ease: "back.out(1.5)",
-              clearProps: "all",
-              onComplete: () => {
-                state.revealAnimationPlaying = false;
-              }
-            });
-          } else if (prefersReducedMotion()) {
-            state.firstCalculationRevealDone = true;
-          }
-        }
-      }
-    }
-    // The strip mirrors the banner: re-evaluate whenever the banner is toggled.
-    updateStickySummaryVisibility();
-  }
+  // Sticky strip: re-evaluate now that the data / placeholder state may have flipped.
+  updateStickySummaryVisibility();
   if (isPlaceholder) {
-    // Kill running counters to prevent conflicts
-    gsap.killTweensOf(counterAnimations.get('netProfitEuro') || {});
+    // Kill the running headline counter to prevent conflicts
     gsap.killTweensOf(counterAnimations.get('chartCenterProfit') || {});
-    gsap.killTweensOf(counterAnimations.get('netInvestment') || {});
-    gsap.killTweensOf(counterAnimations.get('netProfitPercent') || {});
-    gsap.killTweensOf(counterAnimations.get('bannerShares') || {});
-    gsap.killTweensOf(counterAnimations.get('bannerSharesSub') || {});
 
     elements.valMonthlySalary.value = ''; // placeholder "eintippen" shows instead
-    elements.netProfitEuro.textContent = '–';
-    elements.netProfitEuro.style.color = '';
-    elements.netProfitPercent.textContent = '–';
-    elements.netProfitPercent.style.color = '';
-    elements.netInvestment.textContent = '–';
-    if (bannerShares) bannerShares.textContent = '–';
-    if (bannerSharesSub) bannerSharesSub.textContent = 'Warte auf Deine Daten…';
 
     state.stickyKpisCalculator = null;
     if (state.activeTab === 'calculator') applyStickyKpis('calculator');
@@ -2423,8 +2318,9 @@ function updateScenarioUI({ historical, histMonths, accumulatedMonths, sharePric
   strip.classList.toggle('historical', historical);
   const label = document.getElementById('scenarioLabel');
   const chipsEl = document.getElementById('scenarioChips');
-  const switchBtn = document.getElementById('scenarioSwitch');
 
+  // (The former "Echte Kurse? → Historisch-Modus" switch link was removed — the
+  // Prognose/Historisch segmented toggle in the panel header is the one switch.)
   if (historical) {
     if (label) label.innerHTML = '<i class="fa-solid fa-clock-rotate-left"></i> Historische Berechnung – echte IBM-Kurse:';
     if (chipsEl) {
@@ -2435,7 +2331,6 @@ function updateScenarioUI({ historical, histMonths, accumulatedMonths, sharePric
         : chip('fa-calendar-check', `dabei seit ${joinLabel}`, 'inputJoinDate') +
           chip('fa-hourglass-half', 'echte Kurse werden geladen…', null);
     }
-    if (switchBtn) switchBtn.innerHTML = 'Eigene Annahmen? <i class="fa-solid fa-arrow-right"></i> Prognose-Modus';
   } else {
     if (label) label.innerHTML = '<i class="fa-solid fa-flask"></i> Prognose-Szenario – angenommene Werte:';
     if (chipsEl) {
@@ -2444,7 +2339,6 @@ function updateScenarioUI({ historical, histMonths, accumulatedMonths, sharePric
         chip('fa-cart-shopping', `Kauf zu $${sharePriceUSD.toFixed(0)}`, 'inputStockPrice') +
         chip('fa-money-bill-trend-up', `Verkauf zu ${sellLabel}`, 'inputSellPrice');
     }
-    if (switchBtn) switchBtn.innerHTML = 'Echte Kurse? <i class="fa-solid fa-arrow-right"></i> Historisch-Modus';
   }
 
   // The headline KPI carries the same context in words.
@@ -6322,7 +6216,7 @@ function confettiBurst(wrap) {
 
   const cx = W / 2;
   const cy = H / 2;
-  const particles = Array.from({ length: 90 }, () => {
+  const particles = Array.from({ length: 60 }, () => {
     const angle = Math.random() * Math.PI * 2;
     const speed = 3.5 + Math.random() * 6.5;
     const kind = Math.random();
@@ -6342,13 +6236,15 @@ function confettiBurst(wrap) {
   });
 
   let frame = 0;
-  const maxFrames = 110;
+  // Short and punchy: a burst, not a rain — lingering specks over the KPI tiles
+  // and text below read as visual noise.
+  const maxFrames = 75;
   (function tick() {
     frame++;
     ctx.clearRect(0, 0, W, H);
-    // Fully opaque for the first 60% of the life, then ease out.
+    // Fully opaque for the first half of the life, then ease out.
     const t = frame / maxFrames;
-    const alpha = t < 0.6 ? 1 : Math.max(0, 1 - (t - 0.6) / 0.4);
+    const alpha = t < 0.5 ? 1 : Math.max(0, 1 - (t - 0.5) / 0.5);
     for (const p of particles) {
       p.x += p.vx;
       p.y += p.vy;
@@ -6382,6 +6278,10 @@ function confettiBurst(wrap) {
       canvas.remove();
     }
   })();
+  // Failsafe: rAF gets throttled while scrolling or in background tabs, which
+  // would leave frozen confetti specks over the KPI tiles — hard-remove after
+  // the burst's wall-clock lifetime regardless.
+  setTimeout(() => canvas.remove(), 2200);
 }
 
 // The condensed sticky strip is shared between the Rechner and Portfolio tabs —
@@ -6427,8 +6327,8 @@ function updateStickySummaryVisibility() {
   let anchor = null;
   let hasData = false;
   if (state.activeTab === 'calculator') {
-    const banner = document.querySelector('.calc-summary-banner');
-    anchor = (banner && banner.style.display !== 'none') ? banner : null;
+    // The donut hero is the headline figure — the strip takes over once it's gone.
+    anchor = document.querySelector('#tab-calculator .result-hero');
     hasData = !!state.salaryProvided;
   } else if (state.activeTab === 'portfolio') {
     anchor = document.querySelector('#tab-portfolio .portfolio-summary');

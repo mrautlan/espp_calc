@@ -1186,11 +1186,11 @@ input[type="range"]::-webkit-slider-thumb:hover {
 }
 
 /* ===== Rechner result hero: donut as the main actor, net profit centered ===== */
-.result-hero { text-align: center; margin: 6px 0 20px; }
+.result-hero { text-align: center; margin: 4px 0 16px; }
 
 .donut-wrap {
   position: relative;
-  width: 340px;
+  width: 320px;
   max-width: 100%;
   aspect-ratio: 1 / 1;
   margin: 0 auto;
@@ -2862,6 +2862,7 @@ footer {
   padding: 30px 32px;
 }
 
+
 #tab-calculator .form-group {
   margin-bottom: 22px;
 }
@@ -3684,52 +3685,7 @@ footer {
   margin: 2px 0;
 }
 
-/* ===== Rechner tab: results banner & stepped input panel ===== */
-/* Slim result strip: one row with the four headline numbers. The donut in the
-   output panel is the big statement — this stays out of the way. */
-.calc-summary-banner {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 10px 26px;
-  background: var(--panel-bg);
-  border: 1px solid var(--panel-border);
-  border-radius: 14px;
-  padding: 13px 22px;
-  margin-bottom: 26px;
-}
-.csb-item {
-  display: inline-flex;
-  align-items: baseline;
-  gap: 9px;
-  white-space: nowrap;
-}
-.csb-item > i {
-  color: var(--accent);
-  font-size: 0.85rem;
-  align-self: center;
-}
-.csb-label {
-  font-size: 0.7rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-.csb-item strong {
-  font-family: var(--font-header);
-  font-size: 1.05rem;
-  font-weight: 800;
-  letter-spacing: -0.01em;
-  color: var(--text-strong);
-}
-.csb-item.primary strong { font-size: 1.25rem; }
-.csb-sep {
-  width: 1px;
-  height: 22px;
-  background: var(--panel-border);
-}
-
+/* ===== Rechner tab: stepped input panel ===== */
 .calc-step-num {
   width: 26px;
   height: 26px;
@@ -3745,30 +3701,57 @@ footer {
   justify-content: center;
 }
 
-.upload-divider {
+/* Slim variant of the upload zone (Rechner step 1): one quiet row — the manual
+   sliders above are the primary path, so the optional PDF path must not dominate. */
+.upload-zone-slim {
   display: flex;
   align-items: center;
-  gap: 12px;
-  margin: 20px 0 14px;
-  color: var(--text-muted);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.09em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-.upload-divider::before,
-.upload-divider::after {
-  content: '';
-  height: 1px;
-  flex: 1;
-  background: var(--panel-border);
+  gap: 10px;
+  padding: 10px 14px;
+  margin-top: 16px;
+  text-align: left;
 }
 
-@media (max-width: 640px) {
-  .calc-summary-banner { gap: 8px 18px; margin-bottom: 22px; padding: 12px 16px; }
-  .csb-sep { display: none; } /* wrapped rows make the dividers meaningless */
+.upload-slim-icon {
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  flex-shrink: 0;
+  transition: color var(--transition-fast);
 }
+
+.upload-zone-slim:hover .upload-slim-icon,
+.upload-zone-slim.dragover .upload-slim-icon { color: var(--accent); }
+
+.upload-slim-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+}
+
+.upload-slim-text strong { color: var(--text-main); font-weight: 600; }
+
+/* Rare destructive action: quiet text link at the input panel's end */
+.panel-footer-actions {
+  margin-top: 14px;
+  text-align: center;
+}
+
+.calc-reset-link {
+  background: none;
+  border: none;
+  margin: 0 auto;
+  padding: 4px 8px;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color var(--transition-fast);
+}
+
+.calc-reset-link:hover { color: var(--danger); }
+.calc-reset-link i { margin-right: 5px; font-size: 0.72rem; }
 
 /* ===== Rechner: collapsible input steps with live value summaries ===== */
 .collapsible-step .input-group-header {
@@ -4712,55 +4695,32 @@ input[type="range"] {
   gap: 6px;
 }
 
+/* Chips are assumption LABELS first (they also jump to their input in step 3):
+   neutral at rest so they don't compete with the donut; affordance on hover only. */
 .scenario-chip {
   display: inline-flex;
   align-items: center;
   gap: 5px;
   padding: 3px 10px;
   border-radius: 999px;
-  background: rgba(59, 130, 246, 0.12);
-  border: 1px solid rgba(59, 130, 246, 0.25);
+  background: var(--surface-soft);
+  border: 1px solid var(--panel-border);
   color: var(--text-main);
   font-family: var(--font-body);
   font-size: 0.75rem;
   cursor: pointer;
-  transition: background var(--transition-fast), border-color var(--transition-fast);
+  transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
 }
 
 .scenario-chip i { font-size: 0.7rem; color: var(--text-muted); }
 
 .scenario-chip:not(:disabled):hover {
-  background: rgba(59, 130, 246, 0.24);
-  border-color: rgba(59, 130, 246, 0.5);
+  background: var(--surface-soft-hover);
+  border-color: var(--accent);
+  color: var(--text-strong);
 }
 
 .scenario-chip:disabled { cursor: default; opacity: 0.75; }
-
-.scenario-strip.historical .scenario-chip {
-  background: rgba(34, 197, 94, 0.1);
-  border-color: rgba(34, 197, 94, 0.25);
-}
-
-.scenario-strip.historical .scenario-chip:not(:disabled):hover {
-  background: rgba(34, 197, 94, 0.2);
-  border-color: rgba(34, 197, 94, 0.5);
-}
-
-.scenario-switch {
-  margin-left: auto;
-  padding: 0;
-  border: none;
-  background: none;
-  color: var(--accent);
-  font-family: var(--font-body);
-  font-size: 0.75rem;
-  font-weight: 600;
-  white-space: nowrap;
-  cursor: pointer;
-}
-
-.scenario-switch:hover { text-decoration: underline; }
-.scenario-switch i { font-size: 0.65rem; }
 
 /* Mode tag in the condensed sticky KPI strip */
 .css-mode-tag {
@@ -4791,16 +4751,11 @@ input[type="range"] {
 /* Light theme */
 :root[data-theme="light"] .calc-mode-toggle .mode-btn.active[data-mode="forecast"] { background: rgba(37, 99, 235, 0.12); color: #1d4ed8; }
 :root[data-theme="light"] .calc-mode-toggle .mode-btn.active[data-mode="historical"] { background: rgba(21, 128, 61, 0.12); color: #15803d; }
-:root[data-theme="light"] .scenario-chip { background: rgba(37, 99, 235, 0.07); border-color: rgba(37, 99, 235, 0.25); }
-:root[data-theme="light"] .scenario-chip:not(:disabled):hover { background: rgba(37, 99, 235, 0.14); border-color: rgba(37, 99, 235, 0.45); }
-:root[data-theme="light"] .scenario-strip.historical .scenario-chip { background: rgba(21, 128, 61, 0.07); border-color: rgba(21, 128, 61, 0.25); }
-:root[data-theme="light"] .scenario-strip.historical .scenario-chip:not(:disabled):hover { background: rgba(21, 128, 61, 0.14); border-color: rgba(21, 128, 61, 0.45); }
 :root[data-theme="light"] .css-mode-tag { background: rgba(37, 99, 235, 0.1); color: #1d4ed8; border-color: rgba(37, 99, 235, 0.3); }
 :root[data-theme="light"] .css-mode-tag.historical { background: rgba(21, 128, 61, 0.1); color: #15803d; border-color: rgba(21, 128, 61, 0.3); }
 
 /* Mobile: the mode-switch link drops below the chips */
 @media (max-width: 768px) {
-  .scenario-switch { margin-left: 0; }
 }
 
 /* ============================================================
@@ -4937,9 +4892,18 @@ input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
   padding: 4px 0;
 }
 
-/* ---- Design switch (new 1c ⇄ classic): small ghost button, centered BELOW
-   the calculator content (sits on the page background in both designs) ---- */
-.calc-design-switch { display: flex; justify-content: center; padding: 22px 0 4px; }
+/* ---- Design switch (new 1c ⇄ classic): small ghost button overlaid in the
+   section's top-right corner — next to the classic hero headline, or on the
+   1c board's (empty) corner. No dedicated row, so no wasted vertical space. ---- */
+#tab-calculator { position: relative; }
+.calc-design-switch {
+  position: absolute;
+  top: 6px;
+  right: 0;
+  z-index: 5;
+}
+/* The 1c design is a full-width dark board — tuck the button inside its corner. */
+#tab-calculator:not(.is-classic) .calc-design-switch { top: 12px; right: 14px; }
 .calc-design-switch button {
   display: inline-flex;
   align-items: center;
@@ -4954,6 +4918,21 @@ input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
   transition: color .15s ease, border-color .15s ease;
 }
 .calc-design-switch button:hover { color: var(--text-main); }
+/* The 1c board keeps a fixed dark background even in light mode — fixed colors there. */
+#tab-calculator:not(.is-classic) .calc-design-switch button { color: #8b949e; border-color: rgba(255,255,255,.15); }
+#tab-calculator:not(.is-classic) .calc-design-switch button:hover { color: #e6edf3; border-color: rgba(255,255,255,.3); }
+
+/* Narrow screens: the classic headline wraps across the full width — give the
+   button its own small right-aligned row instead of overlapping the text. */
+@media (max-width: 640px) {
+  .calc-design-switch,
+  #tab-calculator:not(.is-classic) .calc-design-switch {
+    position: static;
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 0 10px;
+  }
+}
 .calc1c input[type=range] { accent-color: #4ade80; width: 100%; }
 .calc1c select { appearance: auto; }
 

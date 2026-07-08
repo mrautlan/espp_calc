@@ -203,6 +203,15 @@
 
     <!-- CALCULATOR TAB -->
     <section id="tab-calculator" class="tab-content active" role="tabpanel" aria-labelledby="navtab-calculator">
+      <!-- Design switch: toggles between the new "1c" sentence layout and the
+           classic chart-first layout (choice persisted, applied via reload).
+           Overlaid in the section's top-right corner (absolute, no own row) —
+           outside #calc1c so it survives the classic stamping. -->
+      <div class="calc-design-switch">
+        <button type="button" id="btnDesignSwitch" title="Zwischen neuem und klassischem Rechner-Design wechseln">
+          <i class="fa-solid fa-repeat"></i> <span id="designSwitchLabel">Klassisches Design</span>
+        </button>
+      </div>
       <div class="calc1c" id="calc1c">
 
         <!-- Mode state holder (hidden): drives all existing calcMode logic -->
@@ -456,51 +465,17 @@
         <div class="c1c-foot">Simulation · keine Steuer- oder Anlageberatung · alle Daten bleiben in Deinem Browser</div>
       </div>
 
-      <!-- Design switch: toggles between the new "1c" sentence layout and the
-           classic chart-first layout (choice persisted, applied via reload).
-           Sits BELOW the calculator (outside #calc1c, so it survives the classic
-           stamping) — a dedicated row at the top wasted too much space. -->
-      <div class="calc-design-switch">
-        <button type="button" id="btnDesignSwitch" title="Zwischen neuem und klassischem Rechner-Design wechseln">
-          <i class="fa-solid fa-repeat"></i> <span id="designSwitchLabel">Klassisches Design</span>
-        </button>
-      </div>
-
       <!-- ===== Classic Rechner design (pre-1c, chart-first). Inert inside the
            template (no duplicate ids) until the stamping script below swaps it in. ===== -->
       <template id="tplCalcClassic">
       <div class="hero-section">
         <h2>Lohnt sich das ESPP für Dich?</h2>
-        <p>Dein Netto-Gewinn aus dem IBM-Aktienprogramm – nach deutschen Steuern, Freibetrag und Gebühren,
-        live berechnet. Auf Wunsch mit echten historischen Kursen seit Deinem Beitritt.</p>
+        <p>Dein Netto-Gewinn nach deutschen Steuern und Gebühren – live berechnet.</p>
       </div>
 
-      <!-- Ergebnis auf einen Blick: ONE slim strip instead of four padded cards —
-           the donut below is the big statement, this is just the numbers row.
-           (The per-value explanations live in the Aufschlüsselung.) -->
-      <div class="calc-summary-banner" style="display: none;">
-        <span class="csb-item primary">
-          <i class="fa-solid fa-sack-dollar"></i>
-          <span class="csb-label">Netto-Gewinn</span>
-          <strong id="netProfitEuro">0,00 €</strong>
-        </span>
-        <span class="csb-sep" aria-hidden="true"></span>
-        <span class="csb-item">
-          <span class="csb-label">Rendite aufs Netto</span>
-          <strong id="netProfitPercent" style="color: var(--success);">+0,0%</strong>
-        </span>
-        <span class="csb-sep" aria-hidden="true"></span>
-        <span class="csb-item">
-          <span class="csb-label">Einsatz (netto)</span>
-          <strong id="netInvestment">0,00 €</strong>
-        </span>
-        <span class="csb-sep" aria-hidden="true"></span>
-        <span class="csb-item">
-          <span class="csb-label">Aktien</span>
-          <strong id="bannerShares">0,00 Stk.</strong>
-        </span>
-      </div>
-
+      <!-- The former static KPI banner was removed: the donut center is the single
+           headline figure; the sticky strip (#calcStickySummary) takes over once
+           the donut scrolls out of view. -->
       <div class="grid-2col">
         <!-- Input Panel -->
         <div class="glass-card panel-inputs">
@@ -540,24 +515,15 @@
                 </div>
               </div>
 
-              <div class="upload-divider"><span>oder automatisch ausfüllen</span></div>
-
-              <!-- PDF Auto-Fill Zone (optional) -->
-              <div class="upload-zone" id="uploadZone">
-                <div class="upload-icon"><i class="fa-solid fa-file-invoice-dollar"></i></div>
-                <div class="upload-text">
-                  <strong>Gehaltsabrechnung (PDF) hochladen – optional</strong>
-                  <span>Füllt Gehalt &amp; Steuersatz automatisch aus. PDF hier ablegen oder klicken.</span>
-                </div>
+              <!-- PDF Auto-Fill (optional): deliberately one slim row — the sliders
+                   above are the primary path. Privacy detail lives in the tooltip. -->
+              <div class="upload-zone upload-zone-slim" id="uploadZone">
+                <i class="fa-solid fa-file-invoice-dollar upload-slim-icon"></i>
+                <span class="upload-slim-text"><strong>Oder Gehaltsabrechnung (PDF) hochladen</strong> – füllt alles automatisch aus</span>
+                <span class="tooltip-trigger" data-tooltip="Dein PDF wird zu 100 % lokal in Deinem Browser gelesen – kein Upload, nichts wird gespeichert, funktioniert sogar offline. Füllt Gehalt & Steuersatz automatisch aus. Hier klicken oder das PDF ablegen.">i</span>
                 <input type="file" id="pdfFileInput" accept=".pdf" style="display: none;">
               </div>
-              <div class="upload-privacy-note">
-                <span class="privacy-line"><i class="fa-solid fa-shield-halved text-success"></i><span><strong>100 % lokal im Browser</strong> – kein Upload, funktioniert sogar offline <span class="tooltip-trigger" data-tooltip="Dein PDF wird ausschließlich in Deinem Browser gelesen – es findet kein Upload auf einen Server statt und nichts wird gespeichert. Probier's aus: Selbst im Flugmodus funktioniert das Auslesen.">i</span></span></span>
-              </div>
               <div id="uploadStatus" class="upload-status-message hidden-status"></div>
-              <button id="btnClearCalculator" class="btn btn-outline btn-sm" style="width: 100%; margin-top: 10px; display: none;">
-                <i class="fa-solid fa-trash-can"></i> Rechner-Daten zurücksetzen
-              </button>
             </div>
           </div>
 
@@ -680,8 +646,16 @@
               </div>
             </div>
           </div>
+
+          <!-- Rare, destructive action: a quiet text link at the panel's end, not a
+               button in step 1. JS shows it once saved state exists. -->
+          <div class="panel-footer-actions">
+            <button id="btnClearCalculator" class="calc-reset-link" type="button" style="display: none;">
+              <i class="fa-solid fa-trash-can"></i> Rechner-Daten zurücksetzen
+            </button>
+          </div>
         </div>
-        
+
         <!-- Output Panel -->
         <div class="glass-card panel-outputs">
           <div class="panel-header">
@@ -718,7 +692,6 @@
           <div class="scenario-strip" id="scenarioStrip">
             <span class="scenario-label" id="scenarioLabel"><i class="fa-solid fa-flask"></i> Prognose-Szenario</span>
             <span class="scenario-chips" id="scenarioChips"></span>
-            <button type="button" class="scenario-switch" id="scenarioSwitch"></button>
           </div>
 
           <!-- HERO: the donut is the focal point, with the net profit centered inside it -->

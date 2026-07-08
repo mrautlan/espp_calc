@@ -3830,6 +3830,77 @@ footer {
   .calc-step-summary { max-width: 40%; }
 }
 
+/* ===== Nachzahlungs-Schätzer (ESPP-Korrektur Juli 2026, classic design) ===== */
+.taxback-card .sale-process-body {
+  padding: 4px 22px 22px;
+}
+
+.taxback-intro {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+  margin: 10px 0 18px;
+}
+
+.taxback-inputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 18px;
+}
+
+.taxback-inputs .form-group { margin-bottom: 0; }
+
+.taxback-profile {
+  margin-top: 14px;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.taxback-profile i { color: var(--accent); margin-right: 4px; }
+.taxback-profile strong { color: var(--text-main); }
+
+.taxback-results {
+  margin-top: 16px;
+  padding-top: 6px;
+  border-top: 1px solid var(--panel-border);
+}
+
+.taxback-yeartable { margin-top: 4px; }
+
+.taxback-year .detail-label,
+.taxback-year .detail-val {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.taxback-year-expired .detail-label,
+.taxback-year-expired .detail-val {
+  opacity: 0.65;
+}
+
+.taxback-expired-tag {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 1px 8px;
+  margin-left: 6px;
+  vertical-align: 1px;
+  white-space: nowrap;
+}
+
+.taxback-empty {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.taxback-note { margin-top: 18px; }
+
 /* ===== Rechner: empty state until real data is provided ===== */
 .calc-empty-state {
   display: flex;
@@ -5077,20 +5148,73 @@ input.slider-val::placeholder { color: var(--text-muted); font-weight: 500; }
 /* ---- Footer ---- */
 .c1c-foot { text-align: center; margin-top: 26px; font: 400 11.5px 'Inter', sans-serif; color: #4b5563; }
 
-/* ---- Wissen sub-navigation (merged Anleitung + Steuern) ---- */
-.wissen-subnav { display: flex; gap: 8px; justify-content: center; margin: 4px 0 22px; flex-wrap: wrap; }
-.wissen-subtab {
-  font: 500 13px 'Inter', sans-serif;
-  color: var(--text-muted, #8b949e);
-  background: none;
-  border: 1px solid var(--border, rgba(255,255,255,.1));
-  border-radius: 8px;
-  padding: 8px 18px;
-  cursor: pointer;
-  transition: background .15s ease, color .15s ease;
+/* ---- Wissen sub-navigation (merged Anleitung + Steuern) ----
+   Deliberately mirrors the HEADER nav (same container, Outfit font, blue
+   active pill + gradient underline) so it reads as a second level of the
+   familiar tab system — not as two generic buttons or another banner line.
+   Only the classes differ: app.js binds tab-switching to `.nav-tab`, so
+   these must NOT share that class. */
+.wissen-subnav {
+  display: flex;
+  width: fit-content;
+  margin: 2px auto 28px;
+  gap: 8px;
+  padding: 4px;
+  background: var(--surface-soft);
+  border: 1px solid var(--surface-soft-hover);
+  border-radius: 12px;
 }
-.wissen-subtab:hover { color: var(--text-strong, #e6edf3); }
-.wissen-subtab.active { background: var(--accent, #4ade80); color: #0d1117; border-color: transparent; font-weight: 600; }
+.wissen-subtab {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  padding: 8px 20px;
+  border-radius: 8px;
+  font-family: var(--font-header);
+  font-weight: 500;
+  font-size: 0.9rem;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.3s ease, background-color 0.3s ease;
+}
+.wissen-subtab::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #00f2fe, #0072ff);
+  transition: width 0.3s ease, left 0.3s ease;
+}
+.wissen-subtab:hover {
+  color: var(--text-strong);
+  background: var(--surface-soft-hover);
+}
+.wissen-subtab.active {
+  color: var(--text-strong);
+  background: rgba(59, 130, 246, 0.2);
+  border-color: rgba(59, 130, 246, 0.3);
+  box-shadow: 0 0 15px var(--primary-glow);
+  cursor: default;
+}
+.wissen-subtab.active::after {
+  width: 100%;
+  left: 0;
+}
+:root[data-theme="light"] .wissen-subtab.active {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.35);
+}
+
+@media (max-width: 420px) {
+  .wissen-subtab { padding: 7px 14px; font-size: 0.82rem; }
+}
 
 /* ---- Responsive ---- */
 @media (max-width: 880px) {

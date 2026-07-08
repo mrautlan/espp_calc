@@ -1052,10 +1052,16 @@ function getJoinDateValue() {
   return (elements.inputJoinDate && elements.inputJoinDate.dataset.value) || '2022-01';
 }
 
+// Writes a YYYY-MM value into any month-picker field: machine value in
+// data-value, human "Monat Jahr" text in the visible input.
+function setMonthInputValue(input, val) {
+  if (!input || !/^\d{4}-\d{2}$/.test(val)) return;
+  input.dataset.value = val;
+  input.value = `${MONTH_NAMES_DE[parseInt(val.slice(5, 7), 10) - 1]} ${val.slice(0, 4)}`;
+}
+
 function setJoinDateValue(val) {
-  if (!elements.inputJoinDate || !/^\d{4}-\d{2}$/.test(val)) return;
-  elements.inputJoinDate.dataset.value = val;
-  elements.inputJoinDate.value = `${MONTH_NAMES_DE[parseInt(val.slice(5, 7), 10) - 1]} ${val.slice(0, 4)}`;
+  setMonthInputValue(elements.inputJoinDate, val);
 }
 
 // Custom month picker (the native popup is unstylable and iOS shows its own wheel).
@@ -1074,7 +1080,9 @@ function initMonthPicker(input) {
 
   const limits = () => {
     const min = input.dataset.min || '1990-01';
-    const max = new Date().toISOString().slice(0, 7); // purchases can't start in the future
+    // Optional data-max (e.g. the Nachzahlungs-Schätzer ends at Juni 2026);
+    // default: current month — purchases can't start in the future.
+    const max = input.dataset.max || new Date().toISOString().slice(0, 7);
     return {
       minY: parseInt(min.slice(0, 4)), minM: parseInt(min.slice(5, 7)),
       maxY: parseInt(max.slice(0, 4)), maxM: parseInt(max.slice(5, 7))
@@ -1130,7 +1138,7 @@ function initMonthPicker(input) {
     if (nav && !nav.disabled) { viewYear += parseInt(nav.dataset.nav); render(); return; }
     const mBtn = e.target.closest('.month-pop-month');
     if (mBtn && !mBtn.disabled) {
-      setJoinDateValue(`${viewYear}-${String(mBtn.dataset.m).padStart(2, '0')}`);
+      setMonthInputValue(input, `${viewYear}-${String(mBtn.dataset.m).padStart(2, '0')}`);
       close();
       input.dispatchEvent(new Event('change', { bubbles: true }));
     }
@@ -1434,7 +1442,131 @@ function initCalculator() {
 
 // Wiring for the classic (pre-1c) Rechner design. Runs only when the classic
 // markup is stamped, so element access here may assume the classic ids exist.
+// ===== Nachzahlungs-Schätzer (classic design only): geschätzte Lohnsteuer auf den
+// bisher unversteuerten ESPP-Umwandlungsbetrag (IBM-Mitteilung Juli 2026).
+// Elements exist only in the stamped classic markup; both functions no-op in 1c. =====
+const TAXBACK_LS_KEY = 'espp_taxback_v1';
+// Ab 01.07.2026 behält IBM die Lohnsteuer ein — nacherhoben werden könnten nur Monate davor.
+const TAXBACK_END_YEAR = 2026;
+const TAXBACK_END_MONTH = 6; // Juni 2026 = letzter unversteuerter Monat
+// „Letzte 4 Steuerjahre" (Festsetzungsverjährung § 169 AO, stark vereinfacht)
+const TAXBACK_LIMIT_YEAR = TAXBACK_END_YEAR - 4;
+
+let taxbackContribDirty = false; // user typed their own Beitrag → stop mirroring the Rechner
+
+function initTaxbackEstimator() {
+  const since = document.getElementById('taxbackSince');
+  const contrib = document.getElementById('taxbackContribution');
+  if (!since || !contrib) return;
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(TAXBACK_LS_KEY) || 'null');
+    if (saved) {
+      if (saved.since && /^\d{4}-\d{2}$/.test(saved.since)) since.dataset.value = saved.since;
+      if (saved.dirty && typeof saved.contribution === 'number') {
+        contrib.value = saved.contribution;
+        taxbackContribDirty = true;
+      }
+    }
+  } catch (e) { /* corrupt entry */ }
+
+  // Same custom month popover as "Dabei seit" in the historical mode (the native
+  // month input is unstylable); renders the restored/default value as "Monat Jahr".
+  setMonthInputValue(since, since.dataset.value || '2022-01');
+  initMonthPicker(since);
+
+  const save = () => {
+    try {
+      localStorage.setItem(TAXBACK_LS_KEY, JSON.stringify({
+        since: since.dataset.value,
+        contribution: parseFloat(contrib.value) || 0,
+        dirty: taxbackContribDirty
+      }));
+    } catch (e) { /* private mode */ }
+  };
+  since.addEventListener('change', () => { save(); updateTaxbackEstimator(); });
+  contrib.addEventListener('input', () => { taxbackContribDirty = true; save(); updateTaxbackEstimator(); });
+
+  updateTaxbackEstimator();
+}
+
+function updateTaxbackEstimator() {
+  const since = document.getElementById('taxbackSince');
+  const contribEl = document.getElementById('taxbackContribution');
+  if (!since || !contribEl) return; // 1c design — card not present
+
+  // Beitrag aus dem Rechner spiegeln, solange der Nutzer ihn nicht überschrieben hat
+  const monthlySalary = parseFloat(elements.inputMonthlySalary?.value) || 5000;
+  const savingsRate = parseFloat(elements.inputSavingsRate?.value) || 10;
+  if (!taxbackContribDirty) contribEl.value = Math.round(monthlySalary * savingsRate / 100);
+  const monthlyContribution = parseFloat(contribEl.value) || 0;
+
+  // Gleiche Konvention wie calculateESPP für den geldwerten Vorteil
+  const baseTaxRate = (parseFloat(elements.inputTaxRate?.value) || 35) / 100;
+  const churchRate = (parseFloat(elements.selectChurchTax?.value) || 0) / 100;
+  const soliRate = (parseFloat(elements.selectSoli?.value) || 0) / 100;
+  const effRate = baseTaxRate * (1 + churchRate + soliRate);
+
+  // Teilnahme-Monate je Kalenderjahr, vom Startmonat bis Juni 2026
+  const m = /^(\d{4})-(\d{2})$/.exec(since.dataset.value || '');
+  const startY = m ? parseInt(m[1], 10) : 2022;
+  const startM = m ? parseInt(m[2], 10) : 1;
+  const perYear = [];
+  for (let y = startY; y <= TAXBACK_END_YEAR; y++) {
+    const from = (y === startY) ? startM : 1;
+    const to = (y === TAXBACK_END_YEAR) ? TAXBACK_END_MONTH : 12;
+    const months = to - from + 1;
+    if (months > 0) perYear.push({ year: y, months });
+  }
+
+  const eur = (v) => `${Math.round(v).toLocaleString('de-DE')} €`;
+  const pct = (v) => (v * 100).toLocaleString('de-DE', { maximumFractionDigits: 2 });
+
+  let totalContrib = 0, totalTax = 0, limitTax = 0;
+  perYear.forEach(row => {
+    row.contrib = row.months * monthlyContribution;
+    row.tax = row.contrib * effRate;
+    totalContrib += row.contrib;
+    totalTax += row.tax;
+    if (row.year >= TAXBACK_LIMIT_YEAR) limitTax += row.tax;
+  });
+
+  const profileEl = document.getElementById('taxbackProfile');
+  if (profileEl) {
+    profileEl.innerHTML = `<i class="fa-solid fa-sliders"></i> Aus Schritt 2 übernommen: `
+      + `Grenzsteuersatz <strong>${pct(baseTaxRate)} %</strong>`
+      + ` · Kirchensteuer <strong>${pct(churchRate)} %</strong>`
+      + ` · Soli <strong>${pct(soliRate)} %</strong>`
+      + ` → effektiv <strong>${pct(effRate)} %</strong> auf den Umwandlungsbetrag`;
+  }
+
+  const setText = (id, txt) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = txt;
+  };
+  setText('taxbackTotalContrib', eur(totalContrib));
+  setText('taxbackAllYears', totalTax > 0 ? `−${eur(totalTax)}` : eur(0));
+  setText('taxback4Years', limitTax > 0 ? `−${eur(limitTax)}` : eur(0));
+
+  const tableEl = document.getElementById('taxbackYearTable');
+  if (tableEl) {
+    if (!perYear.length || monthlyContribution <= 0) {
+      tableEl.innerHTML = `<p class="taxback-empty">${!perYear.length
+        ? 'Deine Teilnahme begann erst nach der Korrektur (Juli 2026) – es gab keine unversteuerten Beiträge.'
+        : 'Kein monatlicher Beitrag gesetzt – Gehalt &amp; Sparquote in Schritt 1 einstellen oder oben eintragen.'}</p>`;
+    } else {
+      tableEl.innerHTML = perYear.map(row =>
+        `<div class="detail-row taxback-year${row.year < TAXBACK_LIMIT_YEAR ? ' taxback-year-expired' : ''}">
+          <span class="detail-label">${row.year} · ${row.months} Monat${row.months === 1 ? '' : 'e'} · ${eur(row.contrib)} umgewandelt${row.year < TAXBACK_LIMIT_YEAR ? ' <span class="taxback-expired-tag">i.&nbsp;d.&nbsp;R. verjährt</span>' : ''}</span>
+          <span class="detail-val">−${eur(row.tax)}</span>
+        </div>`).join('');
+    }
+  }
+}
+
 function initCalculatorClassicUI() {
+  initTaxbackEstimator();
+
   // "Zur Eingabe in Schritt 1" shortcuts (results empty state + the data notice): scroll
   // to step 1 and briefly highlight the upload zone instead of duplicating inputs elsewhere.
   const gotoStep1 = () => {
@@ -1793,6 +1925,8 @@ function calculateESPP() {
       abgeltungRate, capGainsTaxRate, capitalGainsTaxPaid, brokerFeesEUR,
       netCashReceived, totalEmployeeCost, netProfitEUR, netReturnOnNetCapital
     });
+    // Nachzahlungs-Schätzer mitschleifen (liest Gehalt/Sparquote/Steuerprofil live)
+    updateTaxbackEstimator();
   }
 
   // ===== Render the guided "1c" UI from the freshly computed economics =====

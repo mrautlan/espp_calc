@@ -907,6 +907,61 @@
           </div><!-- /calcResultsContent -->
         </div>
       </div>
+
+      <!-- Nachzahlungs-Schätzer: geschätzte Lohnsteuer auf den bisher unversteuerten
+           ESPP-Umwandlungsbetrag (IBM-Mitteilung Juli 2026, siehe Banner). Classic
+           design only for now. Wired in initTaxbackEstimator / updateTaxbackEstimator;
+           the GSAP collapse comes for free via initSaleProcessCollapsible. -->
+      <details class="sale-process-collapsible taxback-card" id="taxbackCard" style="margin-top: 24px;">
+        <summary class="sale-process-summary">
+          <i class="fa-solid fa-file-invoice-dollar"></i> Mögliche Steuer-Nachzahlung schätzen
+          <span class="summary-hint">ESPP-Korrektur · Juli 2026</span>
+          <i class="fa-solid fa-chevron-down chevron"></i>
+        </summary>
+        <div class="sale-process-body">
+          <p class="taxback-intro">Laut IBM-Mitteilung wurde Dein ESPP-Beitrag bisher <strong>nicht lohnversteuert</strong> (Details im Banner ganz oben). Wie mit den Vorjahren umgegangen wird, ist <strong>noch offen</strong> – dieser Schätzer zeigt, was <em>maximal</em> im Raum steht, falls die Lohnsteuer für Deine gesamte Teilnahme nacherhoben würde. Grenzsteuersatz, Kirchensteuer und Soli werden aus Deinem Steuerprofil (Schritt&nbsp;2) übernommen.</p>
+
+          <div class="taxback-inputs">
+            <div class="form-group">
+              <label for="taxbackSince"><i class="fa-solid fa-calendar-check"></i> Teilnahme am ESPP seit</label>
+              <div class="month-field">
+                <i class="fa-solid fa-calendar-days month-field-icon"></i>
+                <input type="text" id="taxbackSince" data-value="2022-01" data-min="2000-01" data-max="2026-06" readonly inputmode="none" aria-haspopup="dialog">
+                <i class="fa-solid fa-chevron-down month-field-chevron"></i>
+              </div>
+              <span class="input-helper">Erster Monat, in dem Gehalt für den Aktienkauf umgewandelt wurde.</span>
+            </div>
+            <div class="form-group">
+              <label for="taxbackContribution"><i class="fa-solid fa-piggy-bank"></i> Ø monatlicher ESPP-Beitrag (brutto)</label>
+              <input type="number" id="taxbackContribution" min="0" step="10" inputmode="numeric">
+              <span class="input-helper" id="taxbackContribHint">Vorbefüllt aus Gehalt × Sparquote – anpassen, falls Dein Beitrag früher anders war.</span>
+            </div>
+          </div>
+          <div class="taxback-profile" id="taxbackProfile"></div>
+
+          <div class="taxback-results">
+            <div class="detail-row">
+              <span class="detail-label">Bisher unversteuerter Umwandlungsbetrag <span class="tooltip-trigger" data-tooltip="Summe Deiner ESPP-Beiträge vom Teilnahme-Beginn bis 30.06.2026 – der Teil Deines Gehalts, der bisher nicht dem Lohnsteuerabzug unterlag.">i</span></span>
+              <span class="detail-val" id="taxbackTotalContrib">0&nbsp;€</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label"><strong>Geschätzte Nachzahlung – alle Teilnahme-Jahre</strong> <span class="tooltip-trigger" data-tooltip="Umwandlungsbetrag × Grenzsteuersatz × (1 + Soli + Kirchensteuer) – dieselbe Formel, mit der der Rechner den geldwerten Vorteil versteuert. Obergrenze für den Fall, dass sämtliche Jahre nacherhoben würden.">i</span></span>
+              <span class="detail-val value-negative" id="taxbackAllYears" style="font-weight: 700;">0&nbsp;€</span>
+            </div>
+            <div class="detail-row">
+              <span class="detail-label">Geschätzte Nachzahlung – nur die letzten 4 Steuerjahre <span class="tooltip-trigger" data-tooltip="Steuerbescheide können in der Regel nur rund 4 Jahre rückwirkend geändert werden (Festsetzungsverjährung, § 169 AO – stark vereinfacht). Der realistische Korridor liegt damit meist zwischen diesem Wert und der Obergrenze darüber.">i</span></span>
+              <span class="detail-val value-negative" id="taxback4Years">0&nbsp;€</span>
+            </div>
+          </div>
+
+          <div class="taxback-yeartable" id="taxbackYearTable"></div>
+
+          <div class="alert alert-warning taxback-note">
+            <i class="fa-solid fa-scale-balanced"></i>
+            <div><strong>Grobe Schätzung, keine Steuerberatung:</strong> Ob und wie für frühere Jahre nacherhoben wird, klärt IBM derzeit mit den Steuerbehörden – möglich sind auch mildere Lösungen. Gerechnet wird mit Deinem heutigen Grenzsteuersatz und einem konstanten Beitrag; frühere Gehälter, Steuertarife und eventuelle Zinsen (§ 233a AO) weichen davon ab.</div>
+          </div>
+        </div>
+      </details>
       </template>
       <script>
         // Runs during parse, before the deferred app.js module evaluates its
